@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "vendor": "node scripts/vendor.mjs"
   },
   "repository": {
     "type": "git",
@@ -20,6 +21,7 @@
   },
   "homepage": "https://github.com/Valhalla1169/eclipse-site#readme",
   "devDependencies": {
+    "@supabase/supabase-js": "2.116.0",
     "supabase": "2.117.0",
     "wrangler": "^4.135.0"
   }
