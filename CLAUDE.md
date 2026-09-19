@@ -1,6 +1,6 @@
 # CLAUDE.md — eclipse-site
 
-This repo is the `eclipse.deyderae.dev` subdomain. Before making changes, read **`DESIGN.md`** in the sibling `deyderae-site` repo — it's the design document for the whole `deyderae.dev` domain (architecture, security, and workflow standards apply here too, even though the canonical copy lives in that repo).
+This repo is the `eclipse.deyderae.dev` subdomain. Before making changes, read **`DESIGN.md`** from the `deyderae-site` repo — it's the design document for the whole `deyderae.dev` domain (architecture, security, and workflow standards apply here too, even though the canonical copy lives in that repo). On the author's machine it's at `../deyderae-site/deyderae-site/DESIGN.md` (relative to this repo's root; note the extra wrapper folder). If it isn't there, don't guess at its contents or proceed from memory: stop and ask the user to provide it.
 
 ## What this repo is
 Currently a static "coming soon" placeholder for Eclipse — character-sheet hosting for tabletop games (build, track, share characters). Deployed to Cloudflare Workers (static assets) via Wrangler, same as `deyderae-site`, but as its own independent Worker/repo (see DESIGN.md §3.1 — subdomains don't share a deploy or a runtime).
