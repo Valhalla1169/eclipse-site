@@ -1,4 +1,4 @@
--- Self-asserting RLS tests for 0002 (harden characters writes + invite codes).
+-- Self-asserting RLS tests for 0002 (harden characters writes) and join normalisation.
 --
 -- Unlike rls_policies.test.sql (which prints results for a human to compare),
 -- every check here RAISES on failure, so `psql -v ON_ERROR_STOP=1 -f` exits
@@ -78,9 +78,13 @@ insert into auth.users (id, email) values
 insert into public.profiles (id, display_name) values
   ('a0000000-0000-0000-0000-0000000000a2', 'P1'),
   ('a0000000-0000-0000-0000-0000000000a3', 'P2');
-insert into public.campaigns (id, dm_id, name, invite_code) values
-  ('b0000000-0000-0000-0000-0000000000c1', 'a0000000-0000-0000-0000-0000000000a1', 'C1', 'HARDEN1'),
-  ('b0000000-0000-0000-0000-0000000000c2', 'a0000000-0000-0000-0000-0000000000a5', 'C2', 'OTHER22');
+insert into public.campaigns (id, dm_id, name) values
+  ('b0000000-0000-0000-0000-0000000000c1', 'a0000000-0000-0000-0000-0000000000a1', 'C1'),
+  ('b0000000-0000-0000-0000-0000000000c2', 'a0000000-0000-0000-0000-0000000000a5', 'C2');
+-- Invites (0005): codes HARDEN1 and OTHER22, stored only as hashes, generous limits.
+insert into public.campaign_invites (campaign_id, code_hash, created_by, expires_at, max_uses) values
+  ('b0000000-0000-0000-0000-0000000000c1', encode(sha256(convert_to('HARDEN1', 'UTF8')), 'hex'), 'a0000000-0000-0000-0000-0000000000a1', now() + interval '30 days', 50),
+  ('b0000000-0000-0000-0000-0000000000c2', encode(sha256(convert_to('OTHER22', 'UTF8')), 'hex'), 'a0000000-0000-0000-0000-0000000000a5', now() + interval '30 days', 50);
 -- anon has no table grants on the real platform (see grants.test.sql). Grant it
 -- SELECT inside this rolled-back transaction anyway, so H14 proves RLS alone
 -- would still hide every row from anon if a grant were ever added by mistake.
@@ -151,27 +155,11 @@ select t.expect_denied(
 select t.expect_affects(
   $q$update public.characters set character_name = 'DM edit' where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$,
   0, 'H6b: the DM cannot update a players character (0 rows)');
-select t.expect_affects(
+select t.expect_denied(
   $q$delete from public.characters where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$,
-  0, 'H6c: the DM cannot delete a players character (0 rows)');
+  'H6c: the DM cannot delete a players character (no DELETE grant since 0004)');
 
--- ═══ Invite codes ════════════════════════════════════════════════════════
-select t.expect_affects(
-  $q$insert into public.campaigns (dm_id, name) values ('a0000000-0000-0000-0000-0000000000a1', 'Gen')$q$,
-  1, 'H7a: a DM can create a campaign without supplying an invite code');
-select t.expect_count(
-  $q$select 1 from public.campaigns where name = 'Gen' and invite_code ~ '^[A-Z0-9]{10}$'$q$,
-  1, 'H7b: the generated code is 10 uppercase alphanumeric characters');
-select t.expect_count(
-  $q$select 1 from (select public.generate_invite_code() as c from generate_series(1, 200)) g having count(distinct c) = 200$q$,
-  1, 'H8: 200 generated codes are all distinct');
-select t.expect_denied(
-  $q$insert into public.campaigns (dm_id, name, invite_code) values ('a0000000-0000-0000-0000-0000000000a1', 'Weak', 'a')$q$,
-  'H9a: a 1-character invite code is rejected');
-select t.expect_denied(
-  $q$insert into public.campaigns (dm_id, name, invite_code) values ('a0000000-0000-0000-0000-0000000000a1', 'Lower', 'abcdef')$q$,
-  'H9b: a lower-case invite code is rejected');
-
+-- ═══ Invite codes: normalisation (generation and limits are in access_model.test.sql) ═══
 select t.act_as('a0000000-0000-0000-0000-0000000000a4');
 select t.expect_count($q$select * from public.join_campaign('harden1')$q$, 1, 'H10a: join_campaign accepts a lower-case code');
 select t.act_as('a0000000-0000-0000-0000-0000000000a5');

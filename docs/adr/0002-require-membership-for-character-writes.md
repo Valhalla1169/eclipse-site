@@ -31,7 +31,7 @@ codes were case- and whitespace-sensitive.
    `BEFORE UPDATE` trigger (a `WITH CHECK` cannot compare against the old row).
 3. **A removed player can still read and export their own sheet but cannot
    write it until they rejoin.** Rejoining with the invite code (idempotent)
-   is the restore flow, as in ADR 0001. The DM's read access to a removed
+   is the restore flow, as in ADR 0001 (since ADR 0005 that takes a fresh invite from the DM, because an invite can be single-use). The DM's read access to a removed
    player's sheet is unchanged, because Restore needs it.
 4. **Invite codes are generated in the database** (`generate_invite_code()`,
    10 uppercase hex characters from `gen_random_uuid()`), must match

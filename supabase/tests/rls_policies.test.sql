@@ -14,8 +14,14 @@ insert into public.profiles (id, display_name) values
   ('00000000-0000-0000-0000-000000000003', 'Bob'),
   ('00000000-0000-0000-0000-000000000004', 'Eve');
 
-insert into public.campaigns (id, dm_id, name, invite_code) values
-  ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Age of Eclipse', 'TABLE1');
+insert into public.campaigns (id, dm_id, name) values
+  ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Age of Eclipse');
+
+-- Since 0005 a campaign has no permanent code; players join with an invite the DM
+-- created. Seed one whose code is TABLE1 (stored, like every invite, as its hash only).
+insert into public.campaign_invites (campaign_id, code_hash, created_by, expires_at, max_uses) values
+  ('10000000-0000-0000-0000-000000000001', encode(sha256(convert_to('TABLE1', 'UTF8')), 'hex'),
+   '00000000-0000-0000-0000-000000000001', now() + interval '30 days', 10);
 
 \echo '--- TEST 1: alice joins with the correct invite code (as alice) -- expect 1 row back ---'
 begin;

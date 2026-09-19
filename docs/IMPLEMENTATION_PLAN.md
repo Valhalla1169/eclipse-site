@@ -1,5 +1,16 @@
 # Eclipse: implementation plan for the Supabase-backed roster + DM viewer
 
+> **Read the ADRs alongside this plan.** It is the original handoff plan and has
+> been superseded in places. Campaign creation is restricted to an allowlist and
+> players join with hashed, expiring invites instead of a permanent campaign code
+> (ADR 0005, so `campaigns.invite_code` and the "Create campaign" and
+> "join by campaign code" steps below no longer describe the system). Character
+> writes require membership (ADR 0002), the database grants are explicit
+> (ADR 0003), and clients can never delete campaigns or characters (ADR 0004).
+> The DM roster query below also needs a rethink: `characters` and
+> `campaign_players` have no foreign key between them, so the embedded select
+> shown will not work as written.
+
 This is the plan for turning `eclipse-site` from its current placeholder
 "coming soon" page into the live character sheet + DM roster viewer,
 backed by Supabase. It assumes the schema/RLS/RPC work in

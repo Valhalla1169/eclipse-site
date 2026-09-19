@@ -1,6 +1,6 @@
 # ADR 0001: Eclipse data model, auth, and access control on Supabase
 
-Status: Accepted (amended by ADR 0002: character writes now require membership)
+Status: Accepted, amended by ADR 0002 (character writes require membership), ADR 0003 (explicit grants), ADR 0004 (no client deletes, snapshot history) and ADR 0005 (campaign creator allowlist, hashed invites instead of a permanent campaign code, profile visibility)
 Date: 2026-09-19
 Repo: eclipse-site (eclipse.deyderae.dev)
 
