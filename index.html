@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="mocha">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Eclipse, coming soon</title>
+<meta name="description" content="Character sheet hosting, coming soon." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><circle cx=%2216%22 cy=%2216%22 r=%2212%22 fill=%22%23cba6f7%22/></svg>" />
+<link rel="stylesheet" href="style.css" />
+<style>
+  .center-wrap {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+  }
+  .center-wrap .card-icon { font-size: 3rem; margin-bottom: 12px; }
+  .center-wrap h1 { margin: 0 0 10px; font-size: 2rem; }
+  .center-wrap p { color: var(--subtext1); max-width: 46ch; margin: 0 0 24px; }
+  .back-link { font-size: 0.9rem; }
+  .theme-switcher-fixed { position: fixed; top: 20px; right: 20px; }
+</style>
+</head>
+<body>
+  <div class="theme-switcher theme-switcher-fixed" role="group" aria-label="Theme switcher">
+    <button class="theme-btn" data-swatch="latte" title="Latte" aria-pressed="false"></button>
+    <button class="theme-btn" data-swatch="frappe" title="Frapp&eacute;" aria-pressed="false"></button>
+    <button class="theme-btn" data-swatch="macchiato" title="Macchiato" aria-pressed="false"></button>
+    <button class="theme-btn" data-swatch="mocha" title="Mocha" aria-pressed="true"></button>
+  </div>
+
+  <div class="center-wrap">
+    <h1>Eclipse is on its way</h1>
+    <p>Character sheet hosting for tabletop games. Building it now, check back soon.</p>
+    <a class="back-link" href="https://deyderae.dev">&larr; back to deyderae.dev</a>
+  </div>
+
+<script src="script.js"></script>
+</body>
+</html>
