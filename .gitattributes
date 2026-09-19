@@ -1,0 +1,27 @@
+# Normalize line endings so behavior doesn't depend on each contributor's
+# local core.autocrlf setting. Text files are stored and diffed as LF;
+# Git still checks them out however your OS/editor prefers to display them,
+# but the repo's stored bytes stay consistent.
+
+* text=auto eol=lf
+
+# Treat these explicitly as text (belt and suspenders for extensionless
+# or less common cases):
+*.md text
+*.html text
+*.css text
+*.js text
+*.json text
+*.jsonc text
+*.yml text
+*.yaml text
+
+# Binary types — never touch line endings on these:
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.svg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
