@@ -10,17 +10,21 @@
 <script src="script.js"></script>
 </head>
 <body>
-  <div class="theme-switcher theme-switcher-fixed" role="group" aria-label="Theme switcher">
-    <button class="theme-btn" data-swatch="latte" title="Latte" aria-pressed="false"></button>
-    <button class="theme-btn" data-swatch="frappe" title="Frapp&eacute;" aria-pressed="false"></button>
-    <button class="theme-btn" data-swatch="macchiato" title="Macchiato" aria-pressed="false"></button>
-    <button class="theme-btn" data-swatch="mocha" title="Mocha" aria-pressed="true"></button>
-  </div>
+  <a class="skip-link" href="#main">Skip to content</a>
 
-  <div class="center-wrap">
+  <header>
+    <div class="theme-switcher theme-switcher-fixed" role="group" aria-label="Theme switcher">
+      <button class="theme-btn" data-swatch="latte" title="Latte" aria-label="Latte theme" aria-pressed="false"></button>
+      <button class="theme-btn" data-swatch="frappe" title="Frapp&eacute;" aria-label="Frapp&eacute; theme" aria-pressed="false"></button>
+      <button class="theme-btn" data-swatch="macchiato" title="Macchiato" aria-label="Macchiato theme" aria-pressed="false"></button>
+      <button class="theme-btn" data-swatch="mocha" title="Mocha" aria-label="Mocha theme" aria-pressed="true"></button>
+    </div>
+  </header>
+
+  <main class="center-wrap" id="main">
     <h1>Eclipse is on its way</h1>
     <p>Character sheet hosting for tabletop games. Building it now, check back soon.</p>
     <a class="back-link" href="https://deyderae.dev">&larr; back to deyderae.dev</a>
-  </div>
+  </main>
 </body>
 </html>

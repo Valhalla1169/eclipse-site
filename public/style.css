@@ -63,7 +63,13 @@ html { color-scheme: dark; scroll-behavior: smooth; }
 
 /* ==========================================================================
    Site layout (eclipse.deyderae.dev only, not part of the shared theme system above)
+   Small text uses --subtext1 rather than the overlay or --subtext0 tokens so
+   it stays >= 4.5:1 in Latte, the lowest-contrast palette.
    ========================================================================== */
+:root {
+  --gutter: clamp(1rem, 4vw, 2rem);
+  --link: color-mix(in srgb, var(--blue) 75%, var(--text));
+}
 
 body {
   margin: 0;
@@ -74,8 +80,28 @@ body {
   min-height: 100vh;
 }
 
-a { color: var(--blue); }
-a:hover { color: var(--sapphire); }
+a { color: var(--link); text-underline-offset: 0.2em; }
+a:hover { text-decoration-thickness: 2px; }
+
+:focus-visible {
+  outline: 3px solid var(--mauve);
+  outline-offset: 3px;
+  border-radius: 0.25rem;
+}
+
+.skip-link {
+  position: absolute;
+  left: var(--gutter);
+  top: -4rem;
+  z-index: 100;
+  padding: 0.6rem 1rem;
+  border-radius: 0.5rem;
+  background: var(--mauve);
+  color: var(--base);
+  font-weight: 700;
+  text-decoration: none;
+}
+.skip-link:focus { top: 0.75rem; }
 
 .wrap {
   max-width: var(--maxw);
@@ -113,12 +139,11 @@ header.site {
 .theme-btn {
   border: none;
   cursor: pointer;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   padding: 0;
   position: relative;
-  outline-offset: 2px;
 }
 .theme-btn[data-swatch="latte"]      { background: #eff1f5; box-shadow: inset 0 0 0 1px #acb0be; }
 .theme-btn[data-swatch="frappe"]     { background: #303446; box-shadow: inset 0 0 0 1px #626880; }
@@ -147,7 +172,7 @@ h2.section-title {
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: var(--overlay1);
+  color: var(--subtext1);
   margin: 0 0 20px;
   font-weight: 600;
 }
@@ -188,7 +213,7 @@ h2.section-title {
 .card p {
   margin: 0;
   font-size: 0.9rem;
-  color: var(--subtext0);
+  color: var(--subtext1);
   line-height: 1.5;
 }
 .card .tag {
@@ -196,13 +221,17 @@ h2.section-title {
   padding-top: 10px;
   font-size: 0.75rem;
   font-family: var(--font-mono);
-  color: var(--overlay1);
+  color: var(--subtext1);
 }
+/* Disabled cards are marked by a dashed border, not by dimming: opacity would
+   pull their text below the contrast minimum. */
 .card.disabled {
-  opacity: 0.6;
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--surface1);
   cursor: default;
 }
-.card.disabled:hover { transform: none; border-color: var(--surface0); }
+.card.disabled:hover { transform: none; border-color: var(--surface1); }
 .badge {
   display: inline-block;
   font-size: 0.68rem;
@@ -212,11 +241,11 @@ h2.section-title {
   padding: 2px 8px;
   border-radius: 999px;
   background: var(--surface0);
-  color: var(--subtext0);
+  color: var(--text);
   width: fit-content;
 }
-.badge.live { background: color-mix(in srgb, var(--green) 20%, transparent); color: var(--green); }
-.badge.soon { background: color-mix(in srgb, var(--peach) 20%, transparent); color: var(--peach); }
+.badge.live { background: color-mix(in srgb, var(--green) 20%, transparent); color: color-mix(in srgb, var(--green) 15%, var(--text)); }
+.badge.soon { background: color-mix(in srgb, var(--peach) 20%, transparent); color: color-mix(in srgb, var(--peach) 15%, var(--text)); }
 
 /* ---- Footer ---- */
 footer.site {
@@ -226,10 +255,10 @@ footer.site {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
-  color: var(--overlay0);
+  color: var(--subtext1);
   font-size: 0.85rem;
 }
-footer.site a { color: var(--overlay1); }
+footer.site a { color: var(--text); }
 footer.site a:hover { color: var(--mauve); }
 
 /* ---- Coming-soon page (moved out of index.html so a strict CSP can apply) ---- */
