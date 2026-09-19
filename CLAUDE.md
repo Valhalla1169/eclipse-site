@@ -22,6 +22,7 @@ Per DESIGN.md §3.2–§3.3.1, once real functionality is built here this stops 
 - Once this app handles user data, treat DESIGN.md §5.5 (input validation, rate limiting, least-privilege bindings) as required reading before writing any backend logic, not optional hardening to add later. With Supabase that means every new table ships with its RLS policy in the same change, verified as a second, non-owning user; schema changes are SQL migrations committed to the repo (`supabase/migrations`), never hand-edited in the dashboard (DESIGN.md §3.3.1, §5.5, §6.4).
 
 ## Don't
+- Don't lose a character. Eclipse hosts one campaign of about a dozen players, and the sheet and rules will keep changing (docs/adr/0004-scale-and-data-preservation.md): never build UI that deletes a campaign or character, never write a sheet before it has loaded successfully, keep unknown fields on save, and make non-additive sheet changes versioned (`characters.schema_version` plus a `migrate()` step), not silent.
 - Don't point `assets.directory` in `wrangler.jsonc` back at the repo root, and don't put non-site files (docs, config, source that isn't served, secrets) in `public/`.
 - Don't commit secrets, tokens, or (once there's a database) real user data/fixtures.
 - Don't put the Supabase service role key in client code, the repo, or logs — it bypasses RLS entirely. The `anon` key is public by design; RLS is what makes that safe (DESIGN.md §5.3).
