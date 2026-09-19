@@ -81,7 +81,10 @@ insert into public.profiles (id, display_name) values
 insert into public.campaigns (id, dm_id, name, invite_code) values
   ('b0000000-0000-0000-0000-0000000000c1', 'a0000000-0000-0000-0000-0000000000a1', 'C1', 'HARDEN1'),
   ('b0000000-0000-0000-0000-0000000000c2', 'a0000000-0000-0000-0000-0000000000a5', 'C2', 'OTHER22');
-grant select on all tables in schema public to anon;  -- emulate Supabase default anon grants
+-- anon has no table grants on the real platform (see grants.test.sql). Grant it
+-- SELECT inside this rolled-back transaction anyway, so H14 proves RLS alone
+-- would still hide every row from anon if a grant were ever added by mistake.
+grant select on all tables in schema public to anon;
 
 -- p1 and p2 join C1 through the real RPC, as themselves.
 select t.act_as('a0000000-0000-0000-0000-0000000000a2');
