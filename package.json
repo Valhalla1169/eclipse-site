@@ -4,7 +4,9 @@
   "description": "",
   "main": "public/script.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1", "dev": "wrangler dev","deploy": "wrangler deploy"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
   },
   "repository": {
     "type": "git",
@@ -18,6 +20,7 @@
   },
   "homepage": "https://github.com/Valhalla1169/eclipse-site#readme",
   "devDependencies": {
+    "supabase": "2.117.0",
     "wrangler": "^4.135.0"
   }
 }
