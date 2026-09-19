@@ -6,10 +6,10 @@ This repo is the `eclipse.deyderae.dev` subdomain. Before making changes, read *
 Currently a static "coming soon" placeholder for Eclipse — character-sheet hosting for tabletop games (build, track, share characters). Deployed to Cloudflare Workers (static assets) via Wrangler, same as `deyderae-site`, but as its own independent Worker/repo (see DESIGN.md §3.1 — subdomains don't share a deploy or a runtime).
 
 ## Where this is headed
-Per DESIGN.md §3.2–§3.3, once real functionality is built here this stops being a single static page and becomes a genuinely client-routed SPA with a data layer:
+Per DESIGN.md §3.2–§3.3.1, once real functionality is built here this stops being a single static page and becomes a genuinely client-routed SPA with a data layer:
 - It will need a router with real URLs and a server-side fallback to `index.html` for deep links (configure `not_found_handling` in `wrangler.jsonc` when this happens — it isn't needed yet for the current single-page placeholder).
-- It will need persistence for character data — default assumption is Cloudflare D1 unless a specific access pattern argues otherwise (see DESIGN.md §3.3).
-- If accounts/sharing are needed, prefer an established auth approach over hand-rolled sessions (DESIGN.md §3.3, §5.5).
+- Persistence for character data is **Supabase** (Postgres + Auth + Realtime), a deliberate exception to the domain's Cloudflare D1 default (DESIGN.md §3.3.1). Row Level Security is the access-control boundary, not application code: a player reads and writes their own sheets, and a DM can read sheets in their campaign. Whether a DM can ever write to a player's sheet is still open (DESIGN.md §8.5).
+- Auth is Supabase Auth. Don't hand-roll sessions or add a separate auth system alongside it. The sign-in method(s) and how a DM's campaign gets linked to its players are still open (DESIGN.md §8.4), and they decide the shape of the `campaigns`/`campaign_players` tables.
 - Pick a lightweight framework based on this app's actual complexity when the static-page approach stops being enough — don't default to a heavy one "just in case," and don't feel obligated to match whatever the apex site uses (DESIGN.md §3.1).
 
 ## Working in this repo now
@@ -19,9 +19,10 @@ Per DESIGN.md §3.2–§3.3, once real functionality is built here this stops be
 - New colours must meet WCAG AA in all four themes, Latte especially (DESIGN.md §4): use `--text`/`--subtext1` for small text, never `--subtext0` or `--overlay*`, and for coloured links or badges mix the accent toward `--text` (`--link` is `color-mix(in srgb, var(--blue) 75%, var(--text))`; badges use 15% accent / 85% `--text`). Large text (24px, or 18.66px bold) only needs 3:1. Don't dim disabled things with `opacity`; use a dashed border. Never write `*/` inside a CSS comment — it closes the comment early and silently swallows the next rule.
 - `package.json` exists only to pin Wrangler: `npm run dev` (`wrangler dev`) for local preview, `npm run deploy` (`wrangler deploy`) for production, until CI/CD from DESIGN.md §6.3 exists. `wrangler deploy --dry-run` should report `Read N files` from the `public` directory, where N is exactly the number of site files (currently 4).
 - No tests, CI, or build step exist yet. Follow DESIGN.md §6.3–§6.4 when adding them rather than improvising.
-- Once this app handles user data, treat DESIGN.md §5.5 (input validation, rate limiting, least-privilege bindings) as required reading before writing any backend logic, not optional hardening to add later.
+- Once this app handles user data, treat DESIGN.md §5.5 (input validation, rate limiting, least-privilege bindings) as required reading before writing any backend logic, not optional hardening to add later. With Supabase that means every new table ships with its RLS policy in the same change, verified as a second, non-owning user; schema changes are SQL migrations committed to the repo (`supabase/migrations`), never hand-edited in the dashboard (DESIGN.md §3.3.1, §5.5, §6.4).
 
 ## Don't
 - Don't point `assets.directory` in `wrangler.jsonc` back at the repo root, and don't put non-site files (docs, config, source that isn't served, secrets) in `public/`.
 - Don't commit secrets, tokens, or (once there's a database) real user data/fixtures.
-- Don't wire this Worker directly to a shared database credential used by other subdomains — route through a dedicated API service if cross-subdomain data sharing is ever needed (DESIGN.md §3.3).
+- Don't put the Supabase service role key in client code, the repo, or logs — it bypasses RLS entirely. The `anon` key is public by design; RLS is what makes that safe (DESIGN.md §5.3).
+- Don't wire this Worker directly to a shared database credential used by other subdomains — route through a dedicated API service if cross-subdomain data sharing is ever needed (DESIGN.md §3.3). Eclipse's Supabase project is its own boundary: nothing else on the domain should hold its service role key or read its tables directly (DESIGN.md §5.6).
