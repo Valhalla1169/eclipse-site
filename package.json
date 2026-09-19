@@ -7,7 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "vendor": "node scripts/vendor.mjs"
+    "vendor": "node scripts/vendor.mjs",
+    "creators": "node scripts/creators.mjs"
   },
   "repository": {
     "type": "git",
