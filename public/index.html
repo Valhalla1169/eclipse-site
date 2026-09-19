@@ -3,28 +3,39 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Eclipse, coming soon</title>
-<meta name="description" content="Character sheet hosting, coming soon." />
-<link rel="icon" href="logo.svg" type="image/svg+xml" />
-<link rel="stylesheet" href="style.css" />
-<script src="script.js"></script>
+<title>Eclipse</title>
+<meta name="description" content="Character sheets and a live DM roster for the Age of Eclipse tabletop game." />
+<link rel="icon" href="/logo.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/style.css" />
+<script src="/script.js"></script>
+<script src="/vendor/supabase.js" defer></script>
+<script type="module" src="/js/app.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
 
-  <header>
-    <div class="theme-switcher theme-switcher-fixed" role="group" aria-label="Theme switcher">
-      <button class="theme-btn" data-swatch="latte" title="Latte" aria-label="Latte theme" aria-pressed="false"></button>
-      <button class="theme-btn" data-swatch="frappe" title="Frapp&eacute;" aria-label="Frapp&eacute; theme" aria-pressed="false"></button>
-      <button class="theme-btn" data-swatch="macchiato" title="Macchiato" aria-label="Macchiato theme" aria-pressed="false"></button>
-      <button class="theme-btn" data-swatch="mocha" title="Mocha" aria-label="Mocha theme" aria-pressed="true"></button>
+  <header class="site-header">
+    <div class="bar">
+      <a class="brand" href="/">
+        <img class="logo" src="/logo.svg" alt="" width="28" height="28" />
+        <span class="wordmark">Eclipse</span>
+      </a>
+      <div class="account" id="account" hidden>
+        <span class="account-name" id="account-name"></span>
+        <button class="btn btn-quiet btn-small" id="sign-out" type="button">Sign out</button>
+      </div>
+      <div class="theme-switcher" role="group" aria-label="Theme switcher">
+        <button class="theme-btn" data-swatch="latte" title="Latte" aria-label="Latte theme" aria-pressed="false"></button>
+        <button class="theme-btn" data-swatch="frappe" title="Frapp&eacute;" aria-label="Frapp&eacute; theme" aria-pressed="false"></button>
+        <button class="theme-btn" data-swatch="macchiato" title="Macchiato" aria-label="Macchiato theme" aria-pressed="false"></button>
+        <button class="theme-btn" data-swatch="mocha" title="Mocha" aria-label="Mocha theme" aria-pressed="true"></button>
+      </div>
     </div>
   </header>
 
-  <main class="center-wrap" id="main">
-    <h1>Eclipse is on its way</h1>
-    <p>Character sheet hosting for tabletop games. Building it now, check back soon.</p>
-    <a class="back-link" href="https://deyderae.dev">&larr; back to deyderae.dev</a>
+  <main class="page" id="main">
+    <noscript><p class="notice notice-info"><strong>Note: </strong>Eclipse needs JavaScript to sign you in and load your character sheet.</p></noscript>
+    <p class="muted" role="status">Loading...</p>
   </main>
 </body>
 </html>
