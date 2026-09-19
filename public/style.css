@@ -58,8 +58,12 @@
 
 * { box-sizing: border-box; }
 
-html { color-scheme: dark; }
+html { color-scheme: dark; scroll-behavior: smooth; }
 [data-theme="latte"] { color-scheme: light; }
+
+/* ==========================================================================
+   Site layout (eclipse.deyderae.dev only, not part of the shared theme system above)
+   ========================================================================== */
 
 body {
   margin: 0;
@@ -227,3 +231,24 @@ footer.site {
 }
 footer.site a { color: var(--overlay1); }
 footer.site a:hover { color: var(--mauve); }
+
+/* ---- Coming-soon page (moved out of index.html so a strict CSP can apply) ---- */
+.center-wrap {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+}
+.center-wrap h1 { margin: 0 0 10px; font-size: 2rem; }
+.center-wrap p { color: var(--subtext1); max-width: 46ch; margin: 0 0 24px; }
+.back-link { font-size: 0.9rem; }
+.theme-switcher-fixed { position: fixed; top: 20px; right: 20px; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { transition: none !important; }
+  .card:hover { transform: none; }
+}
