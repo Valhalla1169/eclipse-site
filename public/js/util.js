@@ -37,9 +37,20 @@ export function friendlyError(err) {
   const msg = String((err && err.message) || err || "");
   const status = err && (err.status || err.code);
   if (/invalid invite code/i.test(msg)) return "That invite code is not valid. Check it with your DM.";
+  if (/you run this campaign/i.test(msg)) return "You are the DM of this campaign, so you cannot join it as a player.";
+  if (/only the dm/i.test(msg)) return "Only the DM of this campaign can do that.";
+  if (/already revoked|not found, already/i.test(msg)) return "That invite could not be revoked. It may already be revoked.";
   if (status === 429 || /rate limit|too many/i.test(msg)) return "Too many attempts. Wait a minute and try again.";
   if (/signups? (not allowed|are disabled)|not allowed for otp/i.test(msg)) return "New accounts are closed. Ask your DM to invite you.";
   if (/failed to fetch|networkerror|load failed|network request failed/i.test(msg)) return "Could not reach the server. Check your connection and try again.";
   if (/permission denied|row-level security|42501/i.test(msg)) return "You do not have access to that.";
   return "Something went wrong. Please try again.";
+}
+
+// What an invite is doing right now, for the DM's list.
+export function inviteStatus(invite, now = Date.now()) {
+  if (invite.revoked_at) return "revoked";
+  if (invite.use_count >= invite.max_uses) return "used up";
+  if (new Date(invite.expires_at).getTime() <= now) return "expired";
+  return "active";
 }

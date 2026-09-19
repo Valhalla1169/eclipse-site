@@ -72,6 +72,7 @@ html { color-scheme: dark; scroll-behavior: smooth; }
   --link: color-mix(in srgb, var(--blue) 75%, var(--text));
   --field-border: color-mix(in srgb, var(--text) 70%, var(--base));
   --danger: color-mix(in srgb, var(--red) 70%, var(--text));
+  --success: color-mix(in srgb, var(--green) 70%, var(--text));
 }
 
 [hidden] { display: none !important; }
@@ -226,7 +227,8 @@ p { margin: 0; }
 .field + .field { margin-top: 1rem; }
 .field label { display: block; margin-bottom: 0.35rem; font-weight: 600; }
 .field .hint { margin-bottom: 0.35rem; }
-input {
+input,
+select {
   width: 100%;
   padding: 0.65rem 0.8rem;
   border: 2px solid var(--field-border);
@@ -278,6 +280,22 @@ input {
   background: var(--base);
 }
 .notice-error { border-color: var(--danger); }
+.notice-success { border-color: var(--success); }
+
+/* ---- Invites (DM page) ---- */
+.invites { margin: 0; padding: 0; list-style: none; }
+.invite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--surface0);
+}
+.invite:first-child { padding-top: 0; border-top: none; }
+.invite-main { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; }
+.linkbox { display: block; word-break: break-all; font-size: 0.95rem; letter-spacing: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

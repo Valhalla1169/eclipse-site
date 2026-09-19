@@ -1,7 +1,7 @@
 // View builders. Each returns a DOM node; app.js decides which to show.
 // Text only ever goes in as text nodes (see dom.js), never as markup.
 import { h } from "./dom.js";
-import { cleanCampaignName, cleanDisplayName, friendlyError, normalizeCode, normalizeEmail } from "./util.js";
+import { cleanCampaignName, cleanDisplayName, friendlyError, inviteStatus, normalizeCode, normalizeEmail } from "./util.js";
 
 const invalid = (message) => Object.assign(new Error(message), { userMessage: message });
 
@@ -17,6 +17,15 @@ function field({ id, label, hint, ...attrs }) {
     h("label", { for: id }, label),
     hint ? h("p", { class: "hint", id: hintId }, hint) : null,
     h("input", { id, name: id, "aria-describedby": hintId, ...attrs }),
+  );
+}
+
+function selectField({ id, label, options, value }) {
+  return h(
+    "div",
+    { class: "field" },
+    h("label", { for: id }, label),
+    h("select", { id, name: id }, ...options.map(([v, text]) => h("option", { value: v, selected: String(v) === String(value) }, text))),
   );
 }
 
@@ -102,7 +111,7 @@ export function profileView({ onSubmit }) {
     "section",
     { class: "card stack" },
     h("h1", {}, "Choose a display name"),
-    h("p", { class: "muted" }, "Your DM and the other players will see this name."),
+    h("p", { class: "muted" }, "Your DM and the other players in your campaign will see this name."),
     form({
       fields: [field({ id: "displayName", label: "Display name", maxlength: 40, autocomplete: "nickname", required: true })],
       submitLabel: "Save and continue",
@@ -115,107 +124,205 @@ export function profileView({ onSubmit }) {
   );
 }
 
-function inviteBlock(campaign, onCopy) {
-  const status = h("span", { class: "status", "aria-live": "polite" });
-  const link = `${location.origin}/join/${encodeURIComponent(campaign.inviteCode)}`;
-  const copy = async () => {
-    try {
-      await onCopy(link);
-      status.textContent = "Invite link copied.";
-    } catch {
-      status.textContent = "Could not copy. Select the code and copy it by hand.";
-    }
-  };
-  return h(
-    "div",
-    { class: "invite stack" },
-    h("p", { class: "muted" }, "Invite code. Share it with your players:"),
-    h("p", {}, h("code", { class: "code" }, campaign.inviteCode)),
-    h("div", { class: "actions" }, h("button", { class: "btn btn-quiet", type: "button", onclick: copy }, "Copy invite link"), status),
-  );
-}
-
-function campaignCard(campaign, onCopy) {
+function campaignCard(campaign) {
   const id = encodeURIComponent(campaign.id);
   return h(
     "article",
     { class: "card stack" },
     h("div", { class: "card-head" }, h("h2", {}, campaign.name), h("span", { class: "badge" }, campaign.isDm ? "DM" : "Player")),
-    campaign.isDm && campaign.inviteCode ? inviteBlock(campaign, onCopy) : null,
     h(
       "p",
       {},
       campaign.isDm
-        ? h("a", { class: "btn btn-primary", href: `/campaign/${id}/dm` }, "Open DM view")
+        ? h("a", { class: "btn btn-primary", href: `/campaign/${id}/dm` }, "Open DM view and invites")
         : h("a", { class: "btn btn-primary", href: `/campaign/${id}/play` }, "Open my character sheet"),
     ),
   );
 }
 
 // Eclipse hosts one campaign (docs/adr/0004), so this is a single-campaign-first
-// page: the join and create forms only appear while the person has no campaign.
-export function homeView({ profile, campaigns, onCreate, onJoin, onCopy }) {
+// page: with a campaign you just see it. Without one you can join with an invite
+// and, only if you are on the creator allowlist (ADR 0005), create one.
+export function homeView({ profile, campaigns, canCreate, onCreate, onJoin }) {
   if (campaigns.length) {
     return h(
       "div",
       { class: "stack" },
       h("h1", {}, campaigns.length === 1 ? "Your campaign" : "Your campaigns"),
-      ...campaigns.map((c) => campaignCard(c, onCopy)),
+      ...campaigns.map(campaignCard),
     );
   }
   return h(
     "div",
     { class: "stack" },
     h("h1", {}, `Welcome, ${profile.display_name}`),
-    h("p", { class: "muted" }, "You are not in a campaign yet. Join one with an invite code from your DM, or create one if you are the DM."),
+    h(
+      "p",
+      { class: "muted" },
+      canCreate
+        ? "You are not in a campaign yet. Join one with an invite, or create one as the DM."
+        : "You are not in a campaign yet. Open the invite link your DM sent you, or paste its code below.",
+    ),
     h(
       "section",
       { class: "card stack" },
-      h("h2", {}, "Join a campaign"),
+      h("h2", {}, "Join with an invite"),
       form({
         fields: [field({ id: "code", label: "Invite code", autocomplete: "off", autocapitalize: "characters", spellcheck: "false", required: true })],
         submitLabel: "Join campaign",
         onSubmit: async (values) => {
           const code = normalizeCode(values.code);
-          if (!code) throw invalid("An invite code is 6 or more letters and numbers.");
+          if (!code) throw invalid("That does not look like an invite code. Paste the whole code from your DM.");
           await onJoin(code);
         },
       }),
     ),
-    h(
-      "section",
-      { class: "card stack" },
-      h("h2", {}, "Create a campaign"),
-      h("p", { class: "muted" }, "You become the DM. The invite code is generated for you."),
-      form({
-        fields: [field({ id: "campaignName", label: "Campaign name", maxlength: 80, required: true })],
-        submitLabel: "Create campaign",
-        primary: false,
-        onSubmit: async (values) => {
-          const name = cleanCampaignName(values.campaignName);
-          if (!name) throw invalid("Enter a name between 1 and 80 characters.");
-          await onCreate(name);
-        },
-      }),
-    ),
+    canCreate
+      ? h(
+          "section",
+          { class: "card stack" },
+          h("h2", {}, "Create a campaign"),
+          h("p", { class: "muted" }, "You become the DM. You then create invite links for your players."),
+          form({
+            fields: [field({ id: "campaignName", label: "Campaign name", maxlength: 80, required: true })],
+            submitLabel: "Create campaign",
+            primary: false,
+            onSubmit: async (values) => {
+              const name = cleanCampaignName(values.campaignName);
+              if (!name) throw invalid("Enter a name between 1 and 80 characters.");
+              await onCreate(name);
+            },
+          }),
+        )
+      : null,
   );
 }
 
-// Placeholder until the player sheet (Phase 3) and DM roster (Phase 4) exist.
-export function campaignStubView({ campaign, kind, inviteCode }) {
+const USES = [[1, "1 person (recommended)"], [2, "2 people"], [5, "5 people"], [12, "12 people"]];
+const LIFETIMES = [[24, "1 day"], [168, "7 days (recommended)"], [720, "30 days"]];
+
+// The DM page: invites now, the roster of sheets in Phase 4. The invite link is
+// shown exactly once, when it is created: the database keeps only a hash of the
+// code, so it cannot be shown again. Lose it and revoke it, then make a new one.
+export function dmView({ campaign, loadInvites, createInvite, revokeInvite, onCopy }) {
+  const fresh = h("div", { class: "stack" });
+  const list = h("div", { class: "stack" });
+
+  async function refresh() {
+    try {
+      list.replaceChildren(...renderInvites(await loadInvites()));
+    } catch (err) {
+      console.error(err);
+      list.replaceChildren(notice("error", friendlyError(err)));
+    }
+  }
+
+  async function revoke(event, invite) {
+    event.currentTarget.disabled = true;
+    try {
+      await revokeInvite(invite.id);
+    } catch (err) {
+      console.error(err);
+      fresh.replaceChildren(notice("error", friendlyError(err)));
+    }
+    await refresh();
+  }
+
+  function renderInvites(invites) {
+    if (!invites.length) return [h("p", { class: "muted" }, "No invites yet. Create one above and send the link to a player.")];
+    return [
+      h(
+        "ul",
+        { class: "invites" },
+        ...invites.map((invite) => {
+          const status = inviteStatus(invite);
+          return h(
+            "li",
+            { class: "invite" },
+            h(
+              "div",
+              { class: "invite-main" },
+              h("strong", {}, invite.label || "Invite"),
+              h("span", { class: "badge" }, status),
+              h("span", { class: "muted" }, `${invite.use_count} of ${invite.max_uses} used`),
+              h("span", { class: "muted" }, `expires ${new Date(invite.expires_at).toLocaleString()}`),
+            ),
+            status === "active"
+              ? h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: (event) => revoke(event, invite) }, "Revoke")
+              : null,
+          );
+        }),
+      ),
+    ];
+  }
+
+  function showNewLink(created) {
+    const link = `${location.origin}/join/${encodeURIComponent(created.code)}`;
+    const status = h("span", { class: "status", "aria-live": "polite" });
+    const copy = async () => {
+      try {
+        await onCopy(link);
+        status.textContent = "Copied.";
+      } catch {
+        status.textContent = "Could not copy. Select the link and copy it by hand.";
+      }
+    };
+    fresh.replaceChildren(
+      h(
+        "div",
+        { class: "notice notice-success stack", role: "status" },
+        h("p", {}, h("strong", {}, "Invite created. "), "This link is shown only once, so copy it now."),
+        h("p", {}, h("code", { class: "code linkbox" }, link)),
+        h("div", { class: "actions" }, h("button", { class: "btn btn-primary", type: "button", onclick: copy }, "Copy link"), status),
+      ),
+    );
+  }
+
+  const createForm = form({
+    fields: [
+      field({ id: "label", label: "Who is it for? (optional)", maxlength: 60, autocomplete: "off", hint: "Only you see this. For example, the player's name." }),
+      selectField({ id: "uses", label: "How many people can use it?", options: USES, value: 1 }),
+      selectField({ id: "lifetime", label: "How long is it valid?", options: LIFETIMES, value: 168 }),
+    ],
+    submitLabel: "Create invite link",
+    onSubmit: async (values) => {
+      const created = await createInvite({
+        label: String(values.label || "").trim().slice(0, 60),
+        maxUses: Number(values.uses),
+        ttlHours: Number(values.lifetime),
+      });
+      showNewLink(created);
+      await refresh();
+    },
+  });
+
+  refresh();
+
+  return h(
+    "div",
+    { class: "stack" },
+    h("div", { class: "card-head" }, h("h1", {}, campaign.name), h("span", { class: "badge" }, "DM view")),
+    h("p", { class: "muted" }, "The roster of your players' sheets will appear here."),
+    h(
+      "section",
+      { class: "card stack" },
+      h("h2", {}, "Invite a player"),
+      h("p", { class: "muted" }, "Players can only join with a link you create here. Each link expires, has a use limit, and can be revoked."),
+      createForm,
+      fresh,
+    ),
+    h("section", { class: "card stack" }, h("h2", {}, "Invites"), list),
+  );
+}
+
+// Placeholder until the player sheet (Phase 3) exists.
+export function playStubView({ campaign }) {
   return h(
     "section",
     { class: "card stack" },
     h("h1", {}, campaign.name),
-    h("span", { class: "badge" }, kind === "dm" ? "DM view" : "Player"),
-    h(
-      "p",
-      { class: "muted" },
-      kind === "dm"
-        ? "The roster of your players' sheets will appear here."
-        : "You have joined this campaign. Your character sheet will appear here.",
-    ),
-    kind === "dm" && inviteCode ? h("p", {}, "Invite code: ", h("code", { class: "code" }, inviteCode)) : null,
+    h("span", { class: "badge" }, "Player"),
+    h("p", { class: "muted" }, "You have joined this campaign. Your character sheet will appear here."),
     h("p", {}, h("a", { class: "btn btn-quiet", href: "/" }, "Back to home")),
   );
 }

@@ -96,13 +96,13 @@ async function onRoute({ path, match, initial }) {
       if (!(await ensureReady({ announce, returnPath: "/" }))) return;
       const userId = state.session.user.id;
       showHere(views.loadingView("Loading your campaign..."));
-      const campaigns = await data.listMyCampaigns(userId);
+      const [campaigns, canCreate] = await Promise.all([data.listMyCampaigns(userId), data.isCampaignCreator(userId)]);
       if (!alive()) return;
       return showHere(
         views.homeView({
           profile: state.profile,
           campaigns,
-          onCopy: (text) => navigator.clipboard.writeText(text),
+          canCreate,
           onJoin: async (code) => router.go(`/join/${encodeURIComponent(code)}`),
           onCreate: async (name) => {
             await data.createCampaign(userId, name);
@@ -135,11 +135,18 @@ async function onRoute({ path, match, initial }) {
       if (campaign.dm_id !== state.session.user.id) {
         return showHere(views.notFoundView("Only the DM of this campaign can open this page."), "Not allowed");
       }
-      const inviteCode = await data.getInviteCode(campaign.id);
-      if (!alive()) return;
-      return showHere(views.campaignStubView({ campaign, kind: "dm", inviteCode }), campaign.name);
+      return showHere(
+        views.dmView({
+          campaign,
+          loadInvites: () => data.listInvites(campaign.id),
+          createInvite: (options) => data.createInvite(campaign.id, options),
+          revokeInvite: (id) => data.revokeInvite(id),
+          onCopy: (text) => navigator.clipboard.writeText(text),
+        }),
+        campaign.name,
+      );
     }
-    return showHere(views.campaignStubView({ campaign, kind: "play" }), campaign.name);
+    return showHere(views.playStubView({ campaign }), campaign.name);
   } catch (err) {
     if (!alive()) return;
     console.error(err);
