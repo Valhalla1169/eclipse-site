@@ -1,6 +1,6 @@
 # ADR 0001: Eclipse data model, auth, and access control on Supabase
 
-Status: Accepted
+Status: Accepted (amended by ADR 0002: character writes now require membership)
 Date: 2026-09-19
 Repo: eclipse-site (eclipse.deyderae.dev)
 
