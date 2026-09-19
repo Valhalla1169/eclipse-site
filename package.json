@@ -1,0 +1,23 @@
+{
+  "name": "eclipse-site",
+  "version": "1.0.0",
+  "description": "",
+  "main": "script.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1", "dev": "wrangler dev","deploy": "wrangler deploy"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Valhalla1169/eclipse-site.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Valhalla1169/eclipse-site/issues"
+  },
+  "homepage": "https://github.com/Valhalla1169/eclipse-site#readme",
+  "devDependencies": {
+    "wrangler": "^4.135.0"
+  }
+}
