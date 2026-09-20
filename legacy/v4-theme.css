@@ -1,0 +1,271 @@
+/* Reference only. V4 sheet theme: the colour variables and the four Catppuccin
+   palettes as V4 defined them. Not published. The live sheet maps its colours
+   onto the site theme instead (public/sheet.css). */
+
+:root{
+  /* Catppuccin Mocha lives here in :root as well as under its own
+     [data-theme="catppuccin-mocha"] selector below, so the sheet paints
+     correctly in Mocha before the theme-picker script has even run —
+     no flash of a different theme on load. */
+  color-scheme:dark;
+  --void:#11111b;
+  --slab:#1e1e2e;
+  --slab2:#313244;
+  --steel:#45475a;
+  --steel2:#585b70;
+  --bone:#cdd6f4;
+  --bone-dim:#a6adc8;
+  --corona:#f9e2af;
+  --rift:#cba6f7;
+  --blood:#f38ba8;
+  --bile:#a6e3a1;
+  --ok:#94e2d5;
+  --hunger:#fab387;
+  --psy:#74c7ec;
+
+  --ink-2:#bac2de;
+  --ink-3:#9399b2;
+  --ink-4:#7f849c;
+  --ink-5:#bac2de;
+
+  --rule:#313244;
+  --edge:#45475a;
+  --edge-2:#585b70;
+  --edge-3:#6c7086;
+  --well:#181825;
+  --well-2:#11111b;
+  --well-3:#11111b;
+
+  --glow-trauma:rgba(243,139,168,0.18);
+  --glow-rot:rgba(166,227,161,0.18);
+  --glow-shock:rgba(249,226,175,0.18);
+  --shadow:rgba(0,0,0,.55);
+  --wash:#181825;
+  --wash-2:#1e1e2e;
+  --tint-blood:rgba(243,139,168,0.13);
+  --tint-ok:rgba(148,226,213,0.13);
+  --tint-ok-soft:rgba(148,226,213,0.08);
+  --tint-corona:rgba(249,226,175,0.1);
+  --veil-bg:rgba(17,17,27,0.86);
+  --modal-bg:rgba(17,17,27,0.82);
+
+  /* sanity: near-black at "gone", true Mauve at "lucid" */
+  --san-0:#11111B; --san-1:#262233; --san-2:#3A324C; --san-3:#4F4364; --san-4:#64537D;
+  --san-5:#786495; --san-6:#8D74AE; --san-7:#A285C6; --san-8:#B695DF; --san-9:#CBA6F7;
+
+  /* morality: Red (monstrous) through Peach and Yellow to Green and Teal (luminous) */
+  --mor-0:#F38BA8; --mor-1:#F69D99; --mor-2:#F9AF8B; --mor-3:#FAC394; --mor-4:#F9D8A6;
+  --mor-5:#E7E2AC; --mor-6:#C2E3A6; --mor-7:#A4E3A7; --mor-8:#9CE2BE; --mor-9:#94E2D5;
+}
+
+/* ─── Catppuccin Latte ────────────────────────────────
+   Generated from the official Catppuccin Latte palette
+   (catppuccin.com/palette). Semantic roles map onto Catppuccin's named
+   accents and surfaces — see ROLE_MAP if this ever needs re-deriving. */
+[data-theme="catppuccin-latte"]{
+  color-scheme:light;
+  --void:#dce0e8;
+  --slab:#eff1f5;
+  --slab2:#ccd0da;
+  --steel:#bcc0cc;
+  --steel2:#acb0be;
+  --bone:#4c4f69;
+  --bone-dim:#6c6f85;
+  --corona:#df8e1d;
+  --rift:#8839ef;
+  --blood:#d20f39;
+  --bile:#40a02b;
+  --ok:#179299;
+  --hunger:#fe640b;
+  --psy:#209fb5;
+  --ink-2:#5c5f77;
+  --ink-3:#7c7f93;
+  --ink-4:#8c8fa1;
+  --ink-5:#5c5f77;
+  --rule:#ccd0da;
+  --edge:#bcc0cc;
+  --edge-2:#acb0be;
+  --edge-3:#9ca0b0;
+  --well:#e6e9ef;
+  --well-2:#dce0e8;
+  --well-3:#dce0e8;
+  --wash:#e6e9ef;
+  --wash-2:#eff1f5;
+
+  --glow-trauma:rgba(210,15,57,0.14);
+  --glow-rot:rgba(64,160,43,0.14);
+  --glow-shock:rgba(223,142,29,0.14);
+  --shadow:rgba(76,79,105,0.25);
+  --tint-blood:rgba(210,15,57,0.12);
+  --tint-ok:rgba(23,146,153,0.13);
+  --tint-ok-soft:rgba(23,146,153,0.08);
+  --tint-corona:rgba(223,142,29,0.14);
+  --veil-bg:rgba(220,224,232,0.9);
+  --modal-bg:rgba(220,224,232,0.86);
+
+  /* sanity: near-black at "gone", true Mauve at "lucid" */
+  --san-0:#DCE0E8; --san-1:#D3CDE9; --san-2:#C9BBEA; --san-3:#C0A8EA; --san-4:#B796EB;
+  --san-5:#AD83EC; --san-6:#A471ED; --san-7:#9B5EED; --san-8:#914CEE; --san-9:#8839EF;
+  /* morality: Red (monstrous) through Peach and Yellow to Green and Teal (luminous) */
+  --mor-0:#D20F39; --mor-1:#E63525; --mor-2:#F95B10; --mor-3:#F47211; --mor-4:#E68519;
+  --mor-5:#BC9220; --mor-6:#759A26; --mor-7:#3B9E37; --mor-8:#299868; --mor-9:#179299;
+}
+
+/* ─── Catppuccin Frappé ────────────────────────────────
+   Generated from the official Catppuccin Frappé palette
+   (catppuccin.com/palette). Semantic roles map onto Catppuccin's named
+   accents and surfaces — see ROLE_MAP if this ever needs re-deriving. */
+[data-theme="catppuccin-frappe"]{
+  color-scheme:dark;
+  --void:#232634;
+  --slab:#303446;
+  --slab2:#414559;
+  --steel:#51576d;
+  --steel2:#626880;
+  --bone:#c6d0f5;
+  --bone-dim:#a5adce;
+  --corona:#e5c890;
+  --rift:#ca9ee6;
+  --blood:#e78284;
+  --bile:#a6d189;
+  --ok:#81c8be;
+  --hunger:#ef9f76;
+  --psy:#85c1dc;
+  --ink-2:#b5bfe2;
+  --ink-3:#949cbb;
+  --ink-4:#838ba7;
+  --ink-5:#b5bfe2;
+  --rule:#414559;
+  --edge:#51576d;
+  --edge-2:#626880;
+  --edge-3:#737994;
+  --well:#292c3c;
+  --well-2:#232634;
+  --well-3:#232634;
+  --wash:#292c3c;
+  --wash-2:#303446;
+
+  --glow-trauma:rgba(231,130,132,0.18);
+  --glow-rot:rgba(166,209,137,0.18);
+  --glow-shock:rgba(229,200,144,0.18);
+  --shadow:rgba(0,0,0,.55);
+  --tint-blood:rgba(231,130,132,0.13);
+  --tint-ok:rgba(129,200,190,0.13);
+  --tint-ok-soft:rgba(129,200,190,0.08);
+  --tint-corona:rgba(229,200,144,0.1);
+  --veil-bg:rgba(35,38,52,0.86);
+  --modal-bg:rgba(35,38,52,0.82);
+
+  /* sanity: near-black at "gone", true Mauve at "lucid" */
+  --san-0:#232634; --san-1:#363348; --san-2:#48415C; --san-3:#5B4E6F; --san-4:#6D5B83;
+  --san-5:#806997; --san-6:#9276AB; --san-7:#A583BE; --san-8:#B791D2; --san-9:#CA9EE6;
+  /* morality: Red (monstrous) through Peach and Yellow to Green and Teal (luminous) */
+  --mor-0:#E78284; --mor-1:#EB8F7E; --mor-2:#EE9C78; --mor-3:#ECAD7F; --mor-4:#E7BF8A;
+  --mor-5:#D7CA8E; --mor-6:#BBCE8B; --mor-7:#A2D08F; --mor-8:#91CCA6; --mor-9:#81C8BE;
+}
+
+/* ─── Catppuccin Macchiato ────────────────────────────────
+   Generated from the official Catppuccin Macchiato palette
+   (catppuccin.com/palette). Semantic roles map onto Catppuccin's named
+   accents and surfaces — see ROLE_MAP if this ever needs re-deriving. */
+[data-theme="catppuccin-macchiato"]{
+  color-scheme:dark;
+  --void:#181926;
+  --slab:#24273a;
+  --slab2:#363a4f;
+  --steel:#494d64;
+  --steel2:#5b6078;
+  --bone:#cad3f5;
+  --bone-dim:#a5adcb;
+  --corona:#eed49f;
+  --rift:#c6a0f6;
+  --blood:#ed8796;
+  --bile:#a6da95;
+  --ok:#8bd5ca;
+  --hunger:#f5a97f;
+  --psy:#7dc4e4;
+  --ink-2:#b8c0e0;
+  --ink-3:#939ab7;
+  --ink-4:#8087a2;
+  --ink-5:#b8c0e0;
+  --rule:#363a4f;
+  --edge:#494d64;
+  --edge-2:#5b6078;
+  --edge-3:#6e738d;
+  --well:#1e2030;
+  --well-2:#181926;
+  --well-3:#181926;
+  --wash:#1e2030;
+  --wash-2:#24273a;
+
+  --glow-trauma:rgba(237,135,150,0.18);
+  --glow-rot:rgba(166,218,149,0.18);
+  --glow-shock:rgba(238,212,159,0.18);
+  --shadow:rgba(0,0,0,.55);
+  --tint-blood:rgba(237,135,150,0.13);
+  --tint-ok:rgba(139,213,202,0.13);
+  --tint-ok-soft:rgba(139,213,202,0.08);
+  --tint-corona:rgba(238,212,159,0.1);
+  --veil-bg:rgba(24,25,38,0.86);
+  --modal-bg:rgba(24,25,38,0.82);
+
+  /* sanity: near-black at "gone", true Mauve at "lucid" */
+  --san-0:#181926; --san-1:#2B283D; --san-2:#3F3754; --san-3:#52466B; --san-4:#655582;
+  --san-5:#79649A; --san-6:#8C73B1; --san-7:#9F82C8; --san-8:#B391DF; --san-9:#C6A0F6;
+  /* morality: Red (monstrous) through Peach and Yellow to Green and Teal (luminous) */
+  --mor-0:#ED8796; --mor-1:#F1968C; --mor-2:#F4A582; --mor-3:#F3B78A; --mor-4:#F0CA98;
+  --mor-5:#DED59D; --mor-6:#BED898; --mor-7:#A3D99B; --mor-8:#97D7B2; --mor-9:#8BD5CA;
+}
+
+/* ─── Catppuccin Mocha ────────────────────────────────
+   Generated from the official Catppuccin Mocha palette
+   (catppuccin.com/palette). Semantic roles map onto Catppuccin's named
+   accents and surfaces — see ROLE_MAP if this ever needs re-deriving. */
+[data-theme="catppuccin-mocha"]{
+  color-scheme:dark;
+  --void:#11111b;
+  --slab:#1e1e2e;
+  --slab2:#313244;
+  --steel:#45475a;
+  --steel2:#585b70;
+  --bone:#cdd6f4;
+  --bone-dim:#a6adc8;
+  --corona:#f9e2af;
+  --rift:#cba6f7;
+  --blood:#f38ba8;
+  --bile:#a6e3a1;
+  --ok:#94e2d5;
+  --hunger:#fab387;
+  --psy:#74c7ec;
+  --ink-2:#bac2de;
+  --ink-3:#9399b2;
+  --ink-4:#7f849c;
+  --ink-5:#bac2de;
+  --rule:#313244;
+  --edge:#45475a;
+  --edge-2:#585b70;
+  --edge-3:#6c7086;
+  --well:#181825;
+  --well-2:#11111b;
+  --well-3:#11111b;
+  --wash:#181825;
+  --wash-2:#1e1e2e;
+
+  --glow-trauma:rgba(243,139,168,0.18);
+  --glow-rot:rgba(166,227,161,0.18);
+  --glow-shock:rgba(249,226,175,0.18);
+  --shadow:rgba(0,0,0,.55);
+  --tint-blood:rgba(243,139,168,0.13);
+  --tint-ok:rgba(148,226,213,0.13);
+  --tint-ok-soft:rgba(148,226,213,0.08);
+  --tint-corona:rgba(249,226,175,0.1);
+  --veil-bg:rgba(17,17,27,0.86);
+  --modal-bg:rgba(17,17,27,0.82);
+
+  /* sanity: near-black at "gone", true Mauve at "lucid" */
+  --san-0:#11111B; --san-1:#262233; --san-2:#3A324C; --san-3:#4F4364; --san-4:#64537D;
+  --san-5:#786495; --san-6:#8D74AE; --san-7:#A285C6; --san-8:#B695DF; --san-9:#CBA6F7;
+  /* morality: Red (monstrous) through Peach and Yellow to Green and Teal (luminous) */
+  --mor-0:#F38BA8; --mor-1:#F69D99; --mor-2:#F9AF8B; --mor-3:#FAC394; --mor-4:#F9D8A6;
+  --mor-5:#E7E2AC; --mor-6:#C2E3A6; --mor-7:#A4E3A7; --mor-8:#9CE2BE; --mor-9:#94E2D5;
+}
