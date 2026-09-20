@@ -14,57 +14,7 @@
 begin;
 
 -- ── test helpers (rolled back with everything else) ─────────────────────
-create schema t;
-grant usage on schema t to anon, authenticated;
-
--- Become a signed-in user / become the superuser again.
-create function t.act_as(p_uid uuid) returns void language plpgsql as $$
-begin
-  perform set_config('request.jwt.claim.sub', p_uid::text, true);
-  set local role authenticated;
-end $$;
-
-create function t.act_as_superuser() returns void language plpgsql as $$
-begin
-  perform set_config('request.jwt.claim.sub', '', true);
-  reset role;
-end $$;
-
--- The statement must be rejected by RLS (42501), a CHECK (23514), or a
--- trigger/function RAISE (P0001). Anything else, including success, fails.
-create function t.expect_denied(p_sql text, p_msg text) returns void language plpgsql as $$
-begin
-  begin
-    execute p_sql;
-  exception when insufficient_privilege or check_violation or raise_exception then
-    raise notice 'ok   %', p_msg;
-    return;
-  end;
-  raise exception 'ASSERTION FAILED (expected denial, but it succeeded): %', p_msg;
-end $$;
-
--- The statement must succeed and affect exactly p_rows rows.
-create function t.expect_affects(p_sql text, p_rows int, p_msg text) returns void language plpgsql as $$
-declare n int;
-begin
-  execute p_sql;
-  get diagnostics n = row_count;
-  if n <> p_rows then
-    raise exception 'ASSERTION FAILED (% affected %, expected %): %', p_sql, n, p_rows, p_msg;
-  end if;
-  raise notice 'ok   %', p_msg;
-end $$;
-
--- The query must return exactly p_rows rows.
-create function t.expect_count(p_query text, p_rows int, p_msg text) returns void language plpgsql as $$
-declare n int;
-begin
-  execute 'select count(*) from (' || p_query || ') q' into n;
-  if n <> p_rows then
-    raise exception 'ASSERTION FAILED (got % rows, expected %): %', n, p_rows, p_msg;
-  end if;
-  raise notice 'ok   %', p_msg;
-end $$;
+\ir helpers.sql
 
 -- ── seed (as superuser) ─────────────────────────────────────────────────
 -- dm ...a1 runs C1; dm2 ...a5 runs C2; p1 ...a2 and p2 ...a3 are players in
@@ -196,6 +146,41 @@ select t.expect_count($q$select * from public.characters$q$, 0, 'H14a: anon sees
 select t.expect_count($q$select * from public.campaigns$q$, 0, 'H14b: anon sees no campaigns');
 select t.expect_denied($q$select * from public.join_campaign('HARDEN1')$q$, 'H14c: anon cannot join a campaign');
 reset role;
+
+-- ═══ Server-controlled columns and schema_version (0006) ═══════════════
+select t.act_as('a0000000-0000-0000-0000-0000000000a2');   -- p1, owner of a character in C1
+select t.expect_denied_with(
+  $q$update public.characters set id = gen_random_uuid() where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$,
+  'permission denied', 'H15a: an owner cannot rewrite characters.id (it links the sheet to its history)');
+select t.expect_denied_with(
+  $q$update public.characters set updated_at = '1999-01-01' where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$,
+  'permission denied', 'H15b: ...or updated_at (the server stamps it, and concurrency checks rely on it)');
+select t.expect_denied_with(
+  $q$insert into public.characters (id, owner_id, campaign_id) values (gen_random_uuid(), 'a0000000-0000-0000-0000-0000000000a2', 'b0000000-0000-0000-0000-0000000000c1')$q$,
+  'permission denied', 'H15c: ...or choose an id when inserting');
+select t.expect_denied($q$update public.characters set schema_version = 0 where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$, 'H15d: schema_version 0 is rejected');
+select t.expect_denied($q$update public.characters set schema_version = -5 where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$, 'H15e: a negative schema_version is rejected');
+select t.expect_denied($q$update public.characters set schema_version = 1001 where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$, 'H15f: schema_version above 1000 is rejected');
+select t.expect_affects($q$update public.characters set schema_version = 2 where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$, 1, 'H15g: a client can migrate a sheet up');
+select t.expect_denied_with($q$update public.characters set schema_version = 1 where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$, 'can only increase', 'H15h: ...but a stale client cannot downgrade it');
+select t.act_as_superuser();
+select t.expect_affects($q$update public.characters set schema_version = 1 where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$, 1, 'H15i: the project owner can still restore an older version (the 0004 recipe)');
+
+select t.act_as('a0000000-0000-0000-0000-0000000000a1');   -- the DM of C1
+select t.expect_denied_with($q$update public.campaigns set dm_id = 'a0000000-0000-0000-0000-0000000000a4' where id = 'b0000000-0000-0000-0000-0000000000c1'$q$, 'permission denied', 'H16a: a DM cannot hand their campaign to someone else');
+select t.expect_denied_with($q$update public.campaigns set id = gen_random_uuid() where id = 'b0000000-0000-0000-0000-0000000000c1'$q$, 'permission denied', 'H16b: ...or change its id');
+select t.expect_denied_with($q$update public.campaigns set created_at = '1999-01-01' where id = 'b0000000-0000-0000-0000-0000000000c1'$q$, 'permission denied', 'H16c: ...or its creation date');
+select t.expect_affects($q$update public.campaigns set name = 'Renamed' where id = 'b0000000-0000-0000-0000-0000000000c1'$q$, 1, 'H16d: a DM can still rename their campaign');
+
+select t.act_as('a0000000-0000-0000-0000-0000000000a4');   -- eve has no profile yet
+select t.expect_denied_with($q$insert into public.profiles (id, display_name, created_at) values ('a0000000-0000-0000-0000-0000000000a4', 'Eve', '1999-01-01')$q$, 'permission denied', 'H17a: a client cannot set profiles.created_at');
+select t.expect_affects($q$insert into public.profiles (id, display_name) values ('a0000000-0000-0000-0000-0000000000a4', 'Eve')$q$, 1, 'H17b: a normal profile insert still works');
+select t.expect_denied_with($q$update public.profiles set id = gen_random_uuid() where id = 'a0000000-0000-0000-0000-0000000000a4'$q$, 'permission denied', 'H17c: a profile id cannot be rewritten');
+
+select t.act_as('a0000000-0000-0000-0000-0000000000a2');
+select t.expect_affects($q$update public.characters set data = jsonb_build_object('pad', repeat('x', 400000)) where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$, 1, 'H18a: a 400 KB sheet is accepted (a heavily filled real sheet is about 360 KiB)');
+select t.expect_denied($q$update public.characters set data = jsonb_build_object('pad', repeat('x', 600000)) where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$, 'H18b: a 600 KB sheet is rejected (cap is 512 KiB since 0006)');
+select t.act_as_superuser();
 
 \echo ALL HARDENING TESTS PASSED
 rollback;

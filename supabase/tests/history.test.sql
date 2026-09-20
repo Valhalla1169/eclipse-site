@@ -7,52 +7,7 @@
 
 begin;
 
-create schema t;
-grant usage on schema t to anon, authenticated;
-
-create function t.act_as(p_uid uuid) returns void language plpgsql as $$
-begin
-  perform set_config('request.jwt.claim.sub', p_uid::text, true);
-  set local role authenticated;
-end $$;
-
-create function t.act_as_superuser() returns void language plpgsql as $$
-begin
-  perform set_config('request.jwt.claim.sub', '', true);
-  reset role;
-end $$;
-
-create function t.expect_denied(p_sql text, p_msg text) returns void language plpgsql as $$
-begin
-  begin
-    execute p_sql;
-  exception when insufficient_privilege or check_violation or raise_exception then
-    raise notice 'ok   %', p_msg;
-    return;
-  end;
-  raise exception 'ASSERTION FAILED (expected denial, but it succeeded): %', p_msg;
-end $$;
-
-create function t.expect_affects(p_sql text, p_rows int, p_msg text) returns void language plpgsql as $$
-declare n int;
-begin
-  execute p_sql;
-  get diagnostics n = row_count;
-  if n <> p_rows then
-    raise exception 'ASSERTION FAILED (% affected %, expected %): %', p_sql, n, p_rows, p_msg;
-  end if;
-  raise notice 'ok   %', p_msg;
-end $$;
-
-create function t.expect_count(p_query text, p_rows int, p_msg text) returns void language plpgsql as $$
-declare n int;
-begin
-  execute 'select count(*) from (' || p_query || ') q' into n;
-  if n <> p_rows then
-    raise exception 'ASSERTION FAILED (got % rows, expected %): %', n, p_rows, p_msg;
-  end if;
-  raise notice 'ok   %', p_msg;
-end $$;
+\ir helpers.sql
 
 -- Age every 'edit' snapshot of a character so the 10-minute throttle lets the
 -- next edit snapshot again.
@@ -175,6 +130,26 @@ reset role;
 select t.expect_count(
   $q$select 1 from pg_constraint where conrelid = 'public.character_history'::regclass and contype = 'f'$q$, 0,
   'PH16: history has no foreign key, so it outlives the row it describes');
+
+-- ═══ 8. schema_change snapshots are bounded too (0006) ══════════════════
+-- A member flipping the version in a loop used to store an unbounded number of
+-- snapshots. Versions may only go up now, so climb from 2 to 42 as the owner.
+do $$
+begin
+  perform t.act_as('e0000000-0000-0000-0000-000000000002');
+  for v in 3..42 loop
+    update public.characters set schema_version = v where id = '99000000-0000-0000-0000-000000000001';
+  end loop;
+  perform t.act_as_superuser();
+end $$;
+select t.expect_count($q$select 1 from public.character_history where character_id = '99000000-0000-0000-0000-000000000001' and reason = 'schema_change'$q$, 10,
+  'PH17: after 40 more version bumps only the newest 10 schema_change snapshots remain');
+select t.expect_count($q$select 1 from public.character_history where character_id = '99000000-0000-0000-0000-000000000001' and reason = 'schema_change' and schema_version = 41$q$, 1,
+  'PH17b: the newest one (the state just before the last bump) is among them');
+select t.expect_count($q$select 1 from public.character_history where character_id = '99000000-0000-0000-0000-000000000001' and reason = 'edit'$q$, 30,
+  'PH17c: pruning schema_change snapshots leaves the 30 edit snapshots alone');
+select t.expect_count($q$select 1 from public.character_history where character_id = '99000000-0000-0000-0000-000000000002' and reason = 'delete'$q$, 1,
+  'PH17d: ...and never touches a delete snapshot');
 
 \echo ALL HISTORY TESTS PASSED
 rollback;

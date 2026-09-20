@@ -37,7 +37,7 @@ codes were case- and whitespace-sensitive.
    10 uppercase hex characters from `gen_random_uuid()`), must match
    `^[A-Z0-9]{6,32}$`, and `join_campaign()` upper-cases and trims its input.
 5. **Sheets are bounded in the database** (DESIGN.md 5.5): `character_name` at
-   most 100 characters, `data` a JSON object of at most 1 MiB.
+   most 100 characters, `data` a JSON object of at most 512 KiB (1 MiB when this ADR was written; tightened by ADR 0006 after measuring a real sheet).
 
 ## Consequences
 
@@ -45,9 +45,9 @@ codes were case- and whitespace-sensitive.
   changed; this ADR only narrows who else can write.
 - A player who is removed and then keeps editing will see their writes fail.
   The client should treat that as "you were removed", not as a generic error.
-- The 1 MiB cap is generous headroom, not a measured limit. Revisit it against
+- The cap is now measured, not a guess (ADR 0006): a blank sheet is 1.5 KB and an absurdly full one is 361 KiB. Revisit it against
   a real serialized sheet when the player sheet is ported.
 - Invite codes are still shared secrets, and `join_campaign()` still has no
   rate limiting (see ADR 0001, Security notes).
 - Every future migration touching these tables must keep
-  `rls_policies.test.sql` and `rls_hardening.test.sql` passing (DESIGN.md 6.4).
+  every suite in `supabase/tests/` passing (`npm run test:db`, DESIGN.md 6.4).

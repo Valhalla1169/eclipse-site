@@ -21,19 +21,29 @@ begin
   raise notice 'ok   %', p_msg;
 end $$;
 
+-- The columns a role may write with the given privilege, sorted. A blanket
+-- table-level grant would list every column, so exact equality also proves there
+-- is no blanket grant.
+create function pg_temp.cols(p_role text, p_table text, p_priv text) returns text[] language sql as $$
+  select coalesce(array_agg(column_name::text order by column_name), '{}')
+  from information_schema.columns
+  where table_schema = 'public' and table_name = split_part(p_table, '.', 2)
+    and has_column_privilege(p_role, p_table, column_name, p_priv);
+$$;
+
 -- ── tables: authenticated gets exactly what the app uses ─────────────────
 select pg_temp.expect(
   has_table_privilege('authenticated', 'public.profiles', 'select')
-  and has_table_privilege('authenticated', 'public.profiles', 'insert')
-  and has_table_privilege('authenticated', 'public.profiles', 'update')
+  and pg_temp.cols('authenticated', 'public.profiles', 'insert') = array['display_name','id']
+  and pg_temp.cols('authenticated', 'public.profiles', 'update') = array['display_name']
   and not has_table_privilege('authenticated', 'public.profiles', 'delete'),
-  'G1: authenticated can select/insert/update profiles, not delete');
+  'G1: profiles: write only id+display_name on insert, only display_name on update, never delete (0006)');
 select pg_temp.expect(
   has_table_privilege('authenticated', 'public.campaigns', 'select')
-  and has_table_privilege('authenticated', 'public.campaigns', 'insert')
-  and has_table_privilege('authenticated', 'public.campaigns', 'update')
+  and pg_temp.cols('authenticated', 'public.campaigns', 'insert') = array['dm_id','name']
+  and pg_temp.cols('authenticated', 'public.campaigns', 'update') = array['name']
   and not has_table_privilege('authenticated', 'public.campaigns', 'delete'),
-  'G2: authenticated can select/insert/update campaigns, NEVER delete (0004)');
+  'G2: campaigns: insert dm_id+name, update only name (so dm_id can never change), never delete (0004, 0006)');
 select pg_temp.expect(
   has_table_privilege('authenticated', 'public.campaign_players', 'select')
   and not has_table_privilege('authenticated', 'public.campaign_players', 'insert')
@@ -42,10 +52,10 @@ select pg_temp.expect(
   'G3: authenticated can only READ campaign_players (writes go through RPCs)');
 select pg_temp.expect(
   has_table_privilege('authenticated', 'public.characters', 'select')
-  and has_table_privilege('authenticated', 'public.characters', 'insert')
-  and has_table_privilege('authenticated', 'public.characters', 'update')
+  and pg_temp.cols('authenticated', 'public.characters', 'insert') = array['campaign_id','character_name','data','owner_id','schema_version']
+  and pg_temp.cols('authenticated', 'public.characters', 'update') = array['campaign_id','character_name','data','owner_id','schema_version']
   and not has_table_privilege('authenticated', 'public.characters', 'delete'),
-  'G4: authenticated can select/insert/update characters, NEVER delete (0004)');
+  'G4: characters: id and updated_at are never client-writable, and there is no delete (0004, 0006)');
 select pg_temp.expect(
   has_table_privilege('authenticated', 'public.campaign_creators', 'select')
   and not has_table_privilege('authenticated', 'public.campaign_creators', 'insert')
@@ -120,6 +130,9 @@ select pg_temp.expect(
   and not has_function_privilege('authenticated', 'public.snapshot_character()', 'execute')
   and not has_function_privilege('authenticated', 'public.generate_invite_code()', 'execute'),
   'G14: trigger functions and the invite-code generator are not executable by clients');
+select pg_temp.expect(
+  not has_function_privilege('authenticated', 'public.characters_guard_schema_version()', 'execute'),
+  'G15: the schema_version guard trigger function is not executable by clients (0006)');
 
 \echo ALL GRANT TESTS PASSED
 rollback;

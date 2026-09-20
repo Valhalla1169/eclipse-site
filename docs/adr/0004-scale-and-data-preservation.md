@@ -35,7 +35,8 @@ switcher until someone actually has more than one.
    trigger, so it cannot be skipped by a client bug:
    - **every delete**, including cascades from a campaign or account;
    - **every change of `schema_version`**, always, so a rules or layout migration
-     can be rolled back;
+     can be rolled back (ADR 0006: the newest 10 per character are kept, versions can
+     only increase for a client, and they are limited to 1 to 1000);
    - **edits** to the data or name, at most one snapshot per 10 minutes (autosave
      writes every few seconds), keeping the newest 30 per character.
    `character_history` has no foreign key on purpose, so it outlives the row. It
