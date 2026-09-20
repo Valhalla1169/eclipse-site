@@ -20,9 +20,6 @@ begin;
 insert into auth.users (id, email)
 select ('c0000000-0000-0000-0000-0000000000' || lpad(to_hex(n), 2, '0'))::uuid, 'u' || n || '@a.test'
 from generate_series(1, 10) n;
-insert into public.profiles (id, display_name)
-select ('c0000000-0000-0000-0000-0000000000' || lpad(to_hex(n), 2, '0'))::uuid, 'User' || n
-from generate_series(1, 10) n;
 insert into public.campaign_creators (user_id, note) values
   ('c0000000-0000-0000-0000-000000000001', 'owner'),
   ('c0000000-0000-0000-0000-000000000006', 'second DM');

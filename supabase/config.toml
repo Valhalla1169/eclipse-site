@@ -25,9 +25,11 @@ major_version = 17
 site_url = "https://eclipse.deyderae.dev"
 additional_redirect_urls = ["https://eclipse.deyderae.dev", "https://eclipse.deyderae.dev/**", "http://localhost:8787/**"]
 enable_signup = true
+minimum_password_length = 12
 
 [auth.email]
 enable_confirmations = true
+secure_password_change = true
 max_frequency = "1m0s"
 otp_length = 8
 
@@ -36,9 +38,9 @@ otp_length = 8
 enroll_enabled = true
 verify_enabled = true
 
-# Phone sign-in is not used. The live project has this SMS provider switched on, and the
-# CLI will not accept "enabled" without credentials, so it is declared OFF: a push
-# switches an unused login method off.
+# Phone sign-in is off (only email is a sign-in provider). The CLI cannot turn this SMS
+# provider flag off ("config push" reports it as not encodable) and rejects "enabled"
+# without credentials, so `config diff` always shows this one line. Ignore it.
 [auth.sms.twilio]
 enabled = false
 

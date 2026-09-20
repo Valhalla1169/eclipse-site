@@ -128,6 +128,8 @@ select pg_temp.expect(
   not has_function_privilege('authenticated', 'public.set_updated_at()', 'execute')
   and not has_function_privilege('authenticated', 'public.characters_lock_identity()', 'execute')
   and not has_function_privilege('authenticated', 'public.snapshot_character()', 'execute')
+  and not has_function_privilege('authenticated', 'public.handle_new_user()', 'execute')
+  and not has_function_privilege('authenticated', 'public.derive_display_name(jsonb,text)', 'execute')
   and not has_function_privilege('authenticated', 'public.generate_invite_code()', 'execute'),
   'G14: trigger functions and the invite-code generator are not executable by clients');
 select pg_temp.expect(

@@ -25,9 +25,6 @@ insert into auth.users (id, email) values
   ('a0000000-0000-0000-0000-0000000000a3', 'p2@h.test'),
   ('a0000000-0000-0000-0000-0000000000a4', 'eve@h.test'),
   ('a0000000-0000-0000-0000-0000000000a5', 'dm2@h.test');
-insert into public.profiles (id, display_name) values
-  ('a0000000-0000-0000-0000-0000000000a2', 'P1'),
-  ('a0000000-0000-0000-0000-0000000000a3', 'P2');
 insert into public.campaigns (id, dm_id, name) values
   ('b0000000-0000-0000-0000-0000000000c1', 'a0000000-0000-0000-0000-0000000000a1', 'C1'),
   ('b0000000-0000-0000-0000-0000000000c2', 'a0000000-0000-0000-0000-0000000000a5', 'C2');
@@ -172,9 +169,10 @@ select t.expect_denied_with($q$update public.campaigns set id = gen_random_uuid(
 select t.expect_denied_with($q$update public.campaigns set created_at = '1999-01-01' where id = 'b0000000-0000-0000-0000-0000000000c1'$q$, 'permission denied', 'H16c: ...or its creation date');
 select t.expect_affects($q$update public.campaigns set name = 'Renamed' where id = 'b0000000-0000-0000-0000-0000000000c1'$q$, 1, 'H16d: a DM can still rename their campaign');
 
-select t.act_as('a0000000-0000-0000-0000-0000000000a4');   -- eve has no profile yet
+select t.act_as('a0000000-0000-0000-0000-0000000000a4');   -- eve's profile came from the signup trigger
 select t.expect_denied_with($q$insert into public.profiles (id, display_name, created_at) values ('a0000000-0000-0000-0000-0000000000a4', 'Eve', '1999-01-01')$q$, 'permission denied', 'H17a: a client cannot set profiles.created_at');
-select t.expect_affects($q$insert into public.profiles (id, display_name) values ('a0000000-0000-0000-0000-0000000000a4', 'Eve')$q$, 1, 'H17b: a normal profile insert still works');
+select t.expect_count($q$select 1 from public.profiles where id = 'a0000000-0000-0000-0000-0000000000a4' and display_name = 'eve'$q$, 1, 'H17b: eve already has a profile, made by the signup trigger from her email');
+select t.expect_affects($q$update public.profiles set display_name = 'Eve' where id = 'a0000000-0000-0000-0000-0000000000a4'$q$, 1, 'H17d: a user can still rename their own profile');
 select t.expect_denied_with($q$update public.profiles set id = gen_random_uuid() where id = 'a0000000-0000-0000-0000-0000000000a4'$q$, 'permission denied', 'H17c: a profile id cannot be rewritten');
 
 select t.act_as('a0000000-0000-0000-0000-0000000000a2');
