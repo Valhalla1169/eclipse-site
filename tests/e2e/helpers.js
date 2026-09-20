@@ -74,3 +74,30 @@ export const clearCalls = (page) => page.evaluate(() => localStorage.setItem("__
 export const callsTo = async (page, pathname, method) =>
   (await calls(page)).filter((c) => c.path === pathname && (!method || c.method === method));
 export const storedSession = (page) => page.evaluate((ref) => localStorage.getItem(`sb-${ref}-auth-token`), REF);
+
+export const CHARACTER_ID = "40000000-0000-4000-8000-000000000001";
+export const FIRST_STAMP = "2026-09-19T11:00:00.000123+00:00";
+
+// The row the fake database holds for Dana in the test campaign.
+export const characterRow = (data, extra = {}) => ({
+  id: CHARACTER_ID,
+  owner_id: ids.player,
+  campaign_id: ids.campaign,
+  schema_version: 1,
+  character_name: (data.id && data.id.name) || "",
+  data,
+  updated_at: FIRST_STAMP,
+  ...extra,
+});
+
+// Another device saves the sheet: the stored data and updated_at change behind the page's back.
+export const otherDeviceSaves = (page, data) =>
+  page.evaluate((data) => {
+    const mock = JSON.parse(localStorage.getItem("__mock"));
+    mock.character.data = data;
+    mock.character.character_name = data.id.name;
+    mock.character.updated_at = "2026-09-19T12:30:00.000789+00:00";
+    localStorage.setItem("__mock", JSON.stringify(mock));
+  }, data);
+
+export const storedCharacter = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("__mock")).character);

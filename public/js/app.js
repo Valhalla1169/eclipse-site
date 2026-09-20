@@ -1,8 +1,11 @@
 // Eclipse SPA entry point: session, routes, and which view to show.
 // Loaded as <script type="module"> after /vendor/supabase.js (see index.html).
 import * as auth from "./auth.js";
+import * as characters from "./characters.js";
 import * as data from "./data.js";
+import { SheetFormatError, openSheet } from "./eclipse-rules.js";
 import { createRouter } from "./router.js";
+import { createSheetView } from "./sheet/index.js";
 import * as views from "./views.js";
 import { cleanDisplayName, friendlyError, isUuid, normalizeCode, safeNextPath } from "./util.js";
 
@@ -32,8 +35,14 @@ const state = {
 
 let router;
 let renderToken = 0; // a newer navigation invalidates an older, slower render
+let disposeView = null; // set by a view that holds page-wide listeners, such as the sheet
 
-function show(node, title, announce = true) {
+// options.wide: the sheet needs more room than the account pages. options.dispose:
+// runs when the view is replaced.
+function show(node, title, announce = true, { wide = false, dispose = null } = {}) {
+  if (disposeView) disposeView();
+  disposeView = dispose;
+  main.className = wide ? "page page-wide" : "page";
   main.replaceChildren(node);
   document.title = title ? `${title} - Eclipse` : "Eclipse";
   // After an in-app navigation, move focus to the new heading so keyboard and
@@ -223,7 +232,20 @@ async function onRoute({ path, search, match, initial }) {
         campaign.name,
       );
     }
-    return showHere(views.playStubView({ campaign }), campaign.name);
+    // play: the player's own sheet. Nothing is drawn until the row has loaded and been read.
+    if (campaign.dm_id === user.id) return showHere(views.dmHasNoSheetView({ campaign }), campaign.name);
+    const row = await characters.loadCharacter(campaign.id, user.id);
+    if (!alive()) return;
+    let opened;
+    try {
+      opened = openSheet(row);
+    } catch (err) {
+      if (!(err instanceof SheetFormatError)) throw err;
+      console.error(err);
+      return showHere(views.sheetUnreadableView({ campaign }), campaign.name);
+    }
+    const sheet = createSheetView({ campaign, opened, row, persist: characters.saveCharacter });
+    return show(sheet.element, campaign.name, announce, { wide: true, dispose: sheet.dispose });
   } catch (err) {
     if (!alive()) return;
     console.error(err);

@@ -33,6 +33,65 @@
       expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 86400 * 30, user: userObject(id, email) };
   }
 
+  // The characters table, the way the real one behaves for the row's owner: writes go
+  // through only for the columns a client may write (ADR 0006), an update matches only
+  // while updated_at is still what the client saw, and every accepted update gets a new
+  // updated_at. `c.character` is the one row; `c.characterBlocked` makes updates match
+  // nothing (a player who left the campaign); `c.failPatches` fails that many updates
+  // with a network error first, and `c.failCharacters` fails every call.
+  var WRITABLE = ["owner_id", "campaign_id", "character_name", "data", "schema_version"];
+  var UPDATABLE = ["character_name", "data", "schema_version"];
+  var MAX_DATA_BYTES = 524288;
+  function stamp(c) {
+    c.clock = (c.clock || 0) + 1;
+    return new Date(Date.UTC(2026, 8, 19, 12, 0, c.clock)).toISOString().replace("Z", "456+00:00");
+  }
+  function pgError(message, code) { return json(400, { code: code || "P0001", message: message, details: null, hint: null }); }
+  function characters(c, u, method, body) {
+    if (c.failCharacters) throw new TypeError("Failed to fetch");
+    var row = c.character || null;
+    var select = (u.searchParams.get("select") || "").split(",").map(function (x) { return x.trim(); });
+    function project(r) {
+      var out = {};
+      select.forEach(function (k) { out[k] = r[k]; });
+      return out;
+    }
+    if (method === "GET") {
+      var byId = u.searchParams.get("id");
+      var byCampaign = u.searchParams.get("campaign_id");
+      var hit = row && (byId ? "eq." + row.id === byId : "eq." + row.campaign_id === byCampaign);
+      return json(200, hit ? [project(row)] : []);
+    }
+    if (method === "POST") {
+      var bad = Object.keys(body).filter(function (k) { return WRITABLE.indexOf(k) === -1; });
+      if (bad.length) return pgError("permission denied for column " + bad[0], "42501");
+      if (row || c.characterInsertRace) {
+        if (c.characterInsertRace && !row) {
+          c.character = row = { id: "40000000-0000-4000-8000-000000000001", owner_id: body.owner_id, campaign_id: body.campaign_id, schema_version: 1, character_name: "Made elsewhere", data: c.characterInsertRace, updated_at: stamp(c) };
+          save(c);
+        }
+        return pgError("duplicate key value violates unique constraint", "23505");
+      }
+      row = { id: "40000000-0000-4000-8000-000000000001", owner_id: body.owner_id, campaign_id: body.campaign_id, schema_version: body.schema_version, character_name: body.character_name, data: body.data, updated_at: stamp(c) };
+      c.character = row; save(c);
+      return json(201, [project(row)]);
+    }
+    if (method === "PATCH") {
+      var forbidden = Object.keys(body).filter(function (k) { return UPDATABLE.indexOf(k) === -1; });
+      if (forbidden.length) return pgError("permission denied for column " + forbidden[0], "42501");
+      if (c.failPatches > 0) { c.failPatches -= 1; save(c); throw new TypeError("Failed to fetch"); }
+      if (JSON.stringify(body.data || {}).length > MAX_DATA_BYTES) return pgError("new row violates check constraint \"characters_data_size\"", "23514");
+      if (row && body.schema_version < row.schema_version) return pgError("schema_version can only increase");
+      var matches = row && !c.characterBlocked && "eq." + row.id === u.searchParams.get("id") && "eq." + row.updated_at === u.searchParams.get("updated_at");
+      if (!matches) return json(200, []);
+      Object.keys(body).forEach(function (k) { row[k] = body[k]; });
+      row.updated_at = stamp(c);
+      save(c);
+      return json(200, [{ updated_at: row.updated_at }]);
+    }
+    return json(405, { message: "fake-supabase: unhandled " + method + " /rest/v1/characters" });
+  }
+
   document.addEventListener("securitypolicyviolation", function (e) {
     var v = JSON.parse(localStorage.getItem("__viol") || "[]");
     v.push({ directive: e.violatedDirective, blocked: e.blockedURI, file: e.sourceFile || "", line: e.lineNumber });
@@ -131,6 +190,8 @@
         return json(201, [{ id: made.id, name: made.name, dm_id: made.dm_id }]);
       }
     }
+
+    if (path === "/rest/v1/characters") return characters(c, u, method, body);
 
     if (path === "/rest/v1/rpc/join_campaign" && method === "POST") {
       if (c.joinError) return json(400, { code: "P0001", message: c.joinError, details: null, hint: null });

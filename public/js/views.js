@@ -540,13 +540,25 @@ export function dmView({ campaign, loadInvites, createInvite, revokeInvite, onCo
 }
 
 // Placeholder until the player sheet (Phase 3) exists.
-export function playStubView({ campaign }) {
+// A DM runs the campaign and has no sheet of their own (docs/adr/0001).
+export function dmHasNoSheetView({ campaign }) {
   return h(
     "section",
     { class: "card stack" },
     h("h1", {}, campaign.name),
-    h("span", { class: "badge" }, "Player"),
-    h("p", { class: "muted" }, "You have joined this campaign. Your character sheet will appear here."),
+    h("span", { class: "badge" }, "DM"),
+    h("p", {}, "You are the DM of this campaign. A DM does not have a character sheet."),
+    h("p", {}, h("a", { class: "btn btn-primary", href: `/campaign/${campaign.id}/dm` }, "Open the DM page"), " ", h("a", { class: "btn btn-quiet", href: "/" }, "Back to home")),
+  );
+}
+
+// The stored sheet could not be read. The stored copy is left exactly as it is.
+export function sheetUnreadableView({ campaign }) {
+  return h(
+    "section",
+    { class: "card stack" },
+    h("h1", {}, campaign.name),
+    notice("error", "Your character sheet could not be read, so it is not shown. Nothing was changed or saved. Tell your DM, who can recover it."),
     h("p", {}, h("a", { class: "btn btn-quiet", href: "/" }, "Back to home")),
   );
 }
