@@ -1,6 +1,6 @@
 # ADR 0001: Eclipse data model, auth, and access control on Supabase
 
-Status: Accepted, amended by ADR 0002 (character writes require membership), ADR 0003 (explicit grants), ADR 0004 (no client deletes, snapshot history) and ADR 0005 (campaign creator allowlist, hashed invites instead of a permanent campaign code, profile visibility)
+Status: Accepted, amended by ADR 0002 (character writes require membership), ADR 0003 (explicit grants), ADR 0004 (no client deletes, snapshot history), ADR 0005 (campaign creator allowlist, hashed invites instead of a permanent campaign code, profile visibility), ADR 0006 (least-privilege columns), ADR 0007 (password accounts replace magic-link-only sign-in), ADR 0008 (the player sheet) and ADR 0009 (the DM roster)
 Date: 2026-09-19
 Repo: eclipse-site (eclipse.deyderae.dev)
 
@@ -141,7 +141,7 @@ subscription can't leak rows a query couldn't return.
 - The client's storage layer replaces V5's `sGet`/`sSet`/`sDel` +
   Firebase-flavored calls with Supabase `select`/`upsert`/realtime-channel
   calls against these four tables — see
-  `docs/IMPLEMENTATION_PLAN.md` for the mapping.
+  the later ADRs for what was built.
 - RLS tests (`supabase/tests/`) must be run against any future migration
   that touches these tables, per DESIGN.md §6.4's multi-role RLS testing
   requirement.

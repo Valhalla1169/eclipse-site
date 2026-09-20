@@ -1,6 +1,6 @@
 # ADR 0007: A proper account system
 
-Status: **Accepted.** Steps 0 and 1 are built. Steps 2 and 3 come after the player sheet.
+Status: **Accepted.** Steps 0 and 1 are built, and the player sheet (ADR 0008) and DM roster (ADR 0009) after them. Steps 2 and 3 are still to build.
 Date: 2026-09-19
 Replaces: the magic-link-only sign-in, the profile step, and the single-campaign home page.
 
@@ -78,8 +78,8 @@ through a Worker are stronger against token theft but add a server component. Re
 
 ### 3. Email (prerequisite for everything else)
 
-Custom SMTP through a transactional provider (Resend, Postmark or Amazon SES), sending from
-`no-reply@deyderae.dev`. SPF, DKIM and DMARC records go in Cloudflare DNS. Templates are
+Custom SMTP through a transactional provider. It is Resend, sending from
+`no-reply@mail.deyderae.dev`. SPF, DKIM and DMARC records go in Cloudflare DNS. Templates are
 written for: confirm sign-up, magic link, reset password, change email, reauthenticate. The
 project's Auth rate limit for emails is raised to match.
 
@@ -131,18 +131,17 @@ campaign". So the model changes are small:
 
 ### 9. Rollout
 
-- **Step 0:** test whether the default sender reaches a non-team address (a Gmail plus address
-  is enough). Then set up custom SMTP and DNS. `minimum_password_length = 12` and
-  `secure_password_change = true` are set in `config.toml` and pushed. Custom SMTP is **not
-  done yet**: it needs the owner's provider account and DNS records.
+- **Step 0 (done):** custom SMTP through Resend and its DNS records are set up, and mail reaches
+  non-team addresses. `minimum_password_length = 12` and `secure_password_change = true` are
+  set in `config.toml` and pushed.
 - **Step 1 (built):** password sign-up, log-in, reset, the profile trigger (migration 0007), and
   the account page. The existing account keeps working through the magic link and sets a
   password on the account page. Old and new methods coexist, so nobody is locked out.
 - **Step 2:** the dashboard for several campaigns.
 - **Step 3:** CAPTCHA, breached-password screening, two-factor.
 
-Every database change is a new numbered migration with tests. There is no data to migrate:
-the live project has one account and one campaign.
+Every database change is a new numbered migration with tests. Steps 2 and 3 need no data
+migration: the live project holds a handful of test accounts and campaigns.
 
 ### 10. Threats and answers
 
@@ -171,7 +170,7 @@ checklist until a test inbox is set up: the fake cannot prove that mail arrives.
 |---|---|---|
 | D1 | Who may create a campaign? | Allowlist only. The owner approves each person. Quota later if Eclipse opens to other groups |
 | D2 | Sign-in methods | Password plus magic link. Google later |
-| D3 | Email provider | Resend or Postmark. Both have free tiers. Not chosen yet |
+| D3 | Email provider | Resend |
 | D4 | Second factor | Optional for all, required for creators (step 3) |
 | D5 | Sessions in `localStorage` or cookies through a Worker | Keep `localStorage` with the strict CSP |
 | D6 | Account deletion | Owner-run script, not self-service |
@@ -179,6 +178,5 @@ checklist until a test inbox is set up: the fake cannot prove that mail arrives.
 
 ## Assumptions to verify
 
-- The default Supabase sender is restricted to team members (step 0).
 - Breached-password protection in Supabase is a paid feature.
 - Turnstile and passkey behavior in this Auth version (v2.197.0).

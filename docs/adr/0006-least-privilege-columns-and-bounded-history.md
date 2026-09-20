@@ -92,5 +92,3 @@ which can never be shown again. **Decision:** errors have their own container.
   the same campaign; accepted.
 - **`localhost:8787` stays in the production redirect allowlist** so local development works. Remove
   it if you stop developing against this project, or use a separate development project.
-- **No browser (end-to-end) tests are committed yet.** The suite used during development lives outside
-  the repo and should be ported to Playwright (`DESIGN.md` 6.4).

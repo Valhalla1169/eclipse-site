@@ -16,14 +16,14 @@ npm run dev          # http://localhost:8787
 
 You create an account with an email and a password (at least 12 characters), or sign in with an
 emailed link, opened in the same browser that asked for it. The site talks to the real Supabase project
-(its URL and public anon key are in `public/js/config.js`). Confirmation and reset emails need Supabase's
-email sender to work for your address.
+(its URL and public anon key are in `public/js/config.js`). Emails (confirmation, reset, sign-in link) are sent by Resend from `no-reply@mail.deyderae.dev`; the
+key is in `supabase/.env`, which is not committed.
 
 ## Tests
 
 ```
 npm test             # unit tests (Vitest): rules, autosave, colour contrast, routing, validation
-npm run test:e2e     # browser tests (Playwright, uses Edge) against the local dev server
+npm run test:e2e     # browser tests (Playwright, uses Edge) and an accessibility scan, against the local dev server
 npm run test:db      # database tests: every migration plus every suite, in a throwaway database
 ```
 
