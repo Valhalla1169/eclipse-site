@@ -33,6 +33,15 @@ secure_password_change = true
 max_frequency = "1m0s"
 otp_length = 8
 
+[auth.email.smtp]
+enabled = true
+host = "smtp.resend.com"
+port = 465
+user = "resend"
+pass = "env(RESEND_API_KEY)"
+admin_email = "no-reply@mail.deyderae.dev"
+sender_name = "Eclipse"
+
 # ── mirrored from the live project; not used by the app ──────────────────────
 [auth.mfa.totp]
 enroll_enabled = true
