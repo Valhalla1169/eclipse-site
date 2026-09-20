@@ -1,9 +1,13 @@
 // Manage who is allowed to create campaigns (the public.campaign_creators table).
 //
-//   npm run creators -- list
-//   npm run creators -- add you@example.com
-//   npm run creators -- remove you@example.com
-//   npm run creators -- add you@example.com --print-sql     (show the SQL, run nothing)
+//   npm run creators list
+//   npm run creators add you@example.com
+//   npm run creators remove you@example.com
+//   npm run creators add you@example.com print-sql          (show the SQL, run nothing)
+//
+// The same works without npm, in any shell:  node scripts/creators.mjs add you@example.com
+// (In PowerShell the "--" separator that older instructions used gets dropped, so
+// it is not needed here: plain words pass straight through.)
 //
 // The allowlist has no client write access at all (ADR 0005), so this is the only
 // way to change it. It runs SQL against the linked Supabase project through the
@@ -41,23 +45,40 @@ export function sqlFor(command, email) {
   throw new Error("Unknown command: " + command);
 }
 
-function run(sql) {
-  const r = spawnSync(process.execPath, [cli, "db", "query", "--linked", sql], { encoding: "utf8", cwd: root });
-  const out = (r.stdout || "") + (r.stderr || "");
-  const start = out.indexOf("{");
-  if (r.status !== 0 || start < 0) throw new Error("The Supabase CLI failed. Are you logged in and linked?\n" + out.trim().slice(-600));
-  return JSON.parse(out.slice(start)).rows || [];
+// Pull the JSON object out of the CLI's output. The result is on stdout; stderr
+// carries progress lines ("Initialising login role...") that must not be parsed.
+export function parseRows(stdout) {
+  const start = stdout.indexOf("{");
+  const end = stdout.lastIndexOf("}");
+  if (start < 0 || end < start) throw new Error("no JSON in the CLI output");
+  return JSON.parse(stdout.slice(start, end + 1)).rows || [];
 }
 
-const [command, email, flag] = process.argv.slice(2);
+function run(sql) {
+  const r = spawnSync(process.execPath, [cli, "db", "query", "--linked", sql], { encoding: "utf8", cwd: root });
+  if (r.status !== 0) {
+    throw new Error("The Supabase CLI failed. Are you logged in and linked to the project?\n" + ((r.stderr || "") + (r.stdout || "")).trim().slice(-600));
+  }
+  try {
+    return parseRows(r.stdout || "");
+  } catch (err) {
+    throw new Error("Could not read the Supabase CLI's answer (" + err.message + ").\n" + (r.stdout || "").trim().slice(-400));
+  }
+}
+
+// PowerShell can drop the "--" that separates npm's flags from ours, and npm then
+// swallows a "--print-sql" flag itself, so also accept it as a plain word.
+const args = process.argv.slice(2);
+const printSql = args.includes("--print-sql") || args.includes("print-sql");
+const [command, email] = args.filter((a) => a !== "--print-sql" && a !== "print-sql");
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
     if (!["list", "add", "remove"].includes(command)) {
-      console.log("Usage: npm run creators -- list | add <email> | remove <email> [--print-sql]");
+      console.log("Usage: npm run creators list | add <email> | remove <email>   (add print-sql to only show the SQL)");
       process.exit(command ? 1 : 0);
     }
-    if (flag === "--print-sql" || email === "--print-sql") {
-      console.log(sqlFor(command === "list" ? "list" : command, email === "--print-sql" ? undefined : email));
+    if (printSql) {
+      console.log(sqlFor(command, email));
       process.exit(0);
     }
     if (command === "list") {
@@ -67,7 +88,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     } else if (command === "add") {
       const found = run(sqlFor("lookup", email));
       if (!found.length) {
-        console.error(`No Eclipse account uses ${email} yet. Ask them to sign in once at the site, then run this again.`);
+        console.log(`No Eclipse account uses ${email} yet. Ask them to sign in once at the site (with exactly that email), then run this again.`);
         process.exit(1);
       }
       if (found[0].allowed) {

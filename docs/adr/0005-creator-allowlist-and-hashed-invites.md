@@ -29,7 +29,7 @@ As built through ADR 0004, none of that was true:
 `campaign_creators (user_id)` lists who may create a campaign. The `campaigns`
 INSERT policy requires the caller to be on it (`is_campaign_creator()`) as well as
 naming themselves as DM. Nobody can add themselves: the table has no client write
-grant at all. It changes only from outside the app, with `npm run creators -- add
+grant at all. It changes only from outside the app, with `npm run creators add
 <email>` (which uses the project owner's CLI login) or SQL as the project owner. A
 person must have signed in once before they can be added, because the list is
 keyed by their account. Adding or removing someone never touches existing
@@ -94,7 +94,7 @@ stranger sees nothing about anyone.
 ## Operating it
 
 ```
-npm run creators -- add you@example.com     # after you have signed in once
-npm run creators -- list
-npm run creators -- remove someone@example.com
+npm run creators add you@example.com       # use the email you signed in with; after you have signed in once
+npm run creators list
+npm run creators remove someone@example.com
 ```
