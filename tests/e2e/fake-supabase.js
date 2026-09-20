@@ -1,0 +1,149 @@
+// A small in-memory stand-in for the Supabase Auth and REST APIs, injected into every
+// page by Playwright (addInitScript) before the app loads. The app code is untouched
+// and the real CSP still applies, because this script is not part of the page.
+//
+// It replaces fetch() for the project's origin only. State lives in localStorage so it
+// survives navigations: `__mock` is the scenario a test sets, `__calls` records every
+// request, and `__viol` records CSP violations.
+(function () {
+  var ORIGIN = "https://eosnplpgzqahwgaytauu.supabase.co";
+  var PLAYER = "00000000-0000-4000-8000-0000000000a1";
+  var realFetch = window.fetch.bind(window);
+
+  function config() {
+    try { return JSON.parse(localStorage.getItem("__mock") || "{}"); } catch (e) { return {}; }
+  }
+  function save(c) { localStorage.setItem("__mock", JSON.stringify(c)); }
+  function record(entry) {
+    var calls = JSON.parse(localStorage.getItem("__calls") || "[]");
+    calls.push(entry);
+    localStorage.setItem("__calls", JSON.stringify(calls));
+  }
+  function json(status, body) {
+    return new Response(JSON.stringify(body), { status: status, headers: { "Content-Type": "application/json" } });
+  }
+  function authError(status, code, message) {
+    return json(status, { code: status, error_code: code, msg: message });
+  }
+  function userObject(id, email) {
+    return { id: id, aud: "authenticated", role: "authenticated", email: email, app_metadata: { provider: "email" }, user_metadata: {}, created_at: "2026-01-01T00:00:00Z" };
+  }
+  function sessionObject(id, email) {
+    return { access_token: "fake." + btoa(JSON.stringify({ sub: id })).replace(/=/g, "") + ".sig", refresh_token: "fake-refresh", token_type: "bearer",
+      expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 86400 * 30, user: userObject(id, email) };
+  }
+
+  document.addEventListener("securitypolicyviolation", function (e) {
+    var v = JSON.parse(localStorage.getItem("__viol") || "[]");
+    v.push({ directive: e.violatedDirective, blocked: e.blockedURI, file: e.sourceFile || "", line: e.lineNumber });
+    localStorage.setItem("__viol", JSON.stringify(v));
+  }, true);
+
+  window.fetch = async function (input, init) {
+    var url = typeof input === "string" ? input : input.url;
+    if (url.indexOf(ORIGIN) !== 0) return realFetch(input, init);
+    var u = new URL(url);
+    var method = ((init && init.method) || (input && input.method) || "GET").toUpperCase();
+    var body = null;
+    try { body = init && init.body ? JSON.parse(init.body) : null; } catch (e) { body = String(init.body); }
+    record({ method: method, path: u.pathname, query: u.search, body: body });
+
+    var c = config();
+    var select = u.searchParams.get("select") || "";
+    var path = u.pathname;
+
+    // ── Auth ──
+    if (path === "/auth/v1/token" && u.searchParams.get("grant_type") === "password") {
+      if (c.loginError) return authError(400, "invalid_credentials", "Invalid login credentials");
+      var who = c.loginUser || { id: PLAYER, email: body.email };
+      return json(200, sessionObject(who.id, who.email));
+    }
+    if (path === "/auth/v1/signup") {
+      if (c.signupError) return authError(422, c.signupError, "signup refused");
+      return json(200, userObject("00000000-0000-4000-8000-0000000000f9", body.email));
+    }
+    if (path === "/auth/v1/otp") {
+      if (c.otpError) return authError(c.otpError.status, c.otpError.error_code, c.otpError.msg);
+      return json(200, {});
+    }
+    if (path === "/auth/v1/recover") return c.recoverError ? authError(429, "over_email_send_rate_limit", "rate limit") : json(200, {});
+    if (path === "/auth/v1/reauthenticate") return json(200, {});
+    if (path === "/auth/v1/logout") return new Response(null, { status: 204 });
+    if (path === "/auth/v1/user" && method === "PUT") {
+      if (body.password && c.reauthRequired && !body.nonce) return authError(400, "reauthentication_needed", "Password update requires reauthentication");
+      if (body.password && c.samePassword) return authError(422, "same_password", "same");
+      var current = userObject(PLAYER, c.sessionEmail || "dana@example.com");
+      if (body.email) current.new_email = body.email;
+      return json(200, current);
+    }
+
+    // ── REST ──
+    if (path.indexOf("/rest/v1/") === 0 && c.failNetwork) throw new TypeError("Failed to fetch");
+
+    if (path === "/rest/v1/profiles") {
+      if (method === "GET") return json(200, c.profile ? [c.profile] : []);
+      if (method === "POST") { c.profile = { id: body.id, display_name: body.display_name }; save(c); return json(201, [c.profile]); }
+      if (method === "PATCH") { if (c.profile) c.profile.display_name = body.display_name; save(c); return new Response(null, { status: 204 }); }
+    }
+
+    if (path === "/rest/v1/campaign_creators") {
+      var owner = (u.searchParams.get("user_id") || "").replace(/^eq\./, "");
+      return json(200, c.creator ? [{ user_id: owner }] : []);
+    }
+
+    if (path === "/rest/v1/campaign_invites") {
+      var cid = (u.searchParams.get("campaign_id") || "").replace(/^eq\./, "");
+      return json(200, (c.invites || []).filter(function (i) { return i.campaign_id === cid; }));
+    }
+
+    if (path === "/rest/v1/rpc/create_invite" && method === "POST") {
+      if (c.createInviteError) return json(400, { code: "P0001", message: c.createInviteError, details: null, hint: null });
+      var invites = c.invites || [];
+      var id = "30000000-0000-4000-8000-00000000000" + (invites.length + 1);
+      var expires = new Date(Date.now() + body.p_ttl_hours * 3600 * 1000).toISOString();
+      invites.unshift({ id: id, campaign_id: body.p_campaign_id, label: body.p_label, created_at: new Date().toISOString(), expires_at: expires, max_uses: body.p_max_uses, use_count: 0, revoked_at: null });
+      c.invites = invites; save(c);
+      return json(200, [{ invite_id: id, code: "ABCDEF0123456789ABCDEF012345AB", expires_at: expires }]);
+    }
+
+    if (path === "/rest/v1/rpc/revoke_invite" && method === "POST") {
+      if (c.revokeError) return json(400, { code: "P0001", message: c.revokeError, details: null, hint: null });
+      var target = (c.invites || []).filter(function (i) { return i.id === body.p_invite_id; })[0];
+      if (!target || target.revoked_at) return json(400, { code: "P0001", message: "invite not found, already revoked, or not yours", details: null, hint: null });
+      target.revoked_at = new Date().toISOString(); save(c);
+      return new Response(null, { status: 204 });
+    }
+
+    if (path === "/rest/v1/campaigns") {
+      var list = c.campaigns || [];
+      if (method === "GET") {
+        var idEq = u.searchParams.get("id");
+        if (idEq) {
+          var found = list.filter(function (x) { return "eq." + x.id === idEq; })[0];
+          if (!found || c.hideCampaign) return json(200, []);
+          return json(200, [{ id: found.id, name: found.name, dm_id: found.dm_id }]);
+        }
+        return json(200, list.map(function (x) { return { id: x.id, name: x.name, dm_id: x.dm_id, created_at: x.created_at }; }));
+      }
+      if (method === "POST") {
+        var made = { id: "20000000-0000-4000-8000-00000000000" + (list.length + 1), name: body.name, dm_id: body.dm_id, created_at: new Date().toISOString() };
+        list.push(made); c.campaigns = list; save(c);
+        return json(201, [{ id: made.id, name: made.name, dm_id: made.dm_id }]);
+      }
+    }
+
+    if (path === "/rest/v1/rpc/join_campaign" && method === "POST") {
+      if (c.joinError) return json(400, { code: "P0001", message: c.joinError, details: null, hint: null });
+      var joinable = (c.joinable || {})[body.p_invite_code];
+      if (!joinable) return json(400, { code: "P0001", message: "invalid invite code", details: null, hint: null });
+      var camps = c.campaigns || [];
+      if (!camps.some(function (x) { return x.id === joinable.id; })) {
+        camps.push({ id: joinable.id, name: joinable.name, dm_id: "00000000-0000-4000-8000-0000000000d1", created_at: new Date().toISOString() });
+        c.campaigns = camps; save(c);
+      }
+      return json(200, [{ campaign_id: joinable.id, campaign_name: joinable.name }]);
+    }
+
+    return json(404, { message: "fake-supabase: unhandled " + method + " " + path });
+  };
+})();

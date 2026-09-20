@@ -4,6 +4,7 @@
   "private": true,
   "description": "Eclipse: live character sheets and a read-only DM roster for one Age of Eclipse campaign (eclipse.deyderae.dev)",
   "license": "UNLICENSED",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Valhalla1169/eclipse-site.git"
@@ -18,9 +19,11 @@
     "deploy": "wrangler deploy",
     "vendor": "node scripts/vendor.mjs",
     "creators": "node scripts/creators.mjs",
-    "test:db": "node scripts/test-db.mjs"
+    "test:db": "node scripts/test-db.mjs",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@supabase/supabase-js": "2.116.0",
     "supabase": "2.117.0",
     "vitest": "5.0.1",

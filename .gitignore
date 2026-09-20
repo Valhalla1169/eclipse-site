@@ -24,3 +24,7 @@ Thumbs.db
 Desktop.ini
 .idea/
 *.swp
+
+# Test output
+test-results/
+playwright-report/
