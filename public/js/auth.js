@@ -1,9 +1,13 @@
-// Magic-link sign-in, the session, and the profile row.
+// Accounts: sign-up, password and magic-link sign-in, recovery, and the profile row.
+// Passwords are only ever sent to Supabase Auth over TLS. Nothing here stores, hashes
+// or logs one.
 import { sb } from "./supabase-client.js";
 
+const absolute = (path) => location.origin + path;
+
 // Resolves once the client has finished initialising, which includes exchanging
-// a ?code= from a magic-link redirect for a session. `error` is set when that
-// exchange failed (for example, the link was opened in a different browser).
+// a ?code= from an emailed link for a session. `error` is set when that exchange
+// failed (for example, the link was opened in a different browser).
 export async function loadSession() {
   const { data, error } = await sb.auth.getSession();
   return { session: data ? data.session : null, error };
@@ -19,8 +23,8 @@ export function takeAuthErrorFromUrl() {
   const code = merged.get("error_code") || merged.get("error") || "";
   history.replaceState({}, "", location.pathname);
   return /expired/i.test(code) || /expired/i.test(merged.get("error_description") || "")
-    ? "That sign-in link has expired. Request a new one."
-    : "That sign-in link did not work. Request a new one.";
+    ? "That link has expired. Ask for a new one."
+    : "That link did not work. Ask for a new one.";
 }
 
 export function onAuthChange(callback) {
@@ -28,16 +32,54 @@ export function onAuthChange(callback) {
   return data.subscription;
 }
 
-export async function sendMagicLink(email, returnPath) {
-  const { error } = await sb.auth.signInWithOtp({
+// With email confirmation on, no session comes back until the emailed link is used.
+export async function signUp({ email, password, displayName, next }) {
+  const { data, error } = await sb.auth.signUp({
     email,
-    options: { emailRedirectTo: location.origin + returnPath },
+    password,
+    options: { data: { display_name: displayName }, emailRedirectTo: absolute(next) },
   });
+  if (error) throw error;
+  return { signedIn: Boolean(data.session) };
+}
+
+export async function signInWithPassword(email, password) {
+  const { error } = await sb.auth.signInWithPassword({ email, password });
   if (error) throw error;
 }
 
-export async function signOut() {
-  const { error } = await sb.auth.signOut();
+export async function sendMagicLink(email, returnPath) {
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: absolute(returnPath) } });
+  if (error) throw error;
+}
+
+export async function sendPasswordReset(email) {
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: absolute("/reset-password") });
+  if (error) throw error;
+}
+
+// Right after a recovery link, or a recent sign-in, no code is needed. Otherwise
+// Auth answers "reauthentication_needed": call requestReauthentication(), then pass
+// the emailed code as `nonce`.
+export async function updatePassword(password, nonce) {
+  const { error } = await sb.auth.updateUser(nonce ? { password, nonce } : { password });
+  if (error) throw error;
+}
+
+export async function requestReauthentication() {
+  const { error } = await sb.auth.reauthenticate();
+  if (error) throw error;
+}
+
+// Both the old and the new address must confirm (a project setting).
+export async function updateEmail(email) {
+  const { error } = await sb.auth.updateUser({ email }, { emailRedirectTo: absolute("/account") });
+  if (error) throw error;
+}
+
+// scope: "local" this browser, "others" every other session, "global" everywhere.
+export async function signOut(scope = "local") {
+  const { error } = await sb.auth.signOut({ scope });
   if (error) throw error;
 }
 
@@ -47,6 +89,8 @@ export async function getProfile(userId) {
   return data[0] || null;
 }
 
+// Normally the database creates the profile when the account is made. This only
+// covers an account whose profile is missing.
 export async function createProfile(userId, displayName) {
   const { data, error } = await sb
     .from("profiles")
@@ -54,4 +98,9 @@ export async function createProfile(userId, displayName) {
     .select("id, display_name");
   if (error) throw error;
   return data[0];
+}
+
+export async function updateDisplayName(userId, displayName) {
+  const { error } = await sb.from("profiles").update({ display_name: displayName }).eq("id", userId);
+  if (error) throw error;
 }

@@ -4,6 +4,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CODE = /^[A-Z0-9]{6,32}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+export const PASSWORD_MIN_LENGTH = 12;
+// bcrypt, which Supabase Auth uses, ignores everything after 72 bytes.
+export const PASSWORD_MAX_BYTES = 72;
+
 export function isUuid(value) {
   return typeof value === "string" && UUID.test(value);
 }
@@ -30,17 +34,53 @@ export function cleanCampaignName(raw) {
   return name.length >= 1 && name.length <= 80 ? name : null;
 }
 
+// Length matters, character mix does not, and nothing forces a change (NIST 800-63B).
+// Returns a message for the person, or null when the password is acceptable. Supabase
+// enforces the same minimum on the server; this only gives an early, clearer answer.
+export function validatePassword(password, { email = "", displayName = "" } = {}) {
+  if (typeof password !== "string" || password.length < PASSWORD_MIN_LENGTH) {
+    return `Use at least ${PASSWORD_MIN_LENGTH} characters. A phrase of several words works well.`;
+  }
+  if (new TextEncoder().encode(password).length > PASSWORD_MAX_BYTES) {
+    return `Use at most ${PASSWORD_MAX_BYTES} bytes. That is about ${PASSWORD_MAX_BYTES} letters.`;
+  }
+  const lower = password.toLowerCase();
+  const personal = [email, email.split("@")[0], displayName].map((s) => s.toLowerCase()).filter((s) => s.length >= 4);
+  if (personal.some((word) => lower.includes(word))) return "Do not put your name or email in your password.";
+  return null;
+}
+
+// Where to go after signing in. Only a path on this site is allowed: anything else
+// (another site, "//host", a backslash, a space) becomes the home page, so a crafted
+// link cannot send a person elsewhere after they sign in.
+export function safeNextPath(raw) {
+  return typeof raw === "string" && /^\/(?!\/)[^\s\\\u0000-\u001f]*$/.test(raw) ? raw : "/";
+}
+
+const MESSAGE_BY_CODE = {
+  invalid_credentials: "Email or password is wrong.",
+  email_not_confirmed: "Confirm your email first. Use the link we sent you.",
+  weak_password: `That password is too weak. Use at least ${PASSWORD_MIN_LENGTH} characters.`,
+  same_password: "The new password must be different from the old one.",
+  user_already_exists: "We could not create that account. Try signing in instead.",
+  email_exists: "We could not create that account. Try signing in instead.",
+  otp_expired: "That link has expired. Ask for a new one.",
+  over_request_rate_limit: "Too many attempts. Wait a minute and try again.",
+  over_email_send_rate_limit: "Too many emails were sent. Wait a while and try again.",
+};
+
 // Turn an error from the network, Supabase Auth or Postgres into something a
 // player can act on. The raw message is never shown: it can name tables and
 // policies.
 export function friendlyError(err) {
+  const known = err && MESSAGE_BY_CODE[err.code];
+  if (known) return known;
   const msg = String((err && err.message) || err || "");
-  const status = err && (err.status || err.code);
   if (/invalid invite code/i.test(msg)) return "That invite code is not valid. Check it with your DM.";
   if (/you run this campaign/i.test(msg)) return "You are the DM of this campaign, so you cannot join it as a player.";
   if (/only the dm/i.test(msg)) return "Only the DM of this campaign can do that.";
   if (/already revoked|not found, already/i.test(msg)) return "That invite could not be revoked. It may already be revoked.";
-  if (status === 429 || /rate limit|too many/i.test(msg)) return "Too many attempts. Wait a minute and try again.";
+  if ((err && err.status === 429) || /rate limit|too many/i.test(msg)) return "Too many attempts. Wait a minute and try again.";
   if (/signups? (not allowed|are disabled)|not allowed for otp/i.test(msg)) return "New accounts are closed. Ask your DM to invite you.";
   if (/failed to fetch|networkerror|load failed|network request failed/i.test(msg)) return "Could not reach the server. Check your connection and try again.";
   if (/permission denied|row-level security|42501/i.test(msg)) return "You do not have access to that.";

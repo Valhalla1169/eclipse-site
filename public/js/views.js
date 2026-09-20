@@ -1,7 +1,16 @@
 // View builders. Each returns a DOM node; app.js decides which to show.
 // Text only ever goes in as text nodes (see dom.js), never as markup.
 import { h } from "./dom.js";
-import { cleanCampaignName, cleanDisplayName, friendlyError, inviteStatus, normalizeCode, normalizeEmail } from "./util.js";
+import {
+  PASSWORD_MIN_LENGTH,
+  cleanCampaignName,
+  cleanDisplayName,
+  friendlyError,
+  inviteStatus,
+  normalizeCode,
+  normalizeEmail,
+  validatePassword,
+} from "./util.js";
 
 const invalid = (message) => Object.assign(new Error(message), { userMessage: message });
 
@@ -83,44 +92,254 @@ export function notFoundView(message = "That page does not exist.") {
   );
 }
 
-export function signInView({ heading = "Sign in", intro, authNotice, onSubmit }) {
+function passwordField({ id, label, hint, autocomplete }) {
+  const input = h("input", {
+    id,
+    name: id,
+    type: "password",
+    autocomplete,
+    spellcheck: "false",
+    autocapitalize: "none",
+    required: true,
+    "aria-describedby": hint ? `${id}-hint` : null,
+  });
+  const toggle = h("button", { class: "btn btn-quiet btn-small", type: "button", "aria-pressed": "false", "aria-controls": id }, "Show password");
+  toggle.addEventListener("click", () => {
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    toggle.setAttribute("aria-pressed", String(show));
+    toggle.textContent = show ? "Hide password" : "Show password";
+  });
   return h(
-    "section",
-    { class: "card stack" },
-    h("h1", {}, heading),
-    intro ? h("p", { class: "muted" }, intro) : null,
-    authNotice ? notice("error", authNotice) : null,
-    form({
-      fields: [
-        field({ id: "email", label: "Email address", type: "email", autocomplete: "email", inputmode: "email", required: true }),
-      ],
-      submitLabel: "Email me a sign-in link",
-      onSubmit: async (values) => {
-        const email = normalizeEmail(values.email);
-        if (!email) throw invalid("Enter a valid email address.");
-        await onSubmit(email);
-        return `We sent a sign-in link to ${email}. Open it in this browser to finish signing in.`;
-      },
-    }),
-    h("p", { class: "hint" }, "There is no password. We email you a link each time."),
+    "div",
+    { class: "field" },
+    h("label", { for: id }, label),
+    hint ? h("p", { class: "hint", id: `${id}-hint` }, hint) : null,
+    input,
+    h("p", { class: "toggle-row" }, toggle),
   );
 }
 
-export function profileView({ onSubmit }) {
+const emailField = (id, label = "Email address") =>
+  field({ id, label, type: "email", autocomplete: "email", inputmode: "email", required: true });
+
+const requireEmail = (value) => normalizeEmail(value) || Promise.reject(invalid("Enter a valid email address."));
+
+export function loginView({ heading = "Sign in", intro, authNotice, next, onPassword, onMagicLink }) {
+  const query = next === "/" ? "" : `?next=${encodeURIComponent(next)}`;
+  return h(
+    "div",
+    { class: "stack" },
+    h(
+      "section",
+      { class: "card stack" },
+      h("h1", {}, heading),
+      intro ? h("p", { class: "muted" }, intro) : null,
+      authNotice ? notice("error", authNotice) : null,
+      form({
+        fields: [emailField("email"), passwordField({ id: "password", label: "Password", autocomplete: "current-password" })],
+        submitLabel: "Sign in",
+        onSubmit: async (values) => {
+          const email = await requireEmail(values.email);
+          if (!values.password) throw invalid("Enter your password.");
+          await onPassword(email, values.password);
+        },
+      }),
+      h("p", {}, h("a", { href: "/forgot-password" }, "Forgot your password?")),
+      h("p", {}, "New here? ", h("a", { href: `/signup${query}` }, "Create an account")),
+    ),
+    h(
+      "section",
+      { class: "card stack" },
+      h("h2", {}, "Or use an email link"),
+      h("p", { class: "muted" }, "No password needed. We email you a link. Open it in this browser."),
+      form({
+        fields: [emailField("linkEmail")],
+        submitLabel: "Email me a sign-in link",
+        primary: false,
+        onSubmit: async (values) => {
+          const email = await requireEmail(values.linkEmail);
+          await onMagicLink(email);
+          return `If ${email} can sign in here, we sent a link. Open it in this browser.`;
+        },
+      }),
+    ),
+  );
+}
+
+export function signupView({ next, intro, onSubmit }) {
+  const query = next === "/" ? "" : `?next=${encodeURIComponent(next)}`;
   return h(
     "section",
     { class: "card stack" },
-    h("h1", {}, "Choose a display name"),
-    h("p", { class: "muted" }, "Your DM and the other players in your campaign will see this name."),
+    h("h1", {}, "Create an account"),
+    intro ? h("p", { class: "muted" }, intro) : null,
     form({
-      fields: [field({ id: "displayName", label: "Display name", maxlength: 40, autocomplete: "nickname", required: true })],
-      submitLabel: "Save and continue",
+      fields: [
+        field({ id: "displayName", label: "Display name", hint: "Your DM and the players in your campaigns see this name.", maxlength: 40, autocomplete: "nickname", required: true }),
+        emailField("email"),
+        passwordField({ id: "password", label: "Password", hint: `At least ${PASSWORD_MIN_LENGTH} characters. A phrase of several words works well.`, autocomplete: "new-password" }),
+      ],
+      submitLabel: "Create account",
       onSubmit: async (values) => {
-        const name = cleanDisplayName(values.displayName);
-        if (!name) throw invalid("Enter a name between 1 and 40 characters.");
-        await onSubmit(name);
+        const displayName = cleanDisplayName(values.displayName);
+        if (!displayName) throw invalid("Enter a name between 1 and 40 characters.");
+        const email = await requireEmail(values.email);
+        const problem = validatePassword(values.password, { email, displayName });
+        if (problem) throw invalid(problem);
+        const { signedIn } = await onSubmit({ displayName, email, password: values.password });
+        if (!signedIn) return `Check your email. If we can create an account for ${email}, we sent a link to confirm it.`;
       },
     }),
+    h("p", {}, "Already have an account? ", h("a", { href: `/login${query}` }, "Sign in")),
+  );
+}
+
+export function forgotPasswordView({ onSubmit }) {
+  return h(
+    "section",
+    { class: "card stack" },
+    h("h1", {}, "Reset your password"),
+    h("p", { class: "muted" }, "Enter your email. We will send you a link to choose a new password."),
+    form({
+      fields: [emailField("email")],
+      submitLabel: "Email me a reset link",
+      onSubmit: async (values) => {
+        const email = await requireEmail(values.email);
+        await onSubmit(email);
+        return `If an account uses ${email}, we sent a link. Open it in this browser.`;
+      },
+    }),
+    h("p", {}, h("a", { href: "/login" }, "Back to sign in")),
+  );
+}
+
+export function linkExpiredView() {
+  return h(
+    "section",
+    { class: "card stack" },
+    h("h1", {}, "This link does not work"),
+    h("p", {}, "It has expired, was already used, or was opened in a different browser."),
+    h("p", {}, h("a", { class: "btn btn-primary", href: "/forgot-password" }, "Get a new link")),
+  );
+}
+
+export function resetPasswordView({ email, displayName, onSubmit }) {
+  return h(
+    "section",
+    { class: "card stack" },
+    h("h1", {}, "Choose a new password"),
+    form({
+      fields: [passwordField({ id: "password", label: "New password", hint: `At least ${PASSWORD_MIN_LENGTH} characters.`, autocomplete: "new-password" })],
+      submitLabel: "Save new password",
+      onSubmit: async (values) => {
+        const problem = validatePassword(values.password, { email, displayName });
+        if (problem) throw invalid(problem);
+        await onSubmit(values.password);
+      },
+    }),
+  );
+}
+
+// `onChangePassword` throws an error with code "reauthentication_needed" when Auth wants a
+// fresh proof of identity. The form then asks for the emailed code and tries again.
+export function accountView({ profile, email, onRename, onChangeEmail, onChangePassword, onReauthenticate, onSignOutOthers, onSignOutEverywhere }) {
+  const nonceField = field({ id: "nonce", label: "Code from your email", autocomplete: "one-time-code", inputmode: "numeric" });
+  nonceField.hidden = true;
+  const sessionStatus = h("div", { class: "status", "aria-live": "polite" });
+  const sessionAction = (label, action, done) =>
+    h("button", { class: "btn btn-quiet", type: "button", onclick: async (event) => {
+      event.currentTarget.disabled = true;
+      try {
+        await action();
+        sessionStatus.replaceChildren(notice("success", done));
+      } catch (err) {
+        console.error(err);
+        sessionStatus.replaceChildren(notice("error", friendlyError(err)));
+      } finally {
+        event.currentTarget.disabled = false;
+      }
+    } }, label);
+
+  return h(
+    "div",
+    { class: "stack" },
+    h("h1", {}, "Your account"),
+    h(
+      "section",
+      { class: "card stack" },
+      h("h2", {}, "Profile"),
+      form({
+        fields: [field({ id: "displayName", label: "Display name", value: profile.display_name, maxlength: 40, autocomplete: "nickname", required: true })],
+        submitLabel: "Save name",
+        primary: false,
+        onSubmit: async (values) => {
+          const name = cleanDisplayName(values.displayName);
+          if (!name) throw invalid("Enter a name between 1 and 40 characters.");
+          await onRename(name);
+          return "Saved.";
+        },
+      }),
+    ),
+    h(
+      "section",
+      { class: "card stack" },
+      h("h2", {}, "Email"),
+      h("p", {}, "Signed in as ", h("strong", {}, email), "."),
+      form({
+        fields: [emailField("newEmail", "New email address")],
+        submitLabel: "Change email",
+        primary: false,
+        onSubmit: async (values) => {
+          const next = await requireEmail(values.newEmail);
+          await onChangeEmail(next);
+          return "We sent a link to both addresses. The change happens after you confirm both.";
+        },
+      }),
+    ),
+    h(
+      "section",
+      { class: "card stack" },
+      h("h2", {}, "Password"),
+      form({
+        fields: [passwordField({ id: "newPassword", label: "New password", hint: `At least ${PASSWORD_MIN_LENGTH} characters.`, autocomplete: "new-password" }), nonceField],
+        submitLabel: "Change password",
+        primary: false,
+        onSubmit: async (values) => {
+          const problem = validatePassword(values.newPassword, { email, displayName: profile.display_name });
+          if (problem) throw invalid(problem);
+          try {
+            await onChangePassword(values.newPassword, String(values.nonce || "").trim() || undefined);
+          } catch (err) {
+            if (err.code !== "reauthentication_needed") throw err;
+            await onReauthenticate();
+            nonceField.hidden = false;
+            throw invalid("To keep your account safe, we emailed you a code. Enter it above and save again.");
+          }
+          nonceField.hidden = true;
+          return "Your password is changed.";
+        },
+      }),
+    ),
+    h(
+      "section",
+      { class: "card stack" },
+      h("h2", {}, "Sessions"),
+      h("p", { class: "muted" }, "Signing out here ends this browser only."),
+      h(
+        "div",
+        { class: "actions" },
+        sessionAction("Sign out my other devices", onSignOutOthers, "Your other devices are signed out."),
+        sessionAction("Sign out everywhere", onSignOutEverywhere, "You are signed out everywhere."),
+      ),
+      sessionStatus,
+    ),
+    h(
+      "section",
+      { class: "card stack" },
+      h("h2", {}, "Delete your account"),
+      h("p", {}, "Your character sheets are kept safe, so accounts are deleted by the site owner. Ask them to delete yours."),
+    ),
   );
 }
 

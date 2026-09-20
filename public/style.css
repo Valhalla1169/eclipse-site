@@ -237,6 +237,7 @@ select {
   color: var(--text);
   font: inherit;
 }
+.toggle-row { margin-top: 0.5rem; }
 .actions {
   display: flex;
   flex-wrap: wrap;

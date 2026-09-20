@@ -4,10 +4,15 @@ import * as auth from "./auth.js";
 import * as data from "./data.js";
 import { createRouter } from "./router.js";
 import * as views from "./views.js";
-import { friendlyError, isUuid, normalizeCode } from "./util.js";
+import { cleanDisplayName, friendlyError, isUuid, normalizeCode, safeNextPath } from "./util.js";
 
 const ROUTES = [
   { name: "home", pattern: "/" },
+  { name: "login", pattern: "/login" },
+  { name: "signup", pattern: "/signup" },
+  { name: "forgot", pattern: "/forgot-password" },
+  { name: "reset", pattern: "/reset-password" },
+  { name: "account", pattern: "/account" },
   { name: "join", pattern: "/join/:code" },
   { name: "play", pattern: "/campaign/:id/play" },
   { name: "dm", pattern: "/campaign/:id/dm" },
@@ -15,14 +20,14 @@ const ROUTES = [
 
 const main = document.getElementById("main");
 const accountBox = document.getElementById("account");
-const accountName = document.getElementById("account-name");
+const accountLink = document.getElementById("account-name");
 const signOutButton = document.getElementById("sign-out");
 
 const state = {
   session: null,
-  profile: null, // the signed-in user's profile row, or null when they have none yet
-  profileChecked: false, // true once we have asked the database, so null above means "none", not "unknown"
-  authNotice: null, // one-shot message from a failed or expired sign-in link
+  profile: null, // the signed-in user's profile row
+  profileChecked: false, // true once the database has been asked, so a null profile means "not loaded yet"
+  authNotice: null, // one-shot message from a failed or expired emailed link
 };
 
 let router;
@@ -33,8 +38,8 @@ function show(node, title, announce = true) {
   document.title = title ? `${title} - Eclipse` : "Eclipse";
   // After an in-app navigation, move focus to the new heading so keyboard and
   // screen-reader users are told the view changed, the way a full page load
-  // would. Not on the first render: focusing <h1> there would make Tab start
-  // after the header and skip the skip link.
+  // would. Not on the first render: focusing <h1> there would make Tab skip the
+  // skip link and the header.
   const heading = main.querySelector("h1");
   if (heading && announce) {
     heading.setAttribute("tabindex", "-1");
@@ -45,58 +50,130 @@ function show(node, title, announce = true) {
 function updateAccount() {
   const user = state.session && state.session.user;
   accountBox.hidden = !user;
-  if (user) accountName.textContent = (state.profile && state.profile.display_name) || user.email || "Signed in";
+  if (user) accountLink.textContent = (state.profile && state.profile.display_name) || user.email || "Account";
 }
 
-// Returns true when the person is signed in and has a profile. Otherwise it
-// shows the sign-in or profile screen itself and returns false.
-async function ensureReady({ returnPath, intro, heading, announce }) {
+const loginPath = (path) => (path === "/" ? "/login" : `/login?next=${encodeURIComponent(path)}`);
+const nextFrom = (search) => safeNextPath(new URLSearchParams(search).get("next"));
+
+// The database creates the profile when the account is made. This covers the rare
+// account that has none.
+async function ensureProfile(user) {
+  if (state.profileChecked) return;
+  const existing = await auth.getProfile(user.id);
+  const name =
+    cleanDisplayName(user.user_metadata && user.user_metadata.display_name) ||
+    cleanDisplayName(String(user.email || "").split("@")[0]) ||
+    "Player";
+  state.profile = existing || (await auth.createProfile(user.id, name));
+  state.profileChecked = true;
+  updateAccount();
+}
+
+// Returns true when the person is signed in. Otherwise it sends them to log in and
+// back to `path` afterwards, and returns false.
+async function ensureReady({ path, initial }) {
   const user = state.session && state.session.user;
   if (!user) {
-    const authNotice = state.authNotice;
-    state.authNotice = null;
-    show(
-      views.signInView({ heading, intro, authNotice, onSubmit: (email) => auth.sendMagicLink(email, returnPath) }),
-      "Sign in",
-      announce,
-    );
+    router.go(loginPath(path), { replace: true, initial });
     return false;
   }
-  if (!state.profileChecked) {
-    state.profile = await auth.getProfile(user.id);
-    state.profileChecked = true;
-    updateAccount();
-  }
-  if (!state.profile) {
-    show(
-      views.profileView({
-        onSubmit: async (name) => {
-          state.profile = await auth.createProfile(user.id, name);
-          updateAccount();
-          router.go(returnPath, { replace: true });
-        },
-      }),
-      "Choose a name",
-      announce,
-    );
-    return false;
-  }
+  await ensureProfile(user);
   return true;
 }
 
-async function onRoute({ path, match, initial }) {
+async function onRoute({ path, search, match, initial }) {
   const token = ++renderToken;
   const alive = () => token === renderToken;
   const announce = !initial;
   const showHere = (node, title) => show(node, title, announce);
+  const user = state.session && state.session.user;
   try {
     if (!match) return showHere(views.notFoundView(), "Not found");
 
+    if (match.name === "login" || match.name === "signup") {
+      const next = nextFrom(search);
+      if (user) return router.go(next, { replace: true, initial });
+      const intro = next.startsWith("/join/") ? "Sign in or create an account to join the campaign." : undefined;
+      if (match.name === "signup") {
+        return showHere(
+          views.signupView({
+            next,
+            intro,
+            onSubmit: async (details) => {
+              const result = await auth.signUp({ ...details, next });
+              if (result.signedIn) router.go(next, { replace: true });
+              return result;
+            },
+          }),
+          "Create an account",
+        );
+      }
+      const authNotice = state.authNotice;
+      state.authNotice = null;
+      return showHere(
+        views.loginView({
+          intro,
+          authNotice,
+          next,
+          onPassword: async (email, password) => {
+            await auth.signInWithPassword(email, password);
+            router.go(next, { replace: true });
+          },
+          onMagicLink: (email) => auth.sendMagicLink(email, next),
+        }),
+        "Sign in",
+      );
+    }
+
+    if (match.name === "forgot") return showHere(views.forgotPasswordView({ onSubmit: auth.sendPasswordReset }), "Reset your password");
+
+    if (match.name === "reset") {
+      // The emailed link signs the person in. No session means the link was bad.
+      if (!user) return showHere(views.linkExpiredView(), "Link expired");
+      await ensureProfile(user);
+      return showHere(
+        views.resetPasswordView({
+          email: user.email,
+          displayName: state.profile.display_name,
+          onSubmit: async (password) => {
+            await auth.updatePassword(password);
+            await auth.signOut("others");
+            router.go("/", { replace: true });
+          },
+        }),
+        "New password",
+      );
+    }
+
+    if (match.name === "account") {
+      if (!(await ensureReady({ path, initial }))) return;
+      return showHere(
+        views.accountView({
+          profile: state.profile,
+          email: user.email,
+          onRename: async (name) => {
+            await auth.updateDisplayName(user.id, name);
+            state.profile = { ...state.profile, display_name: name };
+            updateAccount();
+          },
+          onChangeEmail: auth.updateEmail,
+          onChangePassword: auth.updatePassword,
+          onReauthenticate: auth.requestReauthentication,
+          onSignOutOthers: () => auth.signOut("others"),
+          onSignOutEverywhere: async () => {
+            await auth.signOut("global");
+            router.go("/login", { replace: true });
+          },
+        }),
+        "Your account",
+      );
+    }
+
     if (match.name === "home") {
-      if (!(await ensureReady({ announce, returnPath: "/" }))) return;
-      const userId = state.session.user.id;
+      if (!(await ensureReady({ path, initial }))) return;
       showHere(views.loadingView("Loading your campaign..."));
-      const [campaigns, canCreate] = await Promise.all([data.listMyCampaigns(userId), data.isCampaignCreator(userId)]);
+      const [campaigns, canCreate] = await Promise.all([data.listMyCampaigns(user.id), data.isCampaignCreator(user.id)]);
       if (!alive()) return;
       return showHere(
         views.homeView({
@@ -105,7 +182,7 @@ async function onRoute({ path, match, initial }) {
           canCreate,
           onJoin: async (code) => router.go(`/join/${encodeURIComponent(code)}`),
           onCreate: async (name) => {
-            await data.createCampaign(userId, name);
+            await data.createCampaign(user.id, name);
             router.go("/", { replace: true });
           },
         }),
@@ -116,7 +193,7 @@ async function onRoute({ path, match, initial }) {
     if (match.name === "join") {
       const code = normalizeCode(match.params.code);
       if (!code) return showHere(views.notFoundView("That invite link does not look right. Ask your DM to send it again."), "Invalid invite");
-      if (!(await ensureReady({ announce, returnPath: `/join/${code}`, heading: "Sign in to join", intro: "Sign in and you will be added to the campaign." }))) return;
+      if (!(await ensureReady({ path: `/join/${code}`, initial }))) return;
       showHere(views.loadingView("Joining the campaign..."));
       const joined = await data.joinCampaign(code);
       if (!alive()) return;
@@ -125,14 +202,14 @@ async function onRoute({ path, match, initial }) {
 
     // play and dm
     if (!isUuid(match.params.id)) return showHere(views.notFoundView("We could not find that campaign."), "Not found");
-    if (!(await ensureReady({ announce, returnPath: path }))) return;
+    if (!(await ensureReady({ path, initial }))) return;
     showHere(views.loadingView("Loading the campaign..."));
     const campaign = await data.getCampaign(match.params.id);
     if (!alive()) return;
     if (!campaign) return showHere(views.notFoundView("We could not find that campaign, or you are not a member of it."), "Not found");
 
     if (match.name === "dm") {
-      if (campaign.dm_id !== state.session.user.id) {
+      if (campaign.dm_id !== user.id) {
         return showHere(views.notFoundView("Only the DM of this campaign can open this page."), "Not allowed");
       }
       return showHere(
@@ -155,14 +232,14 @@ async function onRoute({ path, match, initial }) {
 }
 
 async function boot() {
-  // Sign-in links come back with ?error=... when expired or already used.
+  // Emailed links come back with ?error=... when expired or already used.
   const urlError = auth.takeAuthErrorFromUrl();
   const { session, error } = await auth.loadSession();
   state.session = session;
   if (urlError) state.authNotice = urlError;
   else if (error && !session) {
     state.authNotice =
-      "That sign-in link could not be completed. Open the newest link in the same browser where you asked for it, or request a new one.";
+      "That link could not be completed here. If you just confirmed your email, sign in now. Otherwise open the newest link in the same browser where you asked for it.";
   }
   updateAccount();
 
@@ -184,13 +261,13 @@ async function boot() {
   signOutButton.addEventListener("click", async () => {
     signOutButton.disabled = true;
     try {
-      await auth.signOut();
+      await auth.signOut("local");
     } catch (err) {
       console.error(err);
     } finally {
       signOutButton.disabled = false;
     }
-    router.go("/", { replace: true });
+    router.go("/login", { replace: true });
   });
 
   router = createRouter({ table: ROUTES, onRoute });

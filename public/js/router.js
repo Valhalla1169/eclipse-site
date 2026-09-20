@@ -38,10 +38,10 @@ export function createRouter({ table, onRoute }) {
     match: matchRoute(location.pathname, table),
   });
 
-  function go(path, { replace = false } = {}) {
+  function go(path, { replace = false, initial = false } = {}) {
     if (replace) history.replaceState({}, "", path);
     else history.pushState({}, "", path);
-    onRoute({ ...current(), initial: false });
+    onRoute({ ...current(), initial });
   }
 
   // Take over ordinary same-origin link clicks. Leave everything else to the
