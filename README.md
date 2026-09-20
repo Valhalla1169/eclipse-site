@@ -22,7 +22,7 @@ email sender to work for your address.
 ## Tests
 
 ```
-npm test             # unit tests (Vitest): routing, validation, the creators tool
+npm test             # unit tests (Vitest): rules, autosave, colour contrast, routing, validation
 npm run test:e2e     # browser tests (Playwright, uses Edge) against the local dev server
 npm run test:db      # database tests: every migration plus every suite, in a throwaway database
 ```
@@ -76,14 +76,14 @@ Only `public/` is published. Anything outside it (docs, migrations, scripts, `le
 
 | Path | What it is |
 |---|---|
-| `public/` | The site: `index.html`, `style.css`, `script.js` (theme), `js/` (the app), `vendor/` (the pinned Supabase client), `_headers` (CSP and security headers) |
+| `public/` | The site: `index.html`, `style.css`, `sheet.css`, `script.js` (theme), `js/` (the app; `js/sheet/` is the character sheet), `vendor/` (the pinned Supabase client), `fonts/` (self-hosted sheet fonts), `_headers` (CSP and security headers) |
 | `supabase/migrations/` | The schema, policies and grants |
 | `supabase/tests/` | The database test suites and their harness |
-| `scripts/` | `test-db`, `creators`, `vendor` |
+| `scripts/` | `test-db`, `creators`, `vendor` (copies the Supabase client and the fonts into `public/`) |
 | `tests/unit/` | Unit tests |
 | `tests/e2e/` | Browser tests (Playwright) and the fake Supabase they use |
 | `docs/adr/` | Why the design is the way it is |
-| `legacy/` | The original single-file sheets the player sheet is being ported from (not published) |
+| `legacy/` | The original single-file sheets the player sheet was ported from, and V4's own theme (not published) |
 
 ## Security notes
 
