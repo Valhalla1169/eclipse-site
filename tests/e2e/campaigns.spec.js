@@ -24,7 +24,7 @@ test.describe("home", () => {
     await expect(page.locator(".badge")).toHaveText("DM");
     const [post] = await callsTo(page, "/rest/v1/campaigns", "POST");
     expect(post.body).toEqual({ dm_id: ids.dm, name: "Age of Eclipse" });
-    await expect(page.getByRole("link", { name: "Open DM view and invites" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Open DM view, players and invites" })).toBeVisible();
   });
 
   test("refuses a blank campaign name", async ({ page }) => {

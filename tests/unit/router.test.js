@@ -43,3 +43,11 @@ describe("matchRoute", () => {
     expect(matchRoute("/join/%E0%A4%A", table)).toBeNull();
   });
 });
+
+describe("the DM's sheet route", () => {
+  const withSheet = [...table, { name: "dmsheet", pattern: "/campaign/:id/dm/:characterId" }];
+  it("is told apart from the DM page", () => {
+    expect(matchRoute("/campaign/c1/dm", withSheet).name).toBe("dm");
+    expect(matchRoute("/campaign/c1/dm/ch9", withSheet)).toEqual({ name: "dmsheet", params: { id: "c1", characterId: "ch9" } });
+  });
+});

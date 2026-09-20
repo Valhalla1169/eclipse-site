@@ -501,3 +501,32 @@ export function dyingState(sheet, penalty) {
 
 export const criticalMonitor = (sheet) => CRITICAL_MONITORS.find((c) => sheet.cm[c.track] >= MONITOR_BOXES) || null;
 export const clampTrack = (value) => Math.min(TRACK_MAX, Math.max(0, value));
+
+// What the DM's roster shows about a sheet: the numbers a DM reaches for during play.
+export function summarizeSheet(sheet) {
+  const P = penalties(sheet);
+  const derived = derivedStats(sheet);
+  const load = encPenalty(sheet);
+  const totals = soak(sheet);
+  const crit = criticalMonitor(sheet);
+  const sanity = clampTrack(sheet.sanity);
+  const morality = clampTrack(sheet.morality);
+  return {
+    race: raceOf(sheet).name,
+    profession: String(sheet.id.prof || "").trim(),
+    penalty: P.total,
+    starved: P.dead,
+    critical: crit ? crit.badge : null,
+    monitors: {
+      shock: { boxes: sheet.cm.shock, penalty: P.s },
+      trauma: { boxes: sheet.cm.trauma, penalty: P.t },
+      rot: { boxes: sheet.cm.rot, penalty: P.r },
+    },
+    actionPoints: derived.ap,
+    soak: totals,
+    load: { pounds: weights(sheet).total, tier: load.tier, penalty: load.p },
+    sanity: { value: sanity, label: sanity === 0 ? "lost" : SANITY[sanity - 1].t },
+    morality: { value: morality, label: morality === 0 ? "unrecorded" : MORALITY[morality - 1].t },
+    starveDays: sheet.starve,
+  };
+}

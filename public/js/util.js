@@ -94,3 +94,14 @@ export function inviteStatus(invite, now = Date.now()) {
   if (new Date(invite.expires_at).getTime() <= now) return "expired";
   return "active";
 }
+
+// "just now", "5 minutes ago", "2 days ago": how long ago something was saved.
+export function timeAgo(iso, now = Date.now()) {
+  const seconds = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
+  if (Number.isNaN(seconds)) return "at an unknown time";
+  if (seconds < 45) return "just now";
+  const unit = (count, name) => `${count} ${name}${count === 1 ? "" : "s"} ago`;
+  if (seconds < 3600) return unit(Math.max(1, Math.round(seconds / 60)), "minute");
+  if (seconds < 86400) return unit(Math.round(seconds / 3600), "hour");
+  return unit(Math.round(seconds / 86400), "day");
+}

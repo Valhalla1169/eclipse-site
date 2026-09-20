@@ -4,8 +4,11 @@ import * as auth from "./auth.js";
 import * as characters from "./characters.js";
 import * as data from "./data.js";
 import { SheetFormatError, openSheet } from "./eclipse-rules.js";
+import { h } from "./dom.js";
 import { createRouter } from "./router.js";
+import { FALLBACK_REFRESH_MS, createRosterPanel } from "./roster-view.js";
 import { createSheetView } from "./sheet/index.js";
+import { downloadText } from "./sheet/files.js";
 import * as views from "./views.js";
 import { cleanDisplayName, friendlyError, isUuid, normalizeCode, safeNextPath } from "./util.js";
 
@@ -19,6 +22,7 @@ const ROUTES = [
   { name: "join", pattern: "/join/:code" },
   { name: "play", pattern: "/campaign/:id/play" },
   { name: "dm", pattern: "/campaign/:id/dm" },
+  { name: "dmsheet", pattern: "/campaign/:id/dm/:characterId" },
 ];
 
 const main = document.getElementById("main");
@@ -217,19 +221,24 @@ async function onRoute({ path, search, match, initial }) {
     if (!alive()) return;
     if (!campaign) return showHere(views.notFoundView("We could not find that campaign, or you are not a member of it."), "Not found");
 
-    if (match.name === "dm") {
+    if (match.name === "dm" || match.name === "dmsheet") {
       if (campaign.dm_id !== user.id) {
         return showHere(views.notFoundView("Only the DM of this campaign can open this page."), "Not allowed");
       }
-      return showHere(
+      if (match.name === "dmsheet") return showPlayersSheet({ campaign, characterId: match.params.characterId, alive, announce });
+      const roster = createRosterPanel({ campaign, api: { sync: data.syncRoster, fetchFresh: data.fetchRosterFresh, subscribe: data.subscribeToCharacters }, download: downloadText });
+      return show(
         views.dmView({
           campaign,
+          roster: roster.element,
           loadInvites: () => data.listInvites(campaign.id),
           createInvite: (options) => data.createInvite(campaign.id, options),
           revokeInvite: (id) => data.revokeInvite(id),
           onCopy: (text) => navigator.clipboard.writeText(text),
         }),
         campaign.name,
+        announce,
+        { dispose: roster.dispose },
       );
     }
     // play: the player's own sheet. Nothing is drawn until the row has loaded and been read.
@@ -251,6 +260,48 @@ async function onRoute({ path, search, match, initial }) {
     console.error(err);
     showHere(views.errorView(friendlyError(err), () => onRoute(router.current())), "Error");
   }
+}
+
+// The DM's read-only view of one player's sheet. It follows the row while it is open.
+async function showPlayersSheet({ campaign, characterId, alive, announce }) {
+  if (!isUuid(characterId)) return show(views.notFoundView("We could not find that sheet."), "Not found", announce);
+  const row = await characters.readCharacter(characterId);
+  if (!alive()) return;
+  if (!row || row.campaign_id !== campaign.id) return show(views.notFoundView("We could not find that sheet in this campaign."), "Not found", announce);
+  let opened;
+  try {
+    opened = openSheet(row);
+  } catch (err) {
+    if (!(err instanceof SheetFormatError)) throw err;
+    console.error(err);
+    return show(views.sheetUnreadableView({ campaign, ownSheet: false }), campaign.name, announce);
+  }
+  const names = await data.readProfileNames([row.owner_id]);
+  if (!alive()) return;
+  const view = createSheetView({ campaign, opened, row, viewer: "dm", playerName: names[row.owner_id] || "a player" });
+
+  let seen = row.updated_at;
+  const catchUp = async () => {
+    try {
+      const latest = await characters.readCharacter(characterId);
+      if (!latest || latest.updated_at === seen) return;
+      seen = latest.updated_at;
+      view.update(openSheet(latest));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+  const unsubscribe = data.subscribeToCharacters(campaign.id, catchUp, () => {});
+  const poll = setInterval(catchUp, FALLBACK_REFRESH_MS);
+  const back = h("a", { class: "btn btn-quiet btn-small", href: `/campaign/${encodeURIComponent(campaign.id)}/dm` }, "Back to the DM page");
+  return show(h("div", {}, h("p", { class: "sheet-back" }, back), view.element), campaign.name, announce, {
+    wide: true,
+    dispose() {
+      unsubscribe();
+      clearInterval(poll);
+      view.dispose();
+    },
+  });
 }
 
 async function boot() {

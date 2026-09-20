@@ -10,6 +10,7 @@ import {
   normalizeCode,
   normalizeEmail,
   safeNextPath,
+  timeAgo,
   validatePassword,
 } from "../../public/js/util.js";
 
@@ -171,5 +172,19 @@ describe("friendlyError for accounts", () => {
 
   it("does not let a database error code hide the message", () => {
     expect(friendlyError({ code: "P0001", message: "invalid invite code" })).toMatch(/not valid/);
+  });
+});
+
+describe("timeAgo", () => {
+  const now = Date.parse("2026-09-19T12:00:00Z");
+  const ago = (seconds) => timeAgo(new Date(now - seconds * 1000).toISOString(), now);
+  it("says how long ago, in the largest sensible unit", () => {
+    expect([ago(5), ago(44), ago(60), ago(600), ago(3599), ago(3600), ago(7 * 3600), ago(86400), ago(3 * 86400)]).toEqual([
+      "just now", "just now", "1 minute ago", "10 minutes ago", "60 minutes ago", "1 hour ago", "7 hours ago", "1 day ago", "3 days ago",
+    ]);
+  });
+  it("does not go negative when a clock is a little ahead, and handles junk", () => {
+    expect(ago(-30)).toBe("just now");
+    expect(timeAgo("not a date", now)).toBe("at an unknown time");
   });
 });

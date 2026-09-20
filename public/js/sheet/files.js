@@ -7,12 +7,16 @@ export const FILE_EXTENSION = ".eclipse";
 // The database refuses a sheet above this size (migration 0006), so a bigger file could never be saved.
 export const MAX_FILE_BYTES = 512 * 1024;
 
-export function fileNameFor(sheet) {
-  const name = (sheet.id.name || "").trim().replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "-");
+export function fileNameForName(characterName) {
+  const name = String(characterName || "").trim().replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "-");
   return `${name || "survivor"}${FILE_EXTENSION}`;
 }
+export const fileNameFor = (sheet) => fileNameForName(sheet.id.name);
 
 export const serializeSheet = (sheet) => JSON.stringify({ ...sheet, schemaVersion: SCHEMA_VERSION }, null, 1);
+
+// A stored row as a file, exactly as stored (not cleaned or migrated).
+export const serializeStored = ({ data, schema_version: version }) => JSON.stringify({ ...data, schemaVersion: version }, null, 1);
 
 // Text from a file to a sheet. Throws SheetFormatError with words for the player.
 export function parseSheetFile(text) {

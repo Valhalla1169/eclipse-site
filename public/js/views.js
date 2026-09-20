@@ -353,7 +353,7 @@ function campaignCard(campaign) {
       "p",
       {},
       campaign.isDm
-        ? h("a", { class: "btn btn-primary", href: `/campaign/${id}/dm` }, "Open DM view and invites")
+        ? h("a", { class: "btn btn-primary", href: `/campaign/${id}/dm` }, "Open DM view, players and invites")
         : h("a", { class: "btn btn-primary", href: `/campaign/${id}/play` }, "Open my character sheet"),
     ),
   );
@@ -420,10 +420,10 @@ export function homeView({ profile, campaigns, canCreate, onCreate, onJoin }) {
 const USES = [[1, "1 person (recommended)"], [2, "2 people"], [5, "5 people"], [12, "12 people"]];
 const LIFETIMES = [[24, "1 day"], [168, "7 days (recommended)"], [720, "30 days"]];
 
-// The DM page: invites now, the roster of sheets in Phase 4. The invite link is
-// shown exactly once, when it is created: the database keeps only a hash of the
+// The DM page: the roster of players' sheets (an element made by roster-view.js)
+// and invites. The invite link is shown exactly once, when it is created: the database keeps only a hash of the
 // code, so it cannot be shown again. Lose it and revoke it, then make a new one.
-export function dmView({ campaign, loadInvites, createInvite, revokeInvite, onCopy }) {
+export function dmView({ campaign, roster, loadInvites, createInvite, revokeInvite, onCopy }) {
   // `fresh` holds the once-only invite link and must never be overwritten by
   // anything else, or a link the DM has not copied yet is lost for good. Errors from
   // revoking go in `problem`.
@@ -526,7 +526,7 @@ export function dmView({ campaign, loadInvites, createInvite, revokeInvite, onCo
     "div",
     { class: "stack" },
     h("div", { class: "card-head" }, h("h1", {}, campaign.name), h("span", { class: "badge" }, "DM view")),
-    h("p", { class: "muted" }, "The roster of your players' sheets will appear here."),
+    roster,
     h(
       "section",
       { class: "card stack" },
@@ -553,12 +553,17 @@ export function dmHasNoSheetView({ campaign }) {
 }
 
 // The stored sheet could not be read. The stored copy is left exactly as it is.
-export function sheetUnreadableView({ campaign }) {
+export function sheetUnreadableView({ campaign, ownSheet = true }) {
   return h(
     "section",
     { class: "card stack" },
     h("h1", {}, campaign.name),
-    notice("error", "Your character sheet could not be read, so it is not shown. Nothing was changed or saved. Tell your DM, who can recover it."),
+    notice(
+      "error",
+      ownSheet
+        ? "Your character sheet could not be read, so it is not shown. Nothing was changed or saved. Tell your DM, who can recover it."
+        : "This character sheet could not be read, so it is not shown. Nothing was changed. The roster's download button still saves it as stored.",
+    ),
     h("p", {}, h("a", { class: "btn btn-quiet", href: "/" }, "Back to home")),
   );
 }

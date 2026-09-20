@@ -28,6 +28,7 @@ import {
   shieldDegradation,
   skillPool,
   soak,
+  summarizeSheet,
   toggleBox,
   total,
   weaponPool,
@@ -485,5 +486,48 @@ describe("choices", () => {
 describe("intOrBlank", () => {
   it("keeps a blank blank so an empty field stays empty", () => {
     expect([intOrBlank(""), intOrBlank("  "), intOrBlank("-"), intOrBlank("-2"), intOrBlank("7x")]).toEqual(["", "", "", -2, 7]);
+  });
+});
+
+describe("summarizeSheet", () => {
+  it("summarizes a fresh sheet", () => {
+    expect(summarizeSheet(blank())).toEqual({
+      race: "Human",
+      profession: "",
+      penalty: 0,
+      starved: false,
+      critical: null,
+      monitors: { shock: { boxes: 0, penalty: 0 }, trauma: { boxes: 0, penalty: 0 }, rot: { boxes: 0, penalty: 0 } },
+      actionPoints: 2,
+      soak: { ballistic: 0, impact: 0 },
+      load: { pounds: 0, tier: "Unburdened", penalty: 0 },
+      sanity: { value: 8, label: "steady" },
+      morality: { value: 5, label: "Pragmatic" },
+      starveDays: 0,
+    });
+  });
+
+  it("reports damage, load and the critical monitor", () => {
+    const sheet = withBase({ end: 2, ste: 2 });
+    Object.assign(sheet.cm, { shock: 4, trauma: 10 });
+    sheet.starve = 6;
+    sheet.sup.rations = 20;
+    sheet.sanity = 0;
+    const summary = summarizeSheet(sheet);
+    expect(summary).toMatchObject({
+      critical: "Dying",
+      monitors: { shock: { boxes: 4, penalty: 2 }, trauma: { boxes: 10, penalty: 5 } },
+      load: { pounds: 20, tier: "Light", penalty: 1 },
+      sanity: { value: 0, label: "lost" },
+      starveDays: 6,
+    });
+    expect(summary.penalty).toBe(2 + 5 + 3 + 1);
+  });
+
+  it("does not fail on a race or profession the book does not have", () => {
+    const sheet = blank();
+    sheet.id.race = "constructor";
+    sheet.id.prof = "  Bounty hunter ";
+    expect(summarizeSheet(sheet)).toMatchObject({ race: "Human", profession: "Bounty hunter" });
   });
 });

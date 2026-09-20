@@ -57,10 +57,19 @@
       return out;
     }
     if (method === "GET") {
+      var all = c.characters || (row ? [row] : []);
       var byId = u.searchParams.get("id");
       var byCampaign = u.searchParams.get("campaign_id");
-      var hit = row && (byId ? "eq." + row.id === byId : "eq." + row.campaign_id === byCampaign);
-      return json(200, hit ? [project(row)] : []);
+      var byOwner = u.searchParams.get("owner_id");
+      var ids = byId && byId.indexOf("in.(") === 0 ? byId.slice(4, -1).split(",") : null;
+      var found = all.filter(function (r) {
+        if (ids && ids.indexOf(r.id) === -1) return false;
+        if (byId && !ids && "eq." + r.id !== byId) return false;
+        if (byCampaign && "eq." + r.campaign_id !== byCampaign) return false;
+        if (byOwner && "eq." + r.owner_id !== byOwner) return false;
+        return true;
+      });
+      return json(200, found.map(project));
     }
     if (method === "POST") {
       var bad = Object.keys(body).filter(function (k) { return WRITABLE.indexOf(k) === -1; });
@@ -91,6 +100,55 @@
     }
     return json(405, { message: "fake-supabase: unhandled " + method + " /rest/v1/characters" });
   }
+
+  // Realtime: a stand-in for the Phoenix websocket, so no network is opened. Tests
+  // call window.__realtime.emit() (a sheet changed) and .drop() (the connection ends).
+  // Only the messages the app needs: join, heartbeat and leave.
+  var RealWebSocket = window.WebSocket;
+  var sockets = [];
+  var joins = [];
+  function FakeSocket(url) {
+    var self = new EventTarget();
+    self.url = url; self.readyState = 0; self.binaryType = "blob"; self.bufferedAmount = 0; self.protocol = ""; self.extensions = ""; self.topics = {};
+    function fire(type, event) { if (typeof self["on" + type] === "function") self["on" + type](event); self.dispatchEvent(event); }
+    function reply(joinRef, ref, topic, response) { fire("message", new MessageEvent("message", { data: JSON.stringify([joinRef, ref, topic, "phx_reply", { status: "ok", response: response }]) })); }
+    self.send = function (text) {
+      var msg; try { msg = JSON.parse(text); } catch (e) { return; }
+      var joinRef = msg[0], ref = msg[1], topic = msg[2], event = msg[3], payload = msg[4];
+      if (event === "phx_join") {
+        var changes = ((payload || {}).config || {}).postgres_changes || [];
+        self.topics[topic] = { joinRef: joinRef, ids: changes.map(function (x, i) { return i + 1; }) };
+        joins.push(changes);
+        reply(joinRef, ref, topic, { postgres_changes: changes.map(function (x, i) { return Object.assign({ id: i + 1 }, x); }) });
+      } else if (event === "heartbeat") reply(null, ref, "phoenix", {});
+      else reply(joinRef, ref, topic, {});
+    };
+    self.close = function (code, reason) {
+      if (self.readyState === 3) return;
+      self.readyState = 3;
+      fire("close", new CloseEvent("close", { code: code || 1000, reason: reason || "" }));
+    };
+    self.emit = function () {
+      Object.keys(self.topics).forEach(function (topic) {
+        var t = self.topics[topic];
+        fire("message", new MessageEvent("message", { data: JSON.stringify([t.joinRef, null, topic, "postgres_changes", { ids: t.ids, data: { schema: "public", table: "characters", commit_timestamp: new Date().toISOString(), type: "UPDATE", columns: [], record: {}, old_record: {}, errors: null } }]) }));
+      });
+    };
+    sockets.push(self);
+    setTimeout(function () { self.readyState = 1; fire("open", new Event("open")); }, 0);
+    return self;
+  }
+  FakeSocket.CONNECTING = 0; FakeSocket.OPEN = 1; FakeSocket.CLOSING = 2; FakeSocket.CLOSED = 3;
+  window.WebSocket = function (url, protocols) {
+    return String(url).indexOf("wss://" + ORIGIN.slice(8) + "/realtime/") === 0 ? FakeSocket(url) : new RealWebSocket(url, protocols);
+  };
+  Object.assign(window.WebSocket, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });
+  window.__realtime = {
+    joins: joins,
+    emit: function () { sockets.forEach(function (x) { if (x.readyState === 1) x.emit(); }); },
+    drop: function () { sockets.forEach(function (x) { x.close(1006, "test"); }); },
+    open: function () { return sockets.filter(function (x) { return x.readyState === 1; }).length; },
+  };
 
   document.addEventListener("securitypolicyviolation", function (e) {
     var v = JSON.parse(localStorage.getItem("__viol") || "[]");
@@ -139,7 +197,13 @@
     // ── REST ──
     if (path.indexOf("/rest/v1/") === 0 && c.failNetwork) throw new TypeError("Failed to fetch");
 
+    if (path === "/rest/v1/campaign_players" && method === "GET") return json(200, c.members || []);
+
     if (path === "/rest/v1/profiles") {
+      if (method === "GET" && (u.searchParams.get("id") || "").indexOf("in.(") === 0) {
+        var wanted = u.searchParams.get("id").slice(4, -1).split(",");
+        return json(200, (c.profiles || []).filter(function (p) { return wanted.indexOf(p.id) !== -1; }));
+      }
       if (method === "GET") return json(200, c.profile ? [c.profile] : []);
       if (method === "POST") { c.profile = { id: body.id, display_name: body.display_name }; save(c); return json(201, [c.profile]); }
       if (method === "PATCH") { if (c.profile) c.profile.display_name = body.display_name; save(c); return new Response(null, { status: 204 }); }

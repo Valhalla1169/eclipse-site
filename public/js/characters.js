@@ -4,7 +4,7 @@
 import { SCHEMA_VERSION, blank } from "./eclipse-rules.js";
 import { sb } from "./supabase-client.js";
 
-const COLUMNS = "id, schema_version, character_name, data, updated_at";
+const COLUMNS = "id, owner_id, campaign_id, schema_version, character_name, data, updated_at";
 const UNIQUE_VIOLATION = "23505";
 
 async function readRow(campaignId, ownerId) {
@@ -34,11 +34,14 @@ export async function loadCharacter(campaignId, ownerId) {
   return data[0];
 }
 
-export const readCharacter = async (id) => {
-  const { data, error } = await sb.from("characters").select(COLUMNS).eq("id", id);
+export const readCharacter = async (id) => (await readCharacters([id]))[0] || null;
+
+export async function readCharacters(ids) {
+  if (!ids.length) return [];
+  const { data, error } = await sb.from("characters").select(COLUMNS).in("id", ids);
   if (error) throw error;
-  return data[0] || null;
-};
+  return data;
+}
 
 // Writes only if nobody saved since `expected` (the updated_at we last saw).
 // Resolves to { status: "saved", updated_at }, { status: "conflict", current }

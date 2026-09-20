@@ -33,12 +33,16 @@ const LOCKED_PAGES = ["#page1", "#page2", "#page3", "#page4", "#page6"];
 
 // options: {
 //   campaign, opened (from openSheet), row ({ id, updated_at }),
-//   persist(id, expectedUpdatedAt, { name, data }) -> saveCharacter's result
+//   persist(id, expectedUpdatedAt, { name, data }) -> saveCharacter's result,
+//   viewer: "owner" (default), or "dm" to show a player's sheet read-only (ADR 0009),
+//   playerName: whose sheet it is, for the DM
 // }
-// Returns { element, dispose }: dispose removes the page-wide listeners.
-export function createSheetView({ campaign, opened, row, persist }) {
+// Returns { element, update, dispose }. update(opened) shows a newer copy of a
+// sheet the DM is watching; dispose removes the page-wide listeners.
+export function createSheetView({ campaign, opened, row, persist, viewer = "owner", playerName = "" }) {
+  const isDm = viewer === "dm";
   const store = { sheet: opened.sheet, token: row.updated_at, lastSavedAt: null, tab: "1" };
-  const readOnly = opened.readOnly;
+  const readOnly = isDm || opened.readOnly;
 
   // Starts as a placeholder; mountPages swaps in the real pages.
   let pages = h("div", { class: "pages" });
@@ -65,9 +69,9 @@ export function createSheetView({ campaign, opened, row, persist }) {
   });
 
   const button = (label, onclick, { primary = false, attrs = {} } = {}) => h("button", { class: `sbtn${primary ? " primary" : ""}`, type: "button", onclick, ...attrs }, label);
-  const saveNow = button("Save now", () => autosave.flush(), { primary: true });
+  const saveNow = button("Save now", () => autosave.flush(), { primary: true, attrs: { hidden: isDm } });
   const copyButton = button("Save a copy", () => saveCopy(store.sheet));
-  const loadButton = button("Load file", () => fileInput.click());
+  const loadButton = button("Load file", () => fileInput.click(), { attrs: { hidden: isDm } });
 
   function saveCopy(sheet) {
     downloadText(fileNameFor(sheet), serializeSheet(sheet));
@@ -289,7 +293,9 @@ export function createSheetView({ campaign, opened, row, persist }) {
   );
   mountPages();
 
-  if (readOnly) {
+  if (isDm) {
+    setNotice("info", h("p", {}, `You are viewing ${playerName || "a player"}'s sheet as the DM. It is read only, and it updates when they make changes.`));
+  } else if (readOnly) {
     setNotice(
       "error",
       h("p", {}, "This sheet was saved by a newer version of the app. Editing is off, so nothing is overwritten. Reload the page to get the newer version."),
@@ -297,10 +303,15 @@ export function createSheetView({ campaign, opened, row, persist }) {
     );
   }
   paintState("saved");
-  if (readOnly) stateEl.className = "save-state warn";
+  if (readOnly && !isDm) stateEl.className = "save-state warn";
 
   return {
     element,
+    update(next) {
+      if (!readOnly) return;
+      store.sheet = next.sheet;
+      mountPages();
+    },
     dispose() {
       document.removeEventListener("dragenter", onDragEnter);
       document.removeEventListener("dragover", onDragOver);
