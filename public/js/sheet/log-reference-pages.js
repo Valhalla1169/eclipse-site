@@ -53,7 +53,7 @@ export function buildReferencePage() {
     h(
       "div",
       { class: "refcols", id: "refCards" },
-      REFERENCE.map((card, i) => h("article", { class: "rc", "data-ref": i }, h("h3", {}, h("span", {}, card.t), h("span", { class: "cat" }, card.c)), h("div", { class: "body" }, staticHtml(card.html)))),
+      REFERENCE.map((card, i) => h("article", { class: "rc", "data-ref": i }, h("h2", {}, h("span", {}, card.t), h("span", { class: "cat" }, card.c)), h("div", { class: "body" }, staticHtml(card.html)))),
     ),
     h("p", { class: "refempty hide", id: "refEmpty" }, "Nothing matches that. Try a shorter word."),
   );

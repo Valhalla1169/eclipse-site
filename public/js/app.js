@@ -40,12 +40,15 @@ const state = {
 let router;
 let renderToken = 0; // a newer navigation invalidates an older, slower render
 let disposeView = null; // set by a view that holds page-wide listeners, such as the sheet
+let flushView = null; // set by a view that may hold unsaved changes
 
 // options.wide: the sheet needs more room than the account pages. options.dispose:
-// runs when the view is replaced.
-function show(node, title, announce = true, { wide = false, dispose = null } = {}) {
+// runs when the view is replaced. options.flush: saves what is waiting and resolves
+// to false if something could not be saved.
+function show(node, title, announce = true, { wide = false, dispose = null, flush = null } = {}) {
   if (disposeView) disposeView();
   disposeView = dispose;
+  flushView = flush;
   main.className = wide ? "page page-wide" : "page";
   main.replaceChildren(node);
   document.title = title ? `${title} - Eclipse` : "Eclipse";
@@ -254,7 +257,7 @@ async function onRoute({ path, search, match, initial }) {
       return showHere(views.sheetUnreadableView({ campaign }), campaign.name);
     }
     const sheet = createSheetView({ campaign, opened, row, persist: characters.saveCharacter });
-    return show(sheet.element, campaign.name, announce, { wide: true, dispose: sheet.dispose });
+    return show(sheet.element, campaign.name, announce, { wide: true, dispose: sheet.dispose, flush: sheet.flush });
   } catch (err) {
     if (!alive()) return;
     console.error(err);
@@ -334,6 +337,8 @@ async function boot() {
   signOutButton.addEventListener("click", async () => {
     signOutButton.disabled = true;
     try {
+      // Signing out ends the session that saves use, so save first.
+      if (flushView && !(await flushView()) && !window.confirm("Your latest changes are not saved yet. Sign out and lose them?")) return;
       await auth.signOut("local");
     } catch (err) {
       console.error(err);

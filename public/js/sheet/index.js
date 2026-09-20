@@ -37,7 +37,7 @@ const LOCKED_PAGES = ["#page1", "#page2", "#page3", "#page4", "#page6"];
 //   viewer: "owner" (default), or "dm" to show a player's sheet read-only (ADR 0009),
 //   playerName: whose sheet it is, for the DM
 // }
-// Returns { element, update, dispose }. update(opened) shows a newer copy of a
+// Returns { element, flush, update, dispose }. update(opened) shows a newer copy of a
 // sheet the DM is watching; dispose removes the page-wide listeners.
 export function createSheetView({ campaign, opened, row, persist, viewer = "owner", playerName = "" }) {
   const isDm = viewer === "dm";
@@ -307,6 +307,11 @@ export function createSheetView({ campaign, opened, row, persist, viewer = "owne
 
   return {
     element,
+    // Saves what is waiting. Resolves to false when something could not be saved.
+    async flush() {
+      await autosave.flush();
+      return !autosave.hasUnsavedChanges();
+    },
     update(next) {
       if (!readOnly) return;
       store.sheet = next.sheet;

@@ -175,6 +175,13 @@ describe("friendlyError for accounts", () => {
   });
 });
 
+describe("friendlyError for an ended session", () => {
+  it("says the sign-in ended, not a generic failure", () => {
+    expect(friendlyError({ code: "PGRST301", message: "JWT expired" })).toBe("Your sign-in has ended. Sign in again.");
+    expect(friendlyError(new Error("JWT expired"))).toBe("Your sign-in has ended. Sign in again.");
+  });
+});
+
 describe("timeAgo", () => {
   const now = Date.parse("2026-09-19T12:00:00Z");
   const ago = (seconds) => timeAgo(new Date(now - seconds * 1000).toISOString(), now);

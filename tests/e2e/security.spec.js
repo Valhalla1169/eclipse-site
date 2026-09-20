@@ -15,7 +15,7 @@ baseTest.describe("what the server publishes", () => {
     "/supabase/config.toml",
     "/supabase/migrations/0001_initial.sql",
     "/legacy/index.html",
-    "/docs/IMPLEMENTATION_PLAN.md",
+    "/docs/adr/0001-eclipse-supabase-data-model.md",
     "/node_modules/vitest/package.json",
     "/tests/e2e/fake-supabase.js",
   ];

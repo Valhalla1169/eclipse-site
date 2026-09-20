@@ -83,6 +83,7 @@ export function friendlyError(err) {
   if ((err && err.status === 429) || /rate limit|too many/i.test(msg)) return "Too many attempts. Wait a minute and try again.";
   if (/signups? (not allowed|are disabled)|not allowed for otp/i.test(msg)) return "New accounts are closed. Ask your DM to invite you.";
   if (/failed to fetch|networkerror|load failed|network request failed/i.test(msg)) return "Could not reach the server. Check your connection and try again.";
+  if ((err && err.code === "PGRST301") || /jwt expired|invalid jwt/i.test(msg)) return "Your sign-in has ended. Sign in again.";
   if (/permission denied|row-level security|42501/i.test(msg)) return "You do not have access to that.";
   return "Something went wrong. Please try again.";
 }

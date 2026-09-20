@@ -12,7 +12,7 @@ export const headRow = (...columns) =>
   h(
     "thead",
     {},
-    h("tr", {}, ...columns.map(([label, width, centered]) => h("th", { class: [width, centered && "c"].filter(Boolean).join(" ") || null }, label))),
+    h("tr", {}, ...columns.map(([label, width, centered]) => h("th", { class: [width, centered && "c"].filter(Boolean).join(" ") || null }, label || h("span", { class: "sr-only" }, "Remove")))),
   );
 
 export const addRow = (target, label) => h("button", { class: "addrow", type: "button", "data-add": target }, label);

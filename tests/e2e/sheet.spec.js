@@ -166,6 +166,29 @@ test.describe("saving", () => {
     expect((await storedCharacter(page)).character_name).toBe("Marlo");
   });
 
+  test("signing out first saves what is waiting", async ({ page }) => {
+    await openSheet(page, { character: characterRow(named("")) });
+    await page.locator("#f_name").fill("Marlo");
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page).toHaveURL(/login/);
+    expect((await storedCharacter(page)).character_name).toBe("Marlo");
+  });
+
+  test("signing out asks first when the changes cannot be saved, and stays if the player says no", async ({ page }) => {
+    await openSheet(page, { character: characterRow(named("")), mock: { characterBlocked: true } });
+    await page.locator("#f_name").fill("Marlo");
+    const messages = [];
+    page.once("dialog", (dialog) => {
+      messages.push(dialog.message());
+      dialog.dismiss();
+    });
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect.poll(() => messages.length).toBe(1);
+    expect(messages[0]).toContain("not saved yet");
+    await expect(page).toHaveURL(new RegExp(play));
+    await expect(page.locator("#f_name")).toHaveValue("Marlo");
+  });
+
   test("Ctrl+S saves at once", async ({ page }) => {
     await openSheet(page, { character: characterRow(named("")) });
     await page.locator("#f_name").fill("Marlo");
