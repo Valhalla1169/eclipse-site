@@ -1,0 +1,822 @@
+/* ==========================================================================
+   The character sheet (/campaign/:id/play).
+   Colours come from the site theme (style.css): the sheet's own names below are
+   aliases onto the Catppuccin tokens, so the four site palettes restyle it.
+   Two kinds of accent token:
+     --corona --rift --blood --bile --ok --hunger --psy   fills, borders, SVG (3:1)
+     the same names with -t                               text (4.5:1)
+   tests/unit/contrast.test.js checks both in all four palettes.
+   Everything is scoped to .sheet so nothing here reaches the account pages.
+   ========================================================================== */
+
+@font-face { font-family: "Chakra Petch"; font-style: normal; font-display: swap; font-weight: 400; src: url(/fonts/chakra-petch-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "Chakra Petch"; font-style: normal; font-display: swap; font-weight: 500; src: url(/fonts/chakra-petch-latin-500-normal.woff2) format("woff2"); }
+@font-face { font-family: "Chakra Petch"; font-style: normal; font-display: swap; font-weight: 600; src: url(/fonts/chakra-petch-latin-600-normal.woff2) format("woff2"); }
+@font-face { font-family: "Chakra Petch"; font-style: normal; font-display: swap; font-weight: 700; src: url(/fonts/chakra-petch-latin-700-normal.woff2) format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-display: swap; font-weight: 400; src: url(/fonts/ibm-plex-mono-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-display: swap; font-weight: 500; src: url(/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-display: swap; font-weight: 600; src: url(/fonts/ibm-plex-mono-latin-600-normal.woff2) format("woff2"); }
+@font-face { font-family: "IBM Plex Sans Condensed"; font-style: normal; font-display: swap; font-weight: 400; src: url(/fonts/ibm-plex-sans-condensed-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "IBM Plex Sans Condensed"; font-style: normal; font-display: swap; font-weight: 500; src: url(/fonts/ibm-plex-sans-condensed-latin-500-normal.woff2) format("woff2"); }
+@font-face { font-family: "IBM Plex Sans Condensed"; font-style: normal; font-display: swap; font-weight: 600; src: url(/fonts/ibm-plex-sans-condensed-latin-600-normal.woff2) format("woff2"); }
+@font-face { font-family: "IBM Plex Sans Condensed"; font-style: normal; font-display: swap; font-weight: 700; src: url(/fonts/ibm-plex-sans-condensed-latin-700-normal.woff2) format("woff2"); }
+
+/* The sheet is wider than the account pages and sits on the darkest surface. */
+.page.page-wide {
+  max-width: none;
+  padding: 21px 16px 69px;
+  background: radial-gradient(120% 80% at 50% -10%, var(--mantle) 0%, transparent 60%), var(--crust);
+}
+
+.sheet {
+  --void: var(--crust);
+  --slab: var(--base);
+  --slab2: var(--surface0);
+  --steel: var(--surface1);
+  --steel2: var(--surface2);
+  --bone: var(--text);
+  --bone-dim: var(--subtext1);
+  --rule: var(--surface0);
+  --edge: var(--surface1);
+  --edge-2: var(--surface2);
+  --edge-3: var(--overlay0);
+  --well: var(--mantle);
+  --well-2: var(--crust);
+  --field: var(--field-border);
+
+  --corona: var(--yellow);
+  --rift: var(--mauve);
+  --blood: var(--red);
+  --bile: var(--green);
+  --ok: var(--teal);
+  --hunger: var(--peach);
+  --psy: var(--sapphire);
+  --corona-t: var(--yellow);
+  --rift-t: var(--mauve);
+  --blood-t: var(--red);
+  --bile-t: var(--green);
+  --ok-t: var(--teal);
+  --hunger-t: var(--peach);
+  --psy-t: var(--sapphire);
+
+  --shadow: rgba(0, 0, 0, 0.55);
+  --tint-blood: color-mix(in srgb, var(--red) 13%, transparent);
+  --tint-ok: color-mix(in srgb, var(--teal) 13%, transparent);
+  --tint-ok-soft: color-mix(in srgb, var(--teal) 8%, transparent);
+  --tint-corona: color-mix(in srgb, var(--yellow) 12%, transparent);
+  --glow-trauma: color-mix(in srgb, var(--red) 18%, transparent);
+  --glow-rot: color-mix(in srgb, var(--green) 18%, transparent);
+  --glow-shock: color-mix(in srgb, var(--yellow) 18%, transparent);
+  --veil-bg: color-mix(in srgb, var(--crust) 86%, transparent);
+  --modal-bg: color-mix(in srgb, var(--crust) 82%, transparent);
+
+  /* Sanity fades from the well to Mauve. Morality runs Red, Peach, Yellow, Green, Teal. */
+  --san-0: color-mix(in srgb, var(--rift) 30%, var(--well));
+  --san-1: color-mix(in srgb, var(--rift) 38%, var(--well));
+  --san-2: color-mix(in srgb, var(--rift) 46%, var(--well));
+  --san-3: color-mix(in srgb, var(--rift) 54%, var(--well));
+  --san-4: color-mix(in srgb, var(--rift) 62%, var(--well));
+  --san-5: color-mix(in srgb, var(--rift) 70%, var(--well));
+  --san-6: color-mix(in srgb, var(--rift) 78%, var(--well));
+  --san-7: color-mix(in srgb, var(--rift) 86%, var(--well));
+  --san-8: color-mix(in srgb, var(--rift) 93%, var(--well));
+  --san-9: var(--rift);
+  --mor-0: var(--blood);
+  --mor-1: color-mix(in srgb, var(--blood) 60%, var(--hunger));
+  --mor-2: var(--hunger);
+  --mor-3: color-mix(in srgb, var(--hunger) 60%, var(--corona));
+  --mor-4: color-mix(in srgb, var(--hunger) 20%, var(--corona));
+  --mor-5: color-mix(in srgb, var(--corona) 60%, var(--bile));
+  --mor-6: color-mix(in srgb, var(--corona) 20%, var(--bile));
+  --mor-7: var(--bile);
+  --mor-8: color-mix(in srgb, var(--bile) 50%, var(--ok));
+  --mor-9: var(--ok);
+
+  max-width: 1440px;
+  margin: 0 auto;
+  font-family: "IBM Plex Sans Condensed", -apple-system, system-ui, sans-serif;
+  font-size: 15.5px;
+  line-height: 1.35;
+  color: var(--bone);
+}
+
+/* Frappe's lighter surfaces need a little more Text in the reds, mauves and peaches. */
+[data-theme="frappe"] .sheet {
+  --rift-t: color-mix(in srgb, var(--mauve) 85%, var(--text));
+  --blood-t: color-mix(in srgb, var(--red) 50%, var(--text));
+  --hunger-t: color-mix(in srgb, var(--peach) 90%, var(--text));
+}
+
+/* Latte's pale surfaces: an accent has to be mostly Text to be read on them. */
+[data-theme="latte"] .sheet {
+  --bone-dim: color-mix(in srgb, var(--subtext1) 50%, var(--text));
+  --corona: color-mix(in srgb, var(--yellow) 45%, var(--text));
+  --bile: color-mix(in srgb, var(--green) 60%, var(--text));
+  --ok: color-mix(in srgb, var(--teal) 70%, var(--text));
+  --hunger: color-mix(in srgb, var(--peach) 55%, var(--text));
+  --psy: color-mix(in srgb, var(--sapphire) 55%, var(--text));
+  --corona-t: color-mix(in srgb, var(--yellow) 10%, var(--text));
+  --rift-t: color-mix(in srgb, var(--mauve) 45%, var(--text));
+  --blood-t: color-mix(in srgb, var(--red) 65%, var(--text));
+  --bile-t: color-mix(in srgb, var(--green) 15%, var(--text));
+  --ok-t: color-mix(in srgb, var(--teal) 20%, var(--text));
+  --hunger-t: color-mix(in srgb, var(--peach) 15%, var(--text));
+  --psy-t: color-mix(in srgb, var(--sapphire) 15%, var(--text));
+  --shadow: color-mix(in srgb, var(--text) 25%, transparent);
+  --veil-bg: color-mix(in srgb, var(--crust) 90%, transparent);
+  --modal-bg: color-mix(in srgb, var(--crust) 86%, transparent);
+  --tint-corona: color-mix(in srgb, var(--yellow) 14%, transparent);
+  --san-0: color-mix(in srgb, var(--rift) 45%, var(--well));
+  --san-1: color-mix(in srgb, var(--rift) 51%, var(--well));
+  --san-2: color-mix(in srgb, var(--rift) 57%, var(--well));
+  --san-3: color-mix(in srgb, var(--rift) 63%, var(--well));
+  --san-4: color-mix(in srgb, var(--rift) 69%, var(--well));
+  --san-5: color-mix(in srgb, var(--rift) 75%, var(--well));
+  --san-6: color-mix(in srgb, var(--rift) 81%, var(--well));
+  --san-7: color-mix(in srgb, var(--rift) 87%, var(--well));
+  --san-8: color-mix(in srgb, var(--rift) 93%, var(--well));
+}
+
+/* Zero-specificity resets, so the site's own form styles do not leak in and the
+   classes below win without !important. */
+:where(.sheet) * { box-sizing: border-box; margin: 0; padding: 0; }
+:where(.sheet) input,
+:where(.sheet) select,
+:where(.sheet) textarea,
+:where(.sheet) button {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.sheet :focus-visible { outline-offset: 1px; }
+.sheet td :focus-visible,
+.sheet .entry-head :focus-visible { outline-offset: -2px; }
+
+/* ─── type helpers ─────────────────────────────────────── */
+.sheet .eyebrow {
+  font-family: "Chakra Petch", sans-serif; font-size: 13px; font-weight: 600;
+  letter-spacing: 0.22em; text-transform: uppercase; color: var(--bone-dim);
+}
+
+/* ─── masthead ─────────────────────────────────────────── */
+.masthead {
+  display: flex; flex-direction: column; gap: 10px;
+  border-bottom: 2px solid var(--corona);
+  padding: 14px 0 10px; margin-bottom: 14px;
+}
+.mast-top { display: flex; align-items: center; justify-content: space-between; gap: 12px 18px; flex-wrap: wrap; }
+.sheet .masthead h1 {
+  font-family: "Chakra Petch", sans-serif; font-weight: 700; font-size: 31px;
+  letter-spacing: 0.14em; text-transform: uppercase; line-height: 1;
+}
+.masthead h1 em { font-style: normal; color: var(--corona-t); }
+.masthead .sub { font-size: 13px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--bone-dim); margin-top: 5px; }
+.save-state {
+  font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--bone-dim);
+  border: 1px dashed var(--field); border-radius: 2px; padding: 6px 9px;
+}
+.save-state.good { color: var(--ok-t); }
+.save-state.warn { color: var(--blood-t); }
+
+.tabs { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; }
+.tabs button {
+  font-family: "Chakra Petch", sans-serif; font-size: 13px; font-weight: 600;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--bone-dim);
+  border: 1px solid var(--field); border-bottom: 2px solid transparent; border-radius: 2px 2px 0 0;
+  padding: 7px 15px; cursor: pointer;
+}
+.tabs button[aria-selected="true"] { color: var(--corona-t); border-bottom-color: var(--corona); }
+
+/* ─── save bar and notices ─────────────────────────────── */
+.savebar {
+  display: flex; gap: 7px; align-items: center; flex-wrap: wrap;
+  border: 1px solid var(--steel); background: var(--slab); border-radius: 2px;
+  padding: 7px 9px; margin-bottom: 12px;
+}
+.savebar .sep { width: 1px; height: 20px; background: var(--steel2); margin: 0 2px; }
+.sheet .sbtn {
+  font-family: "Chakra Petch", sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase;
+  color: var(--bone-dim); border: 1px solid var(--field); border-radius: 2px;
+  padding: 7px 13px; cursor: pointer; white-space: nowrap;
+}
+.sheet .sbtn:hover { color: var(--corona-t); border-color: var(--corona); }
+.sheet .sbtn.primary { color: var(--corona-t); border-color: var(--corona); }
+.sheet .sbtn:disabled { border-style: dashed; color: var(--bone-dim); cursor: not-allowed; }
+.sheet .sbtn:disabled:hover { border-color: var(--field); color: var(--bone-dim); }
+.sheet .file-note { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--bone-dim); margin-left: auto; padding-right: 5px; }
+.sheet-notice {
+  display: flex; gap: 9px 14px; align-items: center; flex-wrap: wrap;
+  border: 2px solid var(--field); border-radius: 2px; background: var(--slab);
+  padding: 9px 12px; margin-bottom: 12px;
+}
+.sheet-notice.error { border-color: var(--blood); }
+.sheet-notice p { flex: 1 1 24rem; }
+.sheet-notice .actions { margin: 0; }
+
+/* ─── identity band ────────────────────────────────────── */
+.identity {
+  display: grid; grid-template-columns: 1.15fr 1.15fr 0.9fr 1.5fr 1.25fr 1.5fr 0.75fr; gap: 1px;
+  background: var(--steel); border: 1px solid var(--steel); margin-bottom: 14px;
+}
+.idf { background: var(--slab); padding: 7px 10px; }
+.idf.wide { grid-column: span 2; }
+.idf label { display: block; font-size: 12.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--bone-dim); margin-bottom: 2px; }
+.idf input, .idf select {
+  width: 100%; background: transparent; color: var(--bone);
+  font-family: "Chakra Petch", sans-serif; font-size: 17px; font-weight: 500; padding: 1px 0;
+  min-width: 0; text-overflow: ellipsis; border-bottom: 1px solid var(--field);
+}
+.idf select { cursor: pointer; }
+.idf select option { background: var(--slab); color: var(--bone); }
+.idf.grit input { color: var(--corona-t); font-weight: 700; }
+.combo { position: relative; }
+.combo .caret { position: absolute; right: 0; top: 50%; transform: translateY(-50%); color: var(--bone-dim); cursor: pointer; font-size: 12.5px; line-height: 1; padding: 3px 1px 3px 6px; }
+.combo .caret:hover { color: var(--corona-t); }
+.combo input { padding-right: 15px; }
+.combo-list {
+  display: none; position: absolute; z-index: 30; left: -9px; right: -9px; top: calc(100% + 5px);
+  background: var(--slab2); border: 1px solid var(--corona); border-radius: 2px;
+  max-height: 236px; overflow-y: auto; box-shadow: 0 8px 22px var(--shadow);
+}
+.combo-list.show { display: block; }
+.combo-list button {
+  display: block; width: 100%; text-align: left; color: var(--bone);
+  font-family: "IBM Plex Sans Condensed", sans-serif; font-size: 15px;
+  padding: 7px 12px; cursor: pointer; border-bottom: 1px solid var(--edge); line-height: 1.3;
+}
+.combo-list button:last-child { border-bottom: 0; }
+.combo-list button small { display: block; font-size: 13px; color: var(--bone-dim); margin-top: 1px; }
+.combo-list button:hover, .combo-list button.on { background: var(--well); color: var(--corona-t); }
+.combo-list button:hover small, .combo-list button.on small { color: var(--corona-t); }
+.combo-list .none { padding: 9px 12px; font-size: 13px; color: var(--bone-dim); font-style: italic; }
+
+/* ─── panels ───────────────────────────────────────────── */
+.grid { display: grid; grid-template-columns: 286px minmax(0, 1fr) 350px; gap: 16px; align-items: start; }
+#page1 > .grid { grid-template-columns: minmax(0, 1fr) 350px; }
+.grid.side { grid-template-columns: minmax(0, 1fr) 400px; }
+/* Equipment page: Encumbrance sits next to Supplies, which runs longer. Both stretch
+   to one length and the stat strip sinks to the floor of the taller panel. */
+#page2 > .grid { align-items: stretch; }
+.enc-panel { display: flex; flex-direction: column; }
+.enc-panel > .enc { flex: 1; display: flex; flex-direction: column; }
+.enc-panel .enc-split { margin-top: auto; }
+
+/* Page 1 is two independent columns: a main block and the condition column.
+   The right column can grow (the Dying tracker) without dragging the left one. */
+.mainblock { display: grid; grid-template-columns: 286px minmax(0, 1fr); gap: 16px; align-items: stretch; min-width: 0; }
+.mainblock > div:nth-child(1) { grid-column: 1; grid-row: 1; }
+.mainblock > div:nth-child(2) { grid-column: 2; grid-row: 1; }
+/* Full-width panels are grid items, so the row gap already spaces them. */
+.mainblock > .span2 { grid-column: 1 / -1; margin-bottom: 0; }
+.mainblock > div { display: flex; flex-direction: column; min-width: 0; }
+.mainblock > div > .panel:last-child { flex: 1; margin-bottom: 0; display: flex; flex-direction: column; }
+.mainblock > div > .panel:last-child > .tracks,
+.mainblock > div > .panel:last-child > .degrade { margin-top: auto; }
+.panel { border: 1px solid var(--steel); background: var(--slab); margin-bottom: 12px; }
+.panel.flush-top { margin-top: 0; }
+.panel > h2 {
+  font-family: "Chakra Petch", sans-serif; font-size: 14px; font-weight: 700; line-height: 1.3;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  padding: 7px 12px; background: var(--slab2); border-bottom: 1px solid var(--steel);
+  display: flex; justify-content: space-between; align-items: center; gap: 9px; flex-wrap: wrap;
+}
+.panel > h2 .legend { margin-left: auto; }
+.panel > h2 .note { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; letter-spacing: 0.06em; color: var(--bone-dim); text-transform: none; font-weight: 400; }
+.pad { padding: 9px 12px; }
+
+/* ─── attributes ───────────────────────────────────────── */
+.attr-head, .attr-row { display: grid; grid-template-columns: 1fr 41px 31px 36px 41px; gap: 5px; align-items: center; }
+.attr-head { padding: 0 0 5px; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--bone-dim); text-align: center; }
+.attr-head span:first-child { text-align: left; }
+.attr-row { padding: 3px 0; border-top: 1px solid var(--rule); }
+.attr-row .nm { font-family: "Chakra Petch", sans-serif; font-size: 14.5px; font-weight: 500; letter-spacing: 0.04em; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.attr-row .nm b { color: var(--corona-t); font-weight: 700; }
+.cell {
+  width: 100%; background: var(--well); border: 1px solid var(--field); border-radius: 2px;
+  color: var(--bone); text-align: center; font-family: "IBM Plex Mono", monospace; font-size: 14.5px; padding: 3px 0;
+}
+.mod { color: var(--rift-t); font-family: "IBM Plex Mono", monospace; font-size: 13px; text-align: center; }
+.mod.prof { color: var(--corona-t); }
+.sheet input.mod { border: 1px solid var(--field); border-radius: 2px; width: 100%; }
+.tot {
+  background: var(--well-2); border: 1px solid var(--steel2); border-radius: 2px;
+  font-family: "IBM Plex Mono", monospace; font-size: 17px; font-weight: 600;
+  text-align: center; padding: 2px 0; color: var(--corona-t);
+}
+.attr-row.spec .tot, .attr-row.spec .nm b { color: var(--rift-t); }
+.divider { height: 1px; background: var(--steel2); margin: 7px 0 5px; }
+
+/* ─── derived stats ────────────────────────────────────── */
+.derived { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--steel); }
+.dstat { background: var(--slab); padding: 7px 9px; text-align: center; }
+.dstat .lbl { font-size: 12px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--bone-dim); line-height: 1.2; }
+.dstat .val { font-family: "IBM Plex Mono", monospace; font-size: 23px; font-weight: 600; color: var(--bone); line-height: 1.15; margin-top: 1px; }
+.dstat .fx { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--bone-dim); letter-spacing: 0.02em; }
+.dstat.hl .val { color: var(--corona-t); }
+.dstat.rift .val { color: var(--rift-t); }
+
+/* ─── skills ───────────────────────────────────────────── */
+.skillcols { columns: 2; column-gap: 16px; padding: 8px 12px 10px; }
+.sgroup { break-inside: avoid; margin-bottom: 11px; }
+.sgroup h3 {
+  font-family: "Chakra Petch", sans-serif; font-size: 14px; font-weight: 700;
+  letter-spacing: 0.15em; text-transform: uppercase; color: var(--corona-t);
+  border-bottom: 1px solid var(--steel2); padding-bottom: 3px; margin-bottom: 3px;
+  display: flex; justify-content: space-between;
+}
+.sgroup h3 .cap { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--bone-dim); letter-spacing: 0.03em; font-weight: 400; }
+.sgroup h3 .cap.exempt { color: var(--corona-t); }
+.srow { display: grid; grid-template-columns: 1fr 32px 32px 38px; gap: 5px; align-items: center; padding: 2px 0; }
+.srow label { font-size: 15.5px; line-height: 1.3; cursor: pointer; color: var(--bone-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px dotted var(--edge-3); }
+.srow input {
+  background: var(--well); border: 1px solid var(--field); border-radius: 2px; color: var(--bone);
+  text-align: center; font-family: "IBM Plex Mono", monospace; font-size: 14.5px; padding: 1px 0; width: 100%;
+}
+.srow input.oth { background: transparent; color: var(--rift-t); }
+.srow input.over { border-color: var(--blood); color: var(--blood-t); }
+.skey { display: grid; grid-template-columns: 1fr 32px 32px 38px; gap: 5px; padding: 0 0 3px; font-size: 12.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--bone-dim); text-align: center; }
+.skey span:first-child { text-align: left; }
+.pool { font-family: "IBM Plex Mono", monospace; font-size: 15.5px; font-weight: 600; text-align: center; color: var(--corona-t); position: relative; }
+/* Untrained: lighter weight than a trained pool, so it reads as "attribute only". */
+.pool.ut { color: var(--bone-dim); font-weight: 400; }
+.pool.zero { color: var(--blood-t); }
+.legend { display: flex; align-items: center; gap: 6px; font-family: "IBM Plex Sans Condensed", sans-serif; font-size: 12.5px; letter-spacing: 0.04em; text-transform: none; color: var(--bone-dim); font-weight: 400; }
+.srow.trained label { color: var(--bone); }
+.srow.master { margin-left: -5px; padding-left: 5px; border-left: 2px solid var(--corona); }
+.srow.master label { color: var(--corona-t); font-weight: 600; }
+.mbadge { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--corona-t); border: 1px solid var(--corona); border-radius: 2px; padding: 0 2px; margin-left: 4px; vertical-align: 1px; }
+
+/* ─── condition monitors ───────────────────────────────── */
+.cm { padding: 9px 12px 5px; }
+.cm-row { margin-bottom: 9px; }
+.cm-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3px; }
+.cm-name { font-family: "Chakra Petch", sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; }
+.cm-meta { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--bone-dim); }
+.boxes { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; }
+.bx { aspect-ratio: 1 / 1; border: 1px solid var(--field); border-radius: 1px; background: var(--well); cursor: pointer; position: relative; padding: 0; }
+.bx.thr { border-color: var(--bone); }
+.bx.thr::after { content: ""; position: absolute; left: 50%; bottom: -4px; width: 1px; height: 3px; background: var(--bone-dim); }
+.cm-shock .bx.on { background: var(--corona); border-color: var(--corona); }
+.cm-trauma .bx.on { background: var(--blood); border-color: var(--blood); }
+.cm-rot .bx.on { background: var(--bile); border-color: var(--bile); }
+.cm-pen { font-family: "IBM Plex Mono", monospace; font-size: 13px; font-weight: 600; }
+.overtag { font-family: "IBM Plex Mono", monospace; font-size: 13px; font-weight: 700; color: var(--blood-t); margin-left: 3px; }
+.cm-shock .cm-pen { color: var(--corona-t); }
+.cm-trauma .cm-pen { color: var(--blood-t); }
+.cm-rot .cm-pen { color: var(--bile-t); }
+.cmnote { width: 100%; margin-top: 4px; border-bottom: 1px dotted var(--field); color: var(--bone); font-family: "IBM Plex Sans Condensed", sans-serif; font-size: 13px; padding: 2px 1px; }
+.cmnote::placeholder { color: var(--bone-dim); font-style: italic; }
+
+/* ─── starvation ───────────────────────────────────────── */
+.starve { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 10px 14px 12px; }
+.stv-count { display: flex; align-items: center; gap: 9px; }
+.stv-count .n { font-family: "Chakra Petch", sans-serif; font-size: 38.5px; font-weight: 700; color: var(--hunger); line-height: 1; }
+.stv-count .l { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--bone-dim); line-height: 1.25; }
+.stv-mid { min-width: 0; }
+.stv-track { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; }
+.dbx { height: 23px; border: 1px solid var(--field); border-radius: 1px; background: var(--well); cursor: pointer; padding: 0; position: relative; transition: background 0.2s ease, border-color 0.2s ease; }
+.dbx.on { background: var(--hunger); border-color: var(--hunger); }
+.dbx.fatal.on { background: var(--blood); border-color: var(--blood); }
+.dbx.mark { border-color: var(--bone); }
+.stv-scale { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; margin-top: 4px; font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--bone-dim); text-align: center; }
+.stv-pen { text-align: center; white-space: nowrap; }
+.stv-pen .l { display: block; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--bone-dim); }
+.stv-pen .n { font-family: "IBM Plex Mono", monospace; font-size: 29px; font-weight: 600; color: var(--hunger-t); line-height: 1.1; }
+.stv-foot { padding: 0 14px 10px; font-size: 12.5px; color: var(--bone-dim); line-height: 1.4; }
+.stv-foot.fatal, .stv-foot.fatal b { color: var(--blood-t); }
+#starvePanel.fatal .stv-count .n { color: var(--blood); }
+#starvePanel.fatal .stv-pen .n { color: var(--blood-t); }
+
+/* ─── sanity and morality ──────────────────────────────── */
+.tracks { padding: 9px 12px 12px; }
+.trk + .trk { margin-top: 11px; padding-top: 12px; border-top: 1px solid var(--rule); }
+.trk-top { display: flex; justify-content: space-between; align-items: baseline; gap: 7px; margin-bottom: 4px; }
+.trk-name { font-family: "Chakra Petch", sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+.trk-name.san { color: var(--rift-t); }
+.trk-state { font-family: "Chakra Petch", sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-align: right; }
+.san-track, .mor-track { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; margin-top: 3px; }
+.sb, .mb {
+  aspect-ratio: 1 / 1; border: 1px solid var(--field); border-radius: 50%; background: var(--well);
+  cursor: pointer; padding: 0; transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.sb.on, .mb.on { background: var(--dot); border-color: var(--dot); }
+.sb.now, .mb.now { box-shadow: 0 0 7px var(--dot); }
+.sb:nth-child(1) { --dot: var(--san-0); } .sb:nth-child(2) { --dot: var(--san-1); }
+.sb:nth-child(3) { --dot: var(--san-2); } .sb:nth-child(4) { --dot: var(--san-3); }
+.sb:nth-child(5) { --dot: var(--san-4); } .sb:nth-child(6) { --dot: var(--san-5); }
+.sb:nth-child(7) { --dot: var(--san-6); } .sb:nth-child(8) { --dot: var(--san-7); }
+.sb:nth-child(9) { --dot: var(--san-8); } .sb:nth-child(10) { --dot: var(--san-9); }
+.mb:nth-child(1) { --dot: var(--mor-0); } .mb:nth-child(2) { --dot: var(--mor-1); }
+.mb:nth-child(3) { --dot: var(--mor-2); } .mb:nth-child(4) { --dot: var(--mor-3); }
+.mb:nth-child(5) { --dot: var(--mor-4); } .mb:nth-child(6) { --dot: var(--mor-5); }
+.mb:nth-child(7) { --dot: var(--mor-6); } .mb:nth-child(8) { --dot: var(--mor-7); }
+.mb:nth-child(9) { --dot: var(--mor-8); } .mb:nth-child(10) { --dot: var(--mor-9); }
+.mor-ends { display: flex; justify-content: space-between; margin-top: 3px; font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--bone-dim); }
+
+/* ─── dying and stabilization: dormant until Trauma fills ─ */
+.dying { border-color: var(--steel); transition: border-color 0.3s ease; }
+.dying.live { border-color: var(--blood); }
+.dying.live > h2 { background: var(--tint-blood); color: var(--blood-t); }
+.dying.safe.live { border-color: var(--ok); }
+.dying.safe.live > h2 { background: var(--tint-ok); color: var(--ok-t); }
+.dy-body { padding: 9px 12px 12px; }
+.dy-idle { padding: 0 12px 10px; font-size: 13px; color: var(--bone-dim); font-style: italic; line-height: 1.45; }
+.dying.live .dy-idle { display: none; }
+.dying:not(.live) .dyb { cursor: default; pointer-events: none; border-style: dashed; }
+.dying:not(.live) .dy-aid { pointer-events: none; }
+.dy-roll { display: flex; justify-content: space-between; align-items: baseline; gap: 9px; padding-bottom: 7px; margin-bottom: 7px; border-bottom: 1px solid var(--rule); }
+.dy-roll .lbl { font-size: 12.5px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--bone-dim); }
+.dy-roll .pool { font-family: "IBM Plex Mono", monospace; font-size: 26.5px; font-weight: 600; color: var(--corona-t); line-height: 1; }
+.dying:not(.live) .dy-roll .pool { color: var(--bone-dim); }
+.dy-roll .fx { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--bone-dim); text-align: right; line-height: 1.4; }
+.dy-goal { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+.dy-goal .nm { font-family: "Chakra Petch", sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; }
+.dy-goal .nm.ok { color: var(--ok-t); }
+.dy-goal .nm.bad { color: var(--blood-t); }
+.dy-goal .ct { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--bone-dim); }
+.dy-track { display: grid; grid-template-columns: repeat(var(--n, 1), 1fr); gap: 3px; margin-bottom: 9px; }
+.dyb { height: 18px; border: 1px solid var(--field); border-radius: 1px; background: var(--well); cursor: pointer; padding: 0; transition: background 0.2s ease, border-color 0.2s ease; }
+.dyb.on { background: var(--ok); border-color: var(--ok); }
+.dyb.of.on { background: var(--blood); border-color: var(--blood); }
+.dy-note { font-size: 13px; color: var(--bone-dim); line-height: 1.45; margin-top: 2px; }
+.dy-note b { color: var(--bone); }
+.dy-flag { display: block; margin-top: 7px; padding: 6px 8px; border-radius: 2px; font-family: "Chakra Petch", sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.09em; text-align: center; color: var(--ok-t); border: 1px solid var(--ok); background: var(--tint-ok-soft); }
+.dy-aid { display: flex; align-items: center; gap: 7px; margin-top: 8px; padding-top: 9px; border-top: 1px solid var(--rule); font-size: 14px; color: var(--bone-dim); cursor: pointer; }
+.dy-aid input { accent-color: var(--ok); width: 14px; height: 14px; cursor: pointer; }
+
+/* ─── the eclipse dial ─────────────────────────────────── */
+.eclipse { padding: 12px 12px 14px; text-align: center; background: radial-gradient(70% 70% at 50% 42%, var(--well) 0%, var(--slab) 70%); }
+.dial { width: 200px; height: 200px; margin: 0 auto; display: block; }
+.dial .tick { stroke: var(--corona); stroke-width: 2.5; stroke-linecap: round; }
+.dial .tick.off { stroke: var(--edge); }
+.eclipse.crit .dial .tick:not(.off) { stroke: var(--critcol); }
+.eclipse.bonus .dial .tick:not(.off) { stroke: var(--ok); }
+.dial .disc { fill: var(--well-2); stroke: var(--edge); stroke-width: 1; }
+.dial .crit-ring { fill: none; stroke: var(--critcol, var(--blood)); stroke-width: 2.5; opacity: 0; }
+.dial-num { font-family: "Chakra Petch", sans-serif; font-size: 62.5px; font-weight: 700; fill: var(--corona); }
+.dial-num.clean { fill: var(--edge-2); }
+.dial-num.bonus { fill: var(--ok); }
+.breakdown { display: flex; justify-content: center; flex-wrap: wrap; gap: 5px 9px; margin-top: 8px; font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--bone-dim); }
+.breakdown b { font-weight: 600; }
+.modrow { display: grid; grid-template-columns: 1fr 53px; gap: 7px; align-items: center; margin-top: 4px; }
+.modrow input.mname, .smrow input.mname { border-bottom: 1px solid var(--field); color: var(--bone); font-family: "IBM Plex Sans Condensed", sans-serif; font-size: 13px; padding: 2px 3px; }
+.modrow input.mval, .smrow input.mval { background: var(--well); border: 1px solid var(--field); border-radius: 2px; color: var(--bone); text-align: center; font-family: "IBM Plex Mono", monospace; font-size: 14.5px; font-weight: 600; padding: 2px 0; width: 100%; }
+.modhead { display: grid; grid-template-columns: 1fr 53px; gap: 7px; align-items: baseline; margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--steel2); }
+.modhead .eyebrow { font-size: 12.5px; }
+.modhead .eyebrow:last-child { text-align: center; }
+.smhead { display: grid; grid-template-columns: 1fr 36px 36px 36px; gap: 7px; align-items: baseline; margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--steel2); }
+.smhead .eyebrow { font-size: 12.5px; text-align: center; }
+.smhead .eyebrow:first-child { text-align: left; }
+.smrow { display: grid; grid-template-columns: 1fr 36px 36px 36px; gap: 7px; align-items: center; margin-top: 4px; }
+.modhint { font-size: 12.5px; color: var(--bone-dim); text-align: left; margin-top: 5px; line-height: 1.35; }
+.ptoggle { display: flex; align-items: center; gap: 6px; font-size: 12.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--bone-dim); cursor: pointer; font-weight: 400; }
+.ptoggle input { accent-color: var(--corona); width: 13px; height: 13px; cursor: pointer; }
+.eclipse .caption { font-size: 13px; color: var(--bone-dim); margin-top: 5px; line-height: 1.4; font-style: italic; }
+.critbadge { display: none; margin: 7px auto 0; padding: 3px 10px; border-radius: 2px; font-family: "Chakra Petch", sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--critcol-t, var(--blood-t)); border: 1px solid var(--critcol, var(--blood)); }
+/* A monitor at ten takes over the dial. */
+.eclipse.crit-trauma { --critcol: var(--blood); --critcol-t: var(--blood-t); --critglow: var(--glow-trauma); }
+.eclipse.crit-rot { --critcol: var(--bile); --critcol-t: var(--bile-t); --critglow: var(--glow-rot); }
+.eclipse.crit-shock { --critcol: var(--corona); --critcol-t: var(--corona-t); --critglow: var(--glow-shock); }
+.eclipse.crit { background: radial-gradient(70% 70% at 50% 42%, var(--critglow) 0%, var(--slab) 72%); }
+.eclipse.crit .caption { color: var(--critcol-t); font-style: normal; font-weight: 600; }
+.eclipse.crit .critbadge { display: inline-block; }
+.eclipse.crit .dial-num { fill: var(--critcol); }
+.eclipse.crit .crit-ring { opacity: 1; animation: critpulse 2.1s ease-in-out infinite; }
+@keyframes critpulse { 0%, 100% { opacity: 0.28; } 50% { opacity: 0.9; } }
+@media (prefers-reduced-motion: reduce) { .eclipse.crit .crit-ring { animation: none; opacity: 0.75; } }
+
+/* ─── defense readout ──────────────────────────────────── */
+.soak { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--steel); }
+.soak > div { background: var(--slab); padding: 9px 7px 10px; text-align: center; }
+.soak .lbl { font-size: 12px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--bone-dim); }
+.soak .val { font-family: "IBM Plex Mono", monospace; font-size: 36px; font-weight: 600; color: var(--corona-t); line-height: 1.05; margin-top: 2px; }
+
+/* ─── tables ───────────────────────────────────────────── */
+.sheet table { width: 100%; border-collapse: collapse; }
+.sheet th { font-family: "Chakra Petch", sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--bone-dim); text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--steel2); white-space: nowrap; }
+.sheet th.c, .sheet td.c { text-align: center; }
+.sheet td { padding: 0; border-bottom: 1px solid var(--rule); }
+.sheet td input, .sheet td select { width: 100%; color: var(--bone); font-family: "IBM Plex Sans Condensed", sans-serif; font-size: 14.5px; padding: 6px 6px; border-bottom: 1px dotted var(--field); }
+.sheet td select { cursor: pointer; font-size: 13px; }
+.sheet td select.ctr { text-align: center; text-align-last: center; }
+.sheet td select option { background: var(--slab); color: var(--bone); }
+.sheet td input.num, .sheet td .calc { font-family: "IBM Plex Mono", monospace; font-size: 14px; text-align: center; }
+.sheet td input:focus, .sheet td select:focus { background: var(--well); }
+.sheet td .calc { display: block; padding: 6px 0; color: var(--corona-t); font-weight: 600; }
+.sheet td .calc.dim { color: var(--bone-dim); font-weight: 400; }
+.sheet td input.wnote { font-size: 13px; color: var(--bone); }
+.sheet td input.wnote::placeholder { color: var(--bone-dim); font-style: italic; }
+.wtag { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--bone-dim); padding: 5px 6px; }
+td select.tier { font-size: 13px; }
+.sheet td textarea { border: 0; background: transparent; min-height: 26px; padding: 6px; font-size: 14.5px; border-radius: 0; }
+.sheet td textarea:focus { background: var(--well); }
+.w2 { width: 2%; } .w5 { width: 5%; } .w6 { width: 6%; } .w7 { width: 7%; } .w8 { width: 8%; } .w9 { width: 9%; }
+.w10 { width: 10%; } .w12 { width: 12%; } .w14 { width: 14%; } .w15 { width: 15%; } .w17 { width: 17%; } .w19 { width: 19%; }
+.w22 { width: 22%; } .w24 { width: 24%; } .w28 { width: 28%; } .w30 { width: 30%; } .w32 { width: 32%; } .w34 { width: 34%; }
+.w38 { width: 38%; } .w40 { width: 40%; } .w54 { width: 54%; } .w58 { width: 58%; }
+
+/* armor and shield across the wide column */
+.gear-row { display: grid; grid-template-columns: 1.6fr 55px 55px 55px 1.6fr 55px 55px 55px; gap: 7px; align-items: end; padding: 10px 12px; }
+.gear-row .af.name:nth-child(5) { border-left: 1px solid var(--steel); padding-left: 13px; margin-left: 5px; }
+.degrade { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; border-top: 1px solid var(--rule); padding: 9px 12px 10px; }
+.degrade-col:last-child { border-left: 1px solid var(--steel); padding-left: 13px; margin-left: 5px; }
+.degrade-head { margin-bottom: 6px; }
+.degrade-head .eyebrow { font-size: 12.5px; }
+.degrade-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--steel); }
+.degrade-grid > div { background: var(--slab); padding: 6px 7px; text-align: center; }
+.degrade-grid .lbl { font-size: 12.5px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--bone-dim); }
+.degrade-grid .val { font-family: "IBM Plex Mono", monospace; font-size: 17px; color: var(--bone); }
+.degrade-grid .val.state { font-family: "IBM Plex Sans Condensed", sans-serif; font-size: 13px; font-weight: 600; line-height: 1.3; }
+.degrade-grid .val.state.damaged { color: var(--blood-t); }
+.degrade-grid input { width: 100%; text-align: center; font-family: "IBM Plex Mono", monospace; font-size: 17px; color: var(--bone); border-bottom: 1px solid var(--field); }
+.af label { display: block; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--bone-dim); margin-bottom: 2px; }
+.af input { width: 100%; background: var(--well); border: 1px solid var(--field); border-radius: 2px; color: var(--bone); font-family: "IBM Plex Mono", monospace; font-size: 14.5px; padding: 3px 6px; }
+.af.name input { font-family: "IBM Plex Sans Condensed", sans-serif; text-align: left; }
+
+/* ─── pages ────────────────────────────────────────────── */
+.pages { display: contents; }
+.page-panel { display: none; }
+.page-panel.active { display: block; }
+
+/* ─── encumbrance ──────────────────────────────────────── */
+.enc { padding: 12px 14px 14px; }
+.enc-now { display: flex; align-items: baseline; gap: 12px; margin-bottom: 9px; }
+.enc-now .big { font-family: "Chakra Petch", sans-serif; font-size: 48px; font-weight: 700; color: var(--corona-t); line-height: 1; }
+.enc-now .unit { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--bone-dim); }
+.enc-now .tier { margin-left: auto; text-align: right; }
+.enc-now .tier .t { font-family: "Chakra Petch", sans-serif; font-size: 18px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
+.enc-now .tier .pn { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--bone-dim); }
+.t0 { color: var(--ok-t); } .t1 { color: var(--corona-t); } .t2 { color: var(--hunger-t); } .t3 { color: var(--blood-t); }
+.enc-bar { height: 17px; background: var(--well); border: 1px solid var(--field); border-radius: 2px; position: relative; overflow: hidden; }
+.enc-bar i { position: absolute; top: 0; bottom: 0; left: var(--pos, 0); width: 1px; background: var(--bone); opacity: 0.6; }
+.enc-fill { height: 100%; width: var(--fill, 0); background: var(--ok); transition: width 0.18s ease; }
+.enc-fill.t1 { background: var(--corona); } .enc-fill.t2 { background: var(--hunger); } .enc-fill.t3 { background: var(--blood); }
+.enc-ticks { position: relative; height: 52px; margin-top: 5px; font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--bone-dim); }
+/* Each threshold sits under its label, and the four alternate between two rows.
+   At high Lethality all four bunch into the last quarter of the bar. */
+.enc-ticks span { position: absolute; left: var(--pos, 0); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; line-height: 1.25; white-space: nowrap; }
+.enc-ticks span::before { content: ""; position: absolute; left: 50%; width: 1px; background: var(--steel2); }
+#lab_l, #lab_s { top: 1px; }
+#lab_l::before, #lab_s::before { top: -5px; height: 4px; }
+#lab_m, #lab_c { top: 27px; }
+#lab_m::before, #lab_c::before { top: -31px; height: 30px; }
+#lab_c { transform: translateX(-100%); align-items: flex-end; }
+#lab_c::before { left: auto; right: 0; }
+.enc-ticks b { font-size: 13px; font-weight: 600; color: var(--bone); }
+.enc-split { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--steel); margin-top: 10px; }
+.enc-split div { background: var(--slab); padding: 6px 7px; text-align: center; }
+.enc-split .lbl { font-size: 12.5px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--bone-dim); }
+.enc-split .val { font-family: "IBM Plex Mono", monospace; font-size: 17px; color: var(--bone); }
+
+/* ─── supplies ─────────────────────────────────────────── */
+.sup-head, .sup { display: grid; grid-template-columns: minmax(0, 1fr) 70px 70px 74px; gap: 9px; align-items: center; padding: 6px 14px; }
+.sup-head { padding-bottom: 5px; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--bone-dim); text-align: center; }
+.sup-head span:first-child { text-align: left; }
+.sup + .sup { border-top: 1px solid var(--rule); }
+.sup-head + .sup { padding-top: 8px; }
+.sup .nm { font-size: 15px; line-height: 1.3; min-width: 0; }
+.sup input { background: var(--well); border: 1px solid var(--field); border-radius: 2px; color: var(--bone); text-align: center; font-family: "IBM Plex Mono", monospace; font-size: 15px; padding: 5px 0; width: 100%; }
+.sup .fixedw { font-family: "IBM Plex Mono", monospace; font-size: 15px; color: var(--bone-dim); text-align: center; border: 1px dashed var(--field); border-radius: 2px; padding: 5px 0; }
+.sup .wt { font-family: "IBM Plex Mono", monospace; font-size: 17px; font-weight: 600; color: var(--corona-t); text-align: center; }
+.sup-tv { display: grid; grid-template-columns: minmax(0, 1fr) 154px; gap: 9px; align-items: center; padding: 9px 14px 12px; margin-top: 3px; border-top: 1px solid var(--steel); }
+.sup-tv .nm { font-size: 15px; line-height: 1.3; }
+.sup-tv input { background: var(--well); border: 1px solid var(--field); border-radius: 2px; color: var(--corona-t); text-align: center; font-family: "IBM Plex Mono", monospace; font-size: 18px; font-weight: 600; padding: 5px 0; }
+
+/* ─── containers ───────────────────────────────────────── */
+.cont-head { display: grid; grid-template-columns: minmax(0, 1fr) 154px 74px 74px 62px; gap: 8px; align-items: end; padding: 9px 12px; border-bottom: 1px solid var(--steel); }
+.cont-head .f label { display: block; font-size: 12.5px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--bone-dim); margin-bottom: 2px; }
+.cont-head .f input { width: 100%; background: var(--well); border: 1px solid var(--field); border-radius: 2px; color: var(--bone); font-family: "IBM Plex Mono", monospace; font-size: 14px; padding: 3px 5px; }
+.cont-head .f.nm input { font-family: "IBM Plex Sans Condensed", sans-serif; text-align: left; font-size: 15px; }
+.panel > h2 .load { font-family: "IBM Plex Mono", monospace; font-size: 13px; font-weight: 400; letter-spacing: 0.04em; text-transform: none; color: var(--bone-dim); margin-left: auto; }
+.panel > h2 .load b { font-size: 15.5px; font-weight: 600; color: var(--bone); }
+.panel > h2 .load.over, .panel > h2 .load.over b { color: var(--blood-t); }
+.addrow { font-family: "Chakra Petch", sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--bone-dim); border-top: 1px solid var(--rule); width: 100%; padding: 6px 6px 6px 12px; cursor: pointer; text-align: left; }
+.addrow:hover { color: var(--corona-t); }
+/* A standalone add button has no panel of its own, so it frames itself. */
+.addrow.standalone { border: 1px solid var(--field); border-radius: 2px; background: var(--slab); text-align: center; padding: 9px 6px; margin-bottom: 12px; }
+.sheet td .rm { color: var(--bone-dim); cursor: pointer; font-size: 15.5px; line-height: 1; padding: 3px 7px; }
+.sheet td .rm:hover, .cont-rm:hover { color: var(--blood-t); }
+.cont-rm { color: var(--bone-dim); cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 4px; }
+.sheet td input.iname { font-size: 14.5px; }
+.sheet td .fixed { display: block; padding: 6px; font-size: 14.5px; color: var(--corona-t); }
+
+/* ─── testament page ───────────────────────────────────── */
+.origin { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1px; background: var(--steel); border-bottom: 1px solid var(--steel); }
+.org-carry, .org-field { background: var(--slab); padding: 8px 13px 10px; }
+.origin label { display: block; font-size: 12px; letter-spacing: 0.17em; text-transform: uppercase; color: var(--bone-dim); margin-bottom: 4px; }
+.origin label .hint, .prose label .hint { text-transform: none; letter-spacing: 0.02em; color: var(--bone-dim); font-style: italic; margin-left: 6px; font-size: inherit; }
+.org-abil { display: block; margin-top: 5px; font-size: 13px; line-height: 1.45; color: var(--bone-dim); font-style: italic; }
+.org-field input { width: 100%; background: var(--well); border: 1px solid var(--field); border-radius: 2px; color: var(--bone); font-family: "IBM Plex Sans Condensed", sans-serif; font-size: 15px; padding: 6px 9px; }
+.org-field input::placeholder, .sheet textarea::placeholder, .sheet .idf input::placeholder { color: var(--bone-dim); font-style: italic; }
+.vitals { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--steel); }
+.vitals .idf { background: var(--slab); }
+.prose { padding: 10px 13px 13px; }
+.prose label { display: block; font-size: 12.5px; letter-spacing: 0.17em; text-transform: uppercase; color: var(--bone-dim); margin-bottom: 4px; }
+.prose + .prose { border-top: 1px solid var(--rule); }
+.sheet textarea { width: 100%; background: var(--well); border: 1px solid var(--field); border-radius: 2px; color: var(--bone); font-family: "IBM Plex Sans Condensed", sans-serif; font-size: 15px; line-height: 1.55; padding: 8px 10px; resize: none; overflow: hidden; min-height: 38px; display: block; }
+.sheet textarea.tall { min-height: 62px; }
+.sheet textarea.mid { min-height: 50px; }
+.storyblock textarea { min-height: 92px; font-size: 15.5px; line-height: 1.6; }
+.carry { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--corona-t); background: var(--well); border: 1px solid var(--steel); border-radius: 2px; padding: 5px 9px; display: block; }
+.carry.empty { color: var(--bone-dim); font-style: italic; }
+/* Values that come from the Core sheet sit on a tinted strip: mirrored, not typed here. */
+.prose.carried { background: var(--slab2); }
+.prose.carried + .prose:not(.carried) { border-top: 1px solid var(--steel); }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+.pair.tight { gap: 0; }
+.pair.match { align-items: stretch; margin-bottom: 12px; }
+.pair.gap-top { margin-top: 12px; }
+.pair.match > .panel { height: 100%; margin-bottom: 0; display: flex; flex-direction: column; }
+.pair.match > .panel > .prose:last-child { flex: 1; }
+.divided { border-left: 1px solid var(--steel); }
+
+/* ─── casting page ─────────────────────────────────────── */
+.dormant .disc-rate { color: var(--bone-dim); }
+.dormant .disc-body { border-style: dashed; }
+.disc-top { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--steel); }
+.disc-top > div { background: var(--slab); padding: 8px; text-align: center; }
+.disc-top .lbl { font-size: 12px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--bone-dim); }
+.disc-top .disc-rate, .disc-top .big { font-family: "IBM Plex Mono", monospace; font-size: 26.5px; font-weight: 600; line-height: 1.15; }
+.veilc .disc-rate, .veilc .big { color: var(--rift-t); }
+.psyc .disc-rate, .psyc .big { color: var(--psy-t); }
+.dormant .disc-rate, .dormant .big { color: var(--bone-dim); }
+.disc-top input { width: 100%; background: var(--well); border: 1px solid var(--field); border-radius: 2px; color: var(--bone); text-align: center; font-family: "IBM Plex Mono", monospace; font-size: 24px; padding: 1px 0; margin-top: 1px; }
+.disc-top .fx { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--bone-dim); }
+.schools { padding: 9px 12px; }
+.schools .eyebrow { display: block; margin-bottom: 5px; }
+.school-slots { display: grid; gap: 5px; }
+.school-slots select { width: 100%; background: var(--well); border: 1px solid var(--field); border-radius: 2px; color: var(--bone); font-family: "IBM Plex Sans Condensed", sans-serif; font-size: 14.5px; padding: 5px 7px; cursor: pointer; }
+.school-slots select option { background: var(--slab); color: var(--bone); }
+.noslots { font-size: 14px; color: var(--bone-dim); font-style: italic; }
+.castskills { display: grid; grid-template-columns: 1fr auto; gap: 5px 12px; padding: 8px 12px 10px; border-top: 1px solid var(--rule); font-size: 14px; align-items: center; }
+.castskills .p { font-family: "IBM Plex Mono", monospace; font-size: 15.5px; font-weight: 600; color: var(--corona-t); }
+.castskills .p.dim { color: var(--bone-dim); font-weight: 400; }
+/* Veil has two casting skills, Psyche has one plus a note: the skills sit on the panel floor. */
+.pair.match .castskills { margin-top: auto; }
+.castnote { font-size: 12.5px; color: var(--bone-dim); font-style: italic; line-height: 1.4; padding: 0 12px 10px; }
+.ladder { width: 100%; border-collapse: collapse; }
+.sheet .ladder th { font-size: 12px; padding: 6px 7px; }
+.sheet .ladder td { font-family: "IBM Plex Mono", monospace; font-size: 14px; padding: 3px 7px; border-bottom: 1px solid var(--rule); text-align: center; }
+.sheet .ladder td.scale { font-family: "IBM Plex Sans Condensed", sans-serif; text-align: left; color: var(--bone-dim); font-size: 13px; }
+.ladder tr.afford td { color: var(--bone); }
+.ladder tr.afford td.lvl { color: var(--rift-t); font-weight: 600; }
+.ladder tr.past td, .ladder tr.past td.scale { color: var(--bone-dim); font-style: italic; }
+.tolls { padding: 9px 12px; font-size: 13px; line-height: 1.6; color: var(--bone-dim); }
+.tolls b { color: var(--bone); }
+.tolls .rule { display: block; padding: 5px 0; border-bottom: 1px solid var(--rule); }
+.tolls .rule:last-child { border: 0; }
+.freecast { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--steel); font-size: 13px; color: var(--bone-dim); cursor: pointer; }
+.freecast input { accent-color: var(--rift); width: 16px; height: 16px; cursor: pointer; }
+.freecast b { color: var(--rift-t); }
+
+/* ─── reference ────────────────────────────────────────── */
+.reftools { position: sticky; top: 0; z-index: 5; display: flex; gap: 9px; align-items: center; flex-wrap: wrap; background: var(--void); border-bottom: 1px solid var(--steel); padding: 9px 0 10px; margin-bottom: 11px; }
+#refSearch, #logSearch { flex: 1; min-width: 228px; background: var(--well); border: 1px solid var(--field); border-radius: 2px; color: var(--bone); font-family: "IBM Plex Sans Condensed", sans-serif; font-size: 15.5px; padding: 7px 12px; }
+#refSearch::placeholder, #logSearch::placeholder { color: var(--bone-dim); font-style: italic; }
+.chips { display: flex; gap: 5px; flex-wrap: wrap; }
+.chip { font-family: "Chakra Petch", sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--bone-dim); border: 1px solid var(--field); border-radius: 2px; padding: 6px 10px; cursor: pointer; }
+.chip[aria-pressed="true"] { color: var(--corona-t); border-color: var(--corona); }
+.refcount, .logcount { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--bone-dim); }
+.refcount { margin-left: auto; }
+.refcols { columns: 3; column-gap: 14px; }
+.rc { break-inside: avoid; border: 1px solid var(--steel); background: var(--slab); margin-bottom: 12px; display: inline-block; width: 100%; }
+.rc.hide { display: none; }
+.rc h3 { font-family: "Chakra Petch", sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.17em; text-transform: uppercase; padding: 7px 10px; background: var(--slab2); border-bottom: 1px solid var(--steel); display: flex; justify-content: space-between; gap: 7px; align-items: baseline; }
+.rc h3 .cat { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; letter-spacing: 0.08em; color: var(--bone-dim); font-weight: 400; text-transform: none; }
+.rc .body { padding: 8px 10px 10px; font-size: 14px; line-height: 1.5; }
+.rc .body p { margin-bottom: 5px; color: var(--bone-dim); }
+.rc .body p:last-child { margin-bottom: 0; }
+.rc b { color: var(--bone); }
+.rc em { color: var(--corona-t); font-style: normal; font-family: "IBM Plex Mono", monospace; }
+.rc table { width: 100%; border-collapse: collapse; margin: 3px 0; }
+.sheet .rc th { font-size: 12.5px; letter-spacing: 0.1em; padding: 2px 5px; border-bottom: 1px solid var(--steel2); }
+.sheet .rc td { padding: 2px 5px; border-bottom: 1px solid var(--rule); font-size: 13px; color: var(--bone-dim); vertical-align: top; }
+.sheet .rc td:first-child { color: var(--bone); white-space: nowrap; }
+.sheet .rc td.n { font-family: "IBM Plex Mono", monospace; text-align: center; white-space: nowrap; color: var(--corona-t); }
+.rc tr:last-child td { border-bottom: 0; }
+.rc ol, .rc ul { margin: 2px 0 2px 15px; color: var(--bone-dim); }
+.rc li { margin-bottom: 2px; }
+.refempty, .logempty { text-align: center; color: var(--bone-dim); font-style: italic; padding: 34px 0; font-size: 14.5px; }
+.hide { display: none; }
+
+/* ─── log ──────────────────────────────────────────────── */
+.logtools { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; margin-bottom: 11px; }
+#logAdd { font-family: "Chakra Petch", sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--corona-t); border: 1px solid var(--corona); border-radius: 2px; padding: 7px 15px; cursor: pointer; }
+#logAdd:hover { background: var(--tint-corona); }
+.entry { border: 1px solid var(--steel); background: var(--slab); margin-bottom: 10px; }
+.entry.hide { display: none; }
+.entry-head { display: grid; grid-template-columns: 1fr 144px 34px; gap: 7px; align-items: center; padding: 6px 7px 6px 10px; background: var(--slab2); border-bottom: 1px solid var(--steel); }
+.entry-head input { color: var(--bone); padding: 2px 3px; border-bottom: 1px dotted var(--field); width: 100%; }
+.entry-head .etitle { font-family: "Chakra Petch", sans-serif; font-size: 15.5px; font-weight: 600; letter-spacing: 0.04em; }
+.entry-head .edate { font-family: "IBM Plex Mono", monospace; font-size: 14px; text-align: right; }
+.entry-head input::placeholder { color: var(--bone-dim); font-style: italic; }
+.entry-head .rm { color: var(--bone-dim); cursor: pointer; font-size: 15.5px; }
+.entry-head .rm:hover { color: var(--blood-t); }
+.entry-body { padding: 8px 10px 10px; }
+.entry-body textarea { border: 0; background: transparent; min-height: 60px; padding: 0; font-size: 15px; }
+.logcols { columns: 2; column-gap: 14px; }
+.logcols > .entry { break-inside: avoid; display: inline-block; width: 100%; }
+
+/* ─── drop veil and help dialog ────────────────────────── */
+#dropVeil { display: none; position: fixed; inset: 0; z-index: 40; background: var(--veil-bg); align-items: center; justify-content: center; }
+#dropVeil.show { display: flex; }
+#dropVeil .dropcard { border: 2px dashed var(--corona); border-radius: 4px; padding: 39px 53px; font-family: "Chakra Petch", sans-serif; font-size: 18px; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--corona-t); }
+.sheet dialog { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 48px); border: 1px solid var(--corona); background: var(--slab); color: var(--bone); border-radius: 3px; padding: 0; margin: auto; overflow: auto; }
+.sheet dialog::backdrop { background: var(--modal-bg); }
+.helpcard .hh { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 14px; background: var(--slab2); border-bottom: 1px solid var(--steel); }
+.helpcard .hh h2 { font-family: "Chakra Petch", sans-serif; font-size: 14.5px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--corona-t); }
+.helpcard .hh button { color: var(--bone-dim); font-size: 24px; line-height: 1; cursor: pointer; padding: 0 5px; }
+.helpcard .hh button:hover { color: var(--corona-t); }
+.helpcard .hb { padding: 14px 16px 18px; font-size: 15px; line-height: 1.6; color: var(--bone-dim); }
+.helpcard h4 { font-family: "Chakra Petch", sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--bone); margin: 13px 0 4px; }
+.helpcard h4:first-child { margin-top: 0; }
+.helpcard p { margin-bottom: 6px; }
+.helpcard b { color: var(--bone); }
+.helpcard .actions { padding: 0 16px 16px; margin: 0; }
+
+.sheet-foot { margin-top: 16px; padding-top: 9px; border-top: 1px solid var(--steel); display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--bone-dim); letter-spacing: 0.06em; }
+
+/* ─── responsive ───────────────────────────────────────── */
+@media (max-width: 1300px) {
+  .grid { grid-template-columns: 1fr 1fr; }
+  .grid > .col-mid { grid-column: span 2; order: 3; }
+  #page1 > .grid { grid-template-columns: 1fr; }
+  .grid.side { grid-template-columns: 1fr; }
+  .mainblock { grid-template-columns: 1fr 1fr; }
+  .mainblock > div:nth-child(1), .mainblock > div:nth-child(2), .mainblock > .span2 { grid-column: auto; grid-row: auto; }
+  .mainblock > .span2 { grid-column: 1 / -1; }
+  .mainblock > div > .panel:last-child { flex: 0 0 auto; margin-bottom: 12px; }
+}
+@media (max-width: 1080px) {
+  .gear-row { grid-template-columns: 1fr 55px 55px 55px; }
+  .gear-row .af.name:nth-child(5) { border-left: 0; padding-left: 0; margin-left: 0; margin-top: 6px; }
+  .degrade { grid-template-columns: 1fr; }
+  .degrade-col:last-child { border-left: 0; padding-left: 0; margin-left: 0; margin-top: 10px; }
+}
+@media (max-width: 1200px) { .refcols { columns: 2; } }
+@media (max-width: 980px) { .logcols { columns: 1; } }
+@media (max-width: 910px) { .pair { grid-template-columns: 1fr; } }
+@media (max-width: 800px) {
+  .grid { grid-template-columns: 1fr; }
+  .mainblock { grid-template-columns: 1fr; }
+  .grid > .col-mid { grid-column: span 1; }
+  .identity { grid-template-columns: 1fr 1fr; }
+  .skillcols { columns: 1; }
+}
+@media (max-width: 770px) { .refcols { columns: 1; } }
+@media (max-width: 625px) { .vitals { grid-template-columns: 1fr; } .origin { grid-template-columns: 1fr; } }
+
+/* ─── print: flip to paper ─────────────────────────────── */
+@media print {
+  @page { size: letter portrait; margin: 0.4in; }
+  .site-header, .skip-link { display: none; }
+  .page.page-wide { background: #fff; padding: 0; }
+  /* Plain white paper and black ink, whichever theme is on screen. */
+  [data-theme] .sheet {
+    --void: #fff; --slab: #fff; --slab2: #efefef;
+    --steel: #999; --steel2: #888;
+    --bone: #111; --bone-dim: #333;
+    --corona: #111; --rift: #333; --psy: #333;
+    --blood: #7a1f1a; --bile: #4a5a1c; --ok: #1e5a4c; --hunger: #6e4718;
+    --corona-t: #111; --rift-t: #333; --psy-t: #333;
+    --blood-t: #7a1f1a; --bile-t: #4a5a1c; --ok-t: #1e5a4c; --hunger-t: #6e4718;
+    --rule: #ddd; --edge: #bbb; --edge-2: #999; --edge-3: #aaa; --field: #666;
+    --well: #fff; --well-2: #fff;
+    --shadow: transparent; --tint-blood: transparent; --tint-ok: transparent;
+    --tint-ok-soft: transparent; --tint-corona: transparent; --veil-bg: transparent; --modal-bg: transparent;
+    --glow-trauma: transparent; --glow-rot: transparent; --glow-shock: transparent;
+    --san-0: #333; --san-1: #333; --san-2: #333; --san-3: #333; --san-4: #333;
+    --san-5: #333; --san-6: #333; --san-7: #333; --san-8: #333; --san-9: #333;
+    --mor-0: #333; --mor-1: #333; --mor-2: #333; --mor-3: #333; --mor-4: #333;
+    --mor-5: #333; --mor-6: #333; --mor-7: #333; --mor-8: #333; --mor-9: #333;
+    font-size: 11px;
+  }
+  .masthead h1 { font-size: 20px; }
+  .dial-num { fill: #111; }
+  .eclipse, .eclipse.crit { background: #fff; }
+  .critbadge { color: #111; border-color: #111; }
+  .enc-fill { background: #666 !important; }
+  /* Chrome that has no business on paper. */
+  .tabs, .addrow, td .rm, .savebar, .sheet-notice, dialog, #dropVeil, .logtools, .reftools, .entry-head .rm, .save-state { display: none; }
+  /* Every page prints, in tab order, one per sheet. */
+  .sheet { display: flex; flex-direction: column; max-width: none; }
+  .masthead { order: 0; } #page1 { order: 1; } #page2 { order: 2; } #page4 { order: 3; }
+  #page3 { order: 4; } #page6 { order: 5; } #page5 { order: 6; } .sheet-foot { order: 7; }
+  .page-panel { display: block !important; }
+  #page2, #page3, #page4, #page5, #page6 { page-break-before: always; padding-top: 0.2in; }
+  .entry.hide, .rc.hide { display: inline-block !important; }
+  .grid { grid-template-columns: 210px 1fr 250px; }
+  #page1 > .grid { grid-template-columns: 1fr 250px; }
+  .mainblock { grid-template-columns: 210px 1fr; }
+  .refcols { columns: 3; column-gap: 0.14in; }
+  .panel { margin-bottom: 7px; }
+  .sheet textarea { height: auto !important; overflow: visible !important; }
+}
+
+@media (prefers-reduced-motion: reduce) { .sheet *, .sheet *::before, .sheet *::after { animation: none !important; transition: none !important; } }

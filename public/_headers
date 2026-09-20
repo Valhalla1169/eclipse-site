@@ -1,5 +1,6 @@
 # Sent on every response, including the app shell served for deep links.
 #
+# Fonts are self-hosted (public/fonts), so font-src is 'self' only.
 # The Supabase origin in connect-src must match SUPABASE_URL in public/js/config.js.
 # Change them together. Any other origin the app talks to (a font host, another
 # API) must be added here deliberately; never loosen this to 'unsafe-inline'.
@@ -8,7 +9,7 @@
 # URL is never copied into a Referer header. X-Robots-Tag: this is a private app,
 # and its sign-in page and invite links should not be indexed.
 /*
-  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src https://eosnplpgzqahwgaytauu.supabase.co wss://eosnplpgzqahwgaytauu.supabase.co; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src https://eosnplpgzqahwgaytauu.supabase.co wss://eosnplpgzqahwgaytauu.supabase.co; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: no-referrer
