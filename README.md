@@ -14,13 +14,16 @@ npm install
 npm run dev          # http://localhost:8787
 ```
 
-You sign in with an emailed magic link, opened in the same browser that asked for it. Sign-in and the
-site talk to the real Supabase project (its URL and public anon key are in `public/js/config.js`).
+You create an account with an email and a password (at least 12 characters), or sign in with an
+emailed link, opened in the same browser that asked for it. The site talks to the real Supabase project
+(its URL and public anon key are in `public/js/config.js`). Confirmation and reset emails need Supabase's
+email sender to work for your address.
 
 ## Tests
 
 ```
 npm test             # unit tests (Vitest): routing, validation, the creators tool
+npm run test:e2e     # browser tests (Playwright, uses Edge) against the local dev server
 npm run test:db      # database tests: every migration plus every suite, in a throwaway database
 ```
 
@@ -31,7 +34,8 @@ standard `PG*` variables, for example:
 PGHOST=127.0.0.1 PGUSER=postgres PSQL="C:/Program Files/PostgreSQL/17/bin/psql.exe" npm run test:db
 ```
 
-It never touches your Supabase project. There is no browser test suite in the repo yet.
+It never touches your Supabase project. The browser tests use a fake Supabase inside the page, so they
+never touch it either. They cannot show that email arrives; check that by hand.
 
 ## The database
 
@@ -77,6 +81,7 @@ Only `public/` is published. Anything outside it (docs, migrations, scripts, `le
 | `supabase/tests/` | The database test suites and their harness |
 | `scripts/` | `test-db`, `creators`, `vendor` |
 | `tests/unit/` | Unit tests |
+| `tests/e2e/` | Browser tests (Playwright) and the fake Supabase they use |
 | `docs/adr/` | Why the design is the way it is |
 | `legacy/` | The original single-file sheets the player sheet is being ported from (not published) |
 
