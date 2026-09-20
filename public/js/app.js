@@ -20,8 +20,8 @@ const signOutButton = document.getElementById("sign-out");
 
 const state = {
   session: null,
-  profile: null, // null until loaded; false-y means "not created yet" once checked
-  profileChecked: false,
+  profile: null, // the signed-in user's profile row, or null when they have none yet
+  profileChecked: false, // true once we have asked the database, so null above means "none", not "unknown"
   authNotice: null, // one-shot message from a failed or expired sign-in link
 };
 

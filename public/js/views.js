@@ -6,7 +6,7 @@ import { cleanCampaignName, cleanDisplayName, friendlyError, inviteStatus, norma
 const invalid = (message) => Object.assign(new Error(message), { userMessage: message });
 
 const LABEL = { error: "Error: ", success: "Done: ", info: "Note: " };
-export const notice = (kind, ...text) =>
+const notice = (kind, ...text) =>
   h("p", { class: `notice notice-${kind}`, role: kind === "error" ? "alert" : "status" }, h("strong", {}, LABEL[kind]), ...text);
 
 function field({ id, label, hint, ...attrs }) {
@@ -205,7 +205,11 @@ const LIFETIMES = [[24, "1 day"], [168, "7 days (recommended)"], [720, "30 days"
 // shown exactly once, when it is created: the database keeps only a hash of the
 // code, so it cannot be shown again. Lose it and revoke it, then make a new one.
 export function dmView({ campaign, loadInvites, createInvite, revokeInvite, onCopy }) {
+  // `fresh` holds the once-only invite link and must never be overwritten by
+  // anything else, or a link the DM has not copied yet is lost for good. Errors from
+  // revoking go in `problem`.
   const fresh = h("div", { class: "stack" });
+  const problem = h("div", { class: "stack" });
   const list = h("div", { class: "stack" });
 
   async function refresh() {
@@ -219,11 +223,12 @@ export function dmView({ campaign, loadInvites, createInvite, revokeInvite, onCo
 
   async function revoke(event, invite) {
     event.currentTarget.disabled = true;
+    problem.replaceChildren();
     try {
       await revokeInvite(invite.id);
     } catch (err) {
       console.error(err);
-      fresh.replaceChildren(notice("error", friendlyError(err)));
+      problem.replaceChildren(notice("error", friendlyError(err)));
     }
     await refresh();
   }
@@ -311,7 +316,7 @@ export function dmView({ campaign, loadInvites, createInvite, revokeInvite, onCo
       createForm,
       fresh,
     ),
-    h("section", { class: "card stack" }, h("h2", {}, "Invites"), list),
+    h("section", { class: "card stack" }, h("h2", {}, "Invites"), problem, list),
   );
 }
 

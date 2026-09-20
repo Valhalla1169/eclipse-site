@@ -32,15 +32,15 @@ export function sqlFor(command, email) {
     return "select u.email, c.added_at, c.note from public.campaign_creators c join auth.users u on u.id = c.user_id order by c.added_at";
   }
   if (!EMAIL.test(email || "")) throw new Error("Give a plain email address, for example: add you@example.com");
-  const who = `lower(email) = lower('${email}')`;
+  const account = `select id from auth.users where lower(email) = lower('${email}')`;
   if (command === "lookup") {
-    return `select u.id, exists (select 1 from public.campaign_creators c where c.user_id = u.id) as allowed from auth.users u where ${who.replace("email", "u.email")}`;
+    return `select u.id, exists (select 1 from public.campaign_creators c where c.user_id = u.id) as allowed from auth.users u where u.id in (${account})`;
   }
   if (command === "add") {
-    return `insert into public.campaign_creators (user_id, note) select id, 'added with npm run creators' from auth.users where ${who} on conflict (user_id) do nothing returning user_id`;
+    return `insert into public.campaign_creators (user_id, note) select id, 'added with npm run creators' from (${account}) a on conflict (user_id) do nothing returning user_id`;
   }
   if (command === "remove") {
-    return `delete from public.campaign_creators where user_id in (select id from auth.users where ${who}) returning user_id`;
+    return `delete from public.campaign_creators where user_id in (${account}) returning user_id`;
   }
   throw new Error("Unknown command: " + command);
 }

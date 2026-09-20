@@ -1,7 +1,17 @@
+# Sent on every response, including the app shell served for deep links.
+#
+# The Supabase origin in connect-src must match SUPABASE_URL in public/js/config.js.
+# Change them together. Any other origin the app talks to (a font host, another
+# API) must be added here deliberately; never loosen this to 'unsafe-inline'.
+#
+# no-referrer: an invite code travels in the URL path (/join/<code>), so the page
+# URL is never copied into a Referer header. X-Robots-Tag: this is a private app,
+# and its sign-in page and invite links should not be indexed.
 /*
   Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src https://eosnplpgzqahwgaytauu.supabase.co wss://eosnplpgzqahwgaytauu.supabase.co; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
-  Referrer-Policy: strict-origin-when-cross-origin
+  Referrer-Policy: no-referrer
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
   Strict-Transport-Security: max-age=31536000
+  X-Robots-Tag: noindex, nofollow
