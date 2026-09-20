@@ -1,29 +1,29 @@
 {
   "name": "eclipse-site",
   "version": "1.0.0",
-  "description": "",
-  "main": "public/script.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "vendor": "node scripts/vendor.mjs",
-    "creators": "node scripts/creators.mjs"
-  },
+  "private": true,
+  "description": "Eclipse: live character sheets and a read-only DM roster for one Age of Eclipse campaign (eclipse.deyderae.dev)",
+  "license": "UNLICENSED",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Valhalla1169/eclipse-site.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "bugs": {
     "url": "https://github.com/Valhalla1169/eclipse-site/issues"
   },
   "homepage": "https://github.com/Valhalla1169/eclipse-site#readme",
+  "scripts": {
+    "test": "vitest run",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "vendor": "node scripts/vendor.mjs",
+    "creators": "node scripts/creators.mjs",
+    "test:db": "node scripts/test-db.mjs"
+  },
   "devDependencies": {
     "@supabase/supabase-js": "2.116.0",
     "supabase": "2.117.0",
-    "wrangler": "^4.135.0"
+    "vitest": "5.0.1",
+    "wrangler": "4.135.0"
   }
 }
