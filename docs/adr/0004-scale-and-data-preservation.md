@@ -40,8 +40,9 @@ switcher until someone actually has more than one.
    - **edits** to the data or name, at most one snapshot per 10 minutes (autosave
      writes every few seconds), keeping the newest 30 per character.
    `character_history` has no foreign key on purpose, so it outlives the row. It
-   is read-only to clients (owner and DM can read it). The restore recipe is in the
-   migration's header; a restore is itself an update, so it is snapshotted too.
+   is read-only to clients (owner and DM can read it). An owner puts a version back
+   from the sheet's History page (ADR 0010); the recipe for the project owner is
+   still in migration 0004's header. A restore is always snapshotted too.
 
 ### Decided for the application code (Phase 3)
 

@@ -55,6 +55,7 @@ one on their first visit. The DM has no sheet (ADR 0001) and sees a link to the 
 - **Fonts** (Chakra Petch, IBM Plex Mono, IBM Plex Sans Condensed) are self-hosted Latin woff2 files
   from pinned `@fontsource` packages, copied by `npm run vendor`, under the SIL Open Font License.
   Text outside Latin falls back to the system font.
+- **History.** A History button opens the copies the database keeps, and puts one back (ADR 0010).
 - **Removed from V4:** its theme picker, the File System Access API "save over a file" flow (a saved
   copy is a download), and `window.storage` (a Claude artifact API that a browser does not have).
   Removing a row on the sheet (an advantage, a log entry, a container) edits the sheet's data. It

@@ -1,6 +1,6 @@
 # ADR 0001: Eclipse data model, auth, and access control on Supabase
 
-Status: Accepted, amended by ADR 0002 (character writes require membership), ADR 0003 (explicit grants), ADR 0004 (no client deletes, snapshot history), ADR 0005 (campaign creator allowlist, hashed invites instead of a permanent campaign code, profile visibility), ADR 0006 (least-privilege columns), ADR 0007 (password accounts replace magic-link-only sign-in), ADR 0008 (the player sheet) and ADR 0009 (the DM roster)
+Status: Accepted, amended by ADR 0002 (character writes require membership), ADR 0003 (explicit grants), ADR 0004 (no client deletes, snapshot history), ADR 0005 (campaign creator allowlist, hashed invites instead of a permanent campaign code, profile visibility), ADR 0006 (least-privilege columns), ADR 0007 (password accounts replace magic-link-only sign-in), ADR 0008 (the player sheet), ADR 0009 (the DM roster) and ADR 0010 (version history)
 Date: 2026-09-19
 Repo: eclipse-site (eclipse.deyderae.dev)
 
