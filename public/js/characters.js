@@ -7,7 +7,8 @@ import { sb } from "./supabase-client.js";
 const COLUMNS = "id, owner_id, campaign_id, schema_version, character_name, data, updated_at";
 const UNIQUE_VIOLATION = "23505";
 
-async function readRow(campaignId, ownerId) {
+// The player's own row, or null: it never creates one.
+export async function findCharacter(campaignId, ownerId) {
   const { data, error } = await sb.from("characters").select(COLUMNS).eq("campaign_id", campaignId).eq("owner_id", ownerId);
   if (error) throw error;
   return data[0] || null;
@@ -17,7 +18,7 @@ async function readRow(campaignId, ownerId) {
 // read throws here and the caller shows no editor. A first visit creates a blank
 // row with only the columns a client may write.
 export async function loadCharacter(campaignId, ownerId) {
-  const existing = await readRow(campaignId, ownerId);
+  const existing = await findCharacter(campaignId, ownerId);
   if (existing) return existing;
   const { data, error } = await sb
     .from("characters")
@@ -26,7 +27,7 @@ export async function loadCharacter(campaignId, ownerId) {
   if (error) {
     // Another tab or device created the row first: use theirs.
     if (error.code === UNIQUE_VIOLATION) {
-      const raced = await readRow(campaignId, ownerId);
+      const raced = await findCharacter(campaignId, ownerId);
       if (raced) return raced;
     }
     throw error;
@@ -39,6 +40,41 @@ export const readCharacter = async (id) => (await readCharacters([id]))[0] || nu
 export async function readCharacters(ids) {
   if (!ids.length) return [];
   const { data, error } = await sb.from("characters").select(COLUMNS).in("id", ids);
+  if (error) throw error;
+  return data;
+}
+
+// ── Version history (docs/adr/0010) ───────────────────────────────────
+// The database keeps a snapshot of a sheet before each change (docs/adr/0004). An
+// owner can read theirs. Restoring goes through a function so that it is always
+// snapshotted itself, and so it never overwrites a save the page has not seen.
+
+// Newest first. Without the sheet data, which can be large: read one with readSnapshot.
+export async function listHistory(characterId) {
+  const { data, error } = await sb
+    .from("character_history")
+    .select("id, character_id, schema_version, character_name, reason, saved_at")
+    .eq("character_id", characterId)
+    .order("saved_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return data;
+}
+
+export async function readSnapshot(historyId) {
+  const { data, error } = await sb
+    .from("character_history")
+    .select("id, character_id, schema_version, character_name, data, reason, saved_at")
+    .eq("id", historyId);
+  if (error) throw error;
+  return data[0] || null;
+}
+
+// Puts a snapshot back as the sheet. `expectedUpdatedAt` is the sheet's updated_at
+// as this page last saw it. Resolves to the sheet's new updated_at.
+export async function restoreVersion(historyId, expectedUpdatedAt) {
+  const { data, error } = await sb.rpc("restore_character_version", { p_history_id: historyId, p_expected: expectedUpdatedAt });
   if (error) throw error;
   return data;
 }

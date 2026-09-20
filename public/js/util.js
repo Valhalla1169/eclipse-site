@@ -83,6 +83,9 @@ export function friendlyError(err) {
   if ((err && err.status === 429) || /rate limit|too many/i.test(msg)) return "Too many attempts. Wait a minute and try again.";
   if (/signups? (not allowed|are disabled)|not allowed for otp/i.test(msg)) return "New accounts are closed. Ask your DM to invite you.";
   if (/failed to fetch|networkerror|load failed|network request failed/i.test(msg)) return "Could not reach the server. Check your connection and try again.";
+  if (/changed since you opened it/i.test(msg)) return "Your sheet was changed somewhere else since you opened this page. Reload the page and try again.";
+  if (/version was not found|no longer exists/i.test(msg)) return "That version could not be found, so it cannot be restored.";
+  if (/not a member of this campaign/i.test(msg)) return "You are not in this campaign, so you cannot change this sheet.";
   if ((err && err.code === "PGRST301") || /jwt expired|invalid jwt/i.test(msg)) return "Your sign-in has ended. Sign in again.";
   if (/permission denied|row-level security|42501/i.test(msg)) return "You do not have access to that.";
   return "Something went wrong. Please try again.";

@@ -6,9 +6,10 @@ import * as data from "./data.js";
 import { SheetFormatError, openSheet } from "./eclipse-rules.js";
 import { h } from "./dom.js";
 import { createRouter } from "./router.js";
+import { historyView } from "./history-view.js";
 import { FALLBACK_REFRESH_MS, createRosterPanel } from "./roster-view.js";
 import { createSheetView } from "./sheet/index.js";
-import { downloadText } from "./sheet/files.js";
+import { downloadText, fileNameForName, serializeStored } from "./sheet/files.js";
 import * as views from "./views.js";
 import { cleanDisplayName, friendlyError, isUuid, normalizeCode, safeNextPath } from "./util.js";
 
@@ -21,6 +22,8 @@ const ROUTES = [
   { name: "account", pattern: "/account" },
   { name: "join", pattern: "/join/:code" },
   { name: "play", pattern: "/campaign/:id/play" },
+  { name: "history", pattern: "/campaign/:id/play/history" },
+  { name: "snapshot", pattern: "/campaign/:id/play/history/:historyId" },
   { name: "dm", pattern: "/campaign/:id/dm" },
   { name: "dmsheet", pattern: "/campaign/:id/dm/:characterId" },
 ];
@@ -244,8 +247,11 @@ async function onRoute({ path, search, match, initial }) {
         { dispose: roster.dispose },
       );
     }
-    // play: the player's own sheet. Nothing is drawn until the row has loaded and been read.
+    // play, history and snapshot: the player's own sheet. A DM has none.
     if (campaign.dm_id === user.id) return showHere(views.dmHasNoSheetView({ campaign }), campaign.name);
+    if (match.name === "history") return showHistory({ campaign, user, alive, announce });
+    if (match.name === "snapshot") return showSnapshot({ campaign, user, historyId: match.params.historyId, alive, announce });
+    // Nothing is drawn until the row has loaded and been read.
     const row = await characters.loadCharacter(campaign.id, user.id);
     if (!alive()) return;
     let opened;
@@ -256,13 +262,76 @@ async function onRoute({ path, search, match, initial }) {
       console.error(err);
       return showHere(views.sheetUnreadableView({ campaign }), campaign.name);
     }
-    const sheet = createSheetView({ campaign, opened, row, persist: characters.saveCharacter });
+    const sheet = createSheetView({
+      campaign,
+      opened,
+      row,
+      persist: characters.saveCharacter,
+      onOpenHistory: () => router.go(`/campaign/${encodeURIComponent(campaign.id)}/play/history`),
+    });
     return show(sheet.element, campaign.name, announce, { wide: true, dispose: sheet.dispose, flush: sheet.flush });
   } catch (err) {
     if (!alive()) return;
     console.error(err);
     showHere(views.errorView(friendlyError(err), () => onRoute(router.current())), "Error");
   }
+}
+
+// The copies the database has kept of the player's own sheet (ADR 0010).
+async function showHistory({ campaign, user, alive, announce }) {
+  const row = await characters.findCharacter(campaign.id, user.id);
+  if (!alive()) return;
+  if (!row) return show(views.notFoundView("You do not have a sheet in this campaign yet."), "Not found", announce);
+  const entries = await characters.listHistory(row.id);
+  if (!alive()) return;
+  const saveCopy = async (entry) => {
+    const snapshot = await characters.readSnapshot(entry.id);
+    if (!snapshot) throw new Error("that version was not found");
+    downloadText(fileNameForName(snapshot.character_name), serializeStored(snapshot));
+  };
+  return show(historyView({ campaign, entries, onSaveCopy: saveCopy }), "Version history", announce);
+}
+
+// One old copy, read only, with the choice to put it back.
+async function showSnapshot({ campaign, user, historyId, alive, announce }) {
+  if (!/^\d{1,15}$/.test(historyId)) return show(views.notFoundView("We could not find that version."), "Not found", announce);
+  const row = await characters.findCharacter(campaign.id, user.id);
+  const snapshot = row && (await characters.readSnapshot(Number(historyId)));
+  if (!alive()) return;
+  if (!row || !snapshot || snapshot.character_id !== row.id) return show(views.notFoundView("We could not find that version of your sheet."), "Not found", announce);
+  let opened;
+  try {
+    opened = openSheet(snapshot);
+  } catch (err) {
+    if (!(err instanceof SheetFormatError)) throw err;
+    console.error(err);
+    return show(views.sheetUnreadableView({ campaign, ownSheet: false }), "Version history", announce);
+  }
+  const when = new Date(snapshot.saved_at).toLocaleString();
+  const view = createSheetView({
+    campaign,
+    opened,
+    row: { id: snapshot.id, updated_at: snapshot.saved_at },
+    readOnlyNotice: `This is your sheet as it was just before ${when}. It is read only, and your current sheet has not changed.`,
+  });
+  const historyPath = `/campaign/${encodeURIComponent(campaign.id)}/play/history`;
+  const status = h("span", { class: "status", role: "status", "aria-live": "polite" });
+  const restore = h("button", { class: "btn btn-primary btn-small", type: "button" }, "Put this version back");
+  restore.addEventListener("click", async () => {
+    if (!window.confirm("Put this version back as your sheet? Your current sheet is kept in the history, so you can undo this.")) return;
+    restore.disabled = true;
+    status.textContent = "";
+    try {
+      await characters.restoreVersion(snapshot.id, row.updated_at);
+      router.go(`/campaign/${encodeURIComponent(campaign.id)}/play`);
+    } catch (err) {
+      console.error(err);
+      status.textContent = `The sheet was not changed. ${friendlyError(err)}`;
+      restore.disabled = false;
+    }
+  });
+  const bar = h("p", { class: "sheet-back" }, h("a", { class: "btn btn-quiet btn-small", href: historyPath }, "Back to the history"), " ", restore, " ", status);
+  return show(h("div", {}, bar, view.element), campaign.name, announce, { wide: true, dispose: view.dispose });
 }
 
 // The DM's read-only view of one player's sheet. It follows the row while it is open.
@@ -281,7 +350,13 @@ async function showPlayersSheet({ campaign, characterId, alive, announce }) {
   }
   const names = await data.readProfileNames([row.owner_id]);
   if (!alive()) return;
-  const view = createSheetView({ campaign, opened, row, viewer: "dm", playerName: names[row.owner_id] || "a player" });
+  const playerName = names[row.owner_id] || "a player";
+  const view = createSheetView({
+    campaign,
+    opened,
+    row,
+    readOnlyNotice: `You are viewing ${playerName}'s sheet as the DM. It is read only, and it updates when they make changes.`,
+  });
 
   let seen = row.updated_at;
   const catchUp = async () => {

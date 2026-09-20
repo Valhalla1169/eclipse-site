@@ -150,6 +150,36 @@
     open: function () { return sockets.filter(function (x) { return x.readyState === 1; }).length; },
   };
 
+  // character_history, as its owner sees it, and the restore function (migration 0008).
+  // `c.history` holds the snapshots; `c.restoreNotMember` makes a restore answer that the
+  // player has left the campaign.
+  function history(c, u) {
+    var select = (u.searchParams.get("select") || "").split(",").map(function (x) { return x.trim(); });
+    var byCharacter = u.searchParams.get("character_id");
+    var byId = u.searchParams.get("id");
+    var rows = (c.history || []).filter(function (r) {
+      return (!byCharacter || "eq." + r.character_id === byCharacter) && (!byId || "eq." + r.id === byId);
+    });
+    rows.sort(function (a, b) { return b.saved_at.localeCompare(a.saved_at) || b.id - a.id; });
+    var limit = Number(u.searchParams.get("limit")) || rows.length;
+    return json(200, rows.slice(0, limit).map(function (r) {
+      var out = {}; select.forEach(function (k) { out[k] = r[k]; }); return out;
+    }));
+  }
+  function restore(c, body) {
+    var snap = (c.history || []).filter(function (r) { return r.id === body.p_history_id; })[0];
+    if (!snap) return pgError("that version was not found");
+    var row = c.character;
+    if (!row || row.id !== snap.character_id) return pgError("that version cannot be restored because its character no longer exists");
+    if (c.restoreNotMember) return pgError("you are not a member of this campaign");
+    if (!body.p_expected || row.updated_at !== body.p_expected) return pgError("the sheet changed since you opened it");
+    c.history.push({ id: c.history.reduce(function (m, r) { return Math.max(m, r.id); }, 0) + 1, character_id: row.id, schema_version: row.schema_version, character_name: row.character_name, data: row.data, reason: "restore", saved_at: new Date().toISOString() });
+    row.data = snap.data; row.schema_version = snap.schema_version; row.character_name = snap.character_name;
+    row.updated_at = stamp(c);
+    save(c);
+    return json(200, row.updated_at);
+  }
+
   document.addEventListener("securitypolicyviolation", function (e) {
     var v = JSON.parse(localStorage.getItem("__viol") || "[]");
     v.push({ directive: e.violatedDirective, blocked: e.blockedURI, file: e.sourceFile || "", line: e.lineNumber });
@@ -256,6 +286,8 @@
     }
 
     if (path === "/rest/v1/characters") return characters(c, u, method, body);
+    if (path === "/rest/v1/character_history" && method === "GET") return history(c, u);
+    if (path === "/rest/v1/rpc/restore_character_version" && method === "POST") return restore(c, body);
 
     if (path === "/rest/v1/rpc/join_campaign" && method === "POST") {
       if (c.joinError) return json(400, { code: "P0001", message: c.joinError, details: null, hint: null });

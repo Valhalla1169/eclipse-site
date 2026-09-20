@@ -122,7 +122,8 @@ select pg_temp.expect(
   and has_function_privilege('authenticated', 'public.is_dm_of_campaign(uuid)', 'execute')
   and has_function_privilege('authenticated', 'public.is_player_of_campaign(uuid)', 'execute')
   and has_function_privilege('authenticated', 'public.is_campaign_creator()', 'execute')
-  and has_function_privilege('authenticated', 'public.shares_campaign_with(uuid)', 'execute'),
+  and has_function_privilege('authenticated', 'public.shares_campaign_with(uuid)', 'execute')
+  and has_function_privilege('authenticated', 'public.restore_character_version(bigint,timestamptz)', 'execute'),
   'G13: authenticated can execute the RPCs and the RLS helper functions');
 select pg_temp.expect(
   not has_function_privilege('authenticated', 'public.set_updated_at()', 'execute')

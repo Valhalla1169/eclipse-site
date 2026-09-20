@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { blank } from "../../public/js/eclipse-rules.js";
-import { campaign, characterRow, expect, ids, open, players, seed, test } from "./helpers.js";
+import { CHARACTER_ID, campaign, characterRow, expect, ids, open, players, seed, test } from "./helpers.js";
 
 // An automated accessibility check (DESIGN.md sections 4 and 6.4) of every page, in the
 // lightest and the darkest theme. It finds what a machine can find, mainly contrast,
@@ -16,6 +16,7 @@ sheet.starve = 7;
 sheet.base.vei = 4;
 sheet.spells[0] = { n: "Spark", l: 3 };
 const row = characterRow(sheet, { updated_at: "2026-09-19T11:00:00.000000+00:00" });
+const history = [{ id: 1, character_id: CHARACTER_ID, schema_version: 1, character_name: "Marlo", data: sheet, reason: "edit", saved_at: "2026-09-19T10:00:00.000000+00:00" }];
 
 async function expectClean(page, label) {
   const { violations } = await new AxeBuilder({ page }).withTags(RULES).analyze();
@@ -45,13 +46,18 @@ for (const theme of ["latte", "mocha"]) {
     });
 
     test("every page of the sheet", async ({ page }) => {
-      await seed(page, { mock: { profile: players.dana.profile, campaigns: [campaign], character: row }, user: players.dana });
+      await seed(page, { mock: { profile: players.dana.profile, campaigns: [campaign], character: row, history }, user: players.dana });
       await setTheme(page);
       await open(page, `/campaign/${ids.campaign}/play`);
       for (const tab of ["Core", "Equipment", "Casting", "Testament", "Log", "Reference"]) {
         await page.getByRole("tab", { name: tab }).click();
         await expectClean(page, `sheet ${tab}`);
       }
+      await open(page, `/campaign/${ids.campaign}/play/history`);
+      await expect(page.locator(".history > li")).toHaveCount(1);
+      await expectClean(page, "version history");
+      await open(page, `/campaign/${ids.campaign}/play/history/1`);
+      await expectClean(page, "an old version");
     });
 
     test("the DM's roster and a player's sheet", async ({ page }) => {

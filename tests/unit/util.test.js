@@ -195,3 +195,11 @@ describe("timeAgo", () => {
     expect(timeAgo("not a date", now)).toBe("at an unknown time");
   });
 });
+
+describe("friendlyError for version history", () => {
+  it("explains a restore that was refused, without the database's words", () => {
+    expect(friendlyError(new Error("the sheet changed since you opened it"))).toContain("changed somewhere else");
+    expect(friendlyError(new Error("that version was not found"))).toContain("could not be found");
+    expect(friendlyError(new Error("you are not a member of this campaign"))).toContain("not in this campaign");
+  });
+});

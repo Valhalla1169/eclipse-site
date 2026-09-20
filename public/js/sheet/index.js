@@ -34,15 +34,17 @@ const LOCKED_PAGES = ["#page1", "#page2", "#page3", "#page4", "#page6"];
 // options: {
 //   campaign, opened (from openSheet), row ({ id, updated_at }),
 //   persist(id, expectedUpdatedAt, { name, data }) -> saveCharacter's result,
-//   viewer: "owner" (default), or "dm" to show a player's sheet read-only (ADR 0009),
-//   playerName: whose sheet it is, for the DM
+//   readOnlyNotice: when set, the sheet is shown read only with this message, and
+//     without Save now or Load file (a DM watching a player, ADR 0009; an old version
+//     from the history, ADR 0010),
+//   onOpenHistory: when set, the save bar has a History button that calls it
 // }
 // Returns { element, flush, update, dispose }. update(opened) shows a newer copy of a
-// sheet the DM is watching; dispose removes the page-wide listeners.
-export function createSheetView({ campaign, opened, row, persist, viewer = "owner", playerName = "" }) {
-  const isDm = viewer === "dm";
+// sheet that is being watched; dispose removes the page-wide listeners.
+export function createSheetView({ campaign, opened, row, persist, readOnlyNotice = null, onOpenHistory = null }) {
+  const viewOnly = readOnlyNotice !== null;
   const store = { sheet: opened.sheet, token: row.updated_at, lastSavedAt: null, tab: "1" };
-  const readOnly = isDm || opened.readOnly;
+  const readOnly = viewOnly || opened.readOnly;
 
   // Starts as a placeholder; mountPages swaps in the real pages.
   let pages = h("div", { class: "pages" });
@@ -69,9 +71,17 @@ export function createSheetView({ campaign, opened, row, persist, viewer = "owne
   });
 
   const button = (label, onclick, { primary = false, attrs = {} } = {}) => h("button", { class: `sbtn${primary ? " primary" : ""}`, type: "button", onclick, ...attrs }, label);
-  const saveNow = button("Save now", () => autosave.flush(), { primary: true, attrs: { hidden: isDm } });
+  const saveNow = button("Save now", () => autosave.flush(), { primary: true, attrs: { hidden: viewOnly } });
   const copyButton = button("Save a copy", () => saveCopy(store.sheet));
-  const loadButton = button("Load file", () => fileInput.click(), { attrs: { hidden: isDm } });
+  const loadButton = button("Load file", () => fileInput.click(), { attrs: { hidden: viewOnly } });
+  const historyButton = button("History", openHistory, { attrs: { hidden: viewOnly || !onOpenHistory } });
+
+  // The history page reads the saved sheet, so save what is waiting first.
+  async function openHistory() {
+    await autosave.flush();
+    if (autosave.hasUnsavedChanges() && !window.confirm("Your latest changes are not saved yet. Open the history anyway?")) return;
+    onOpenHistory();
+  }
 
   function saveCopy(sheet) {
     downloadText(fileNameFor(sheet), serializeSheet(sheet));
@@ -280,6 +290,7 @@ export function createSheetView({ campaign, opened, row, persist, viewer = "owne
       saveNow,
       copyButton,
       loadButton,
+      historyButton,
       h("span", { class: "sep" }),
       button("How to use", () => dialogs.help()),
       fileNote,
@@ -293,8 +304,8 @@ export function createSheetView({ campaign, opened, row, persist, viewer = "owne
   );
   mountPages();
 
-  if (isDm) {
-    setNotice("info", h("p", {}, `You are viewing ${playerName || "a player"}'s sheet as the DM. It is read only, and it updates when they make changes.`));
+  if (viewOnly) {
+    setNotice("info", h("p", {}, readOnlyNotice));
   } else if (readOnly) {
     setNotice(
       "error",
@@ -303,7 +314,7 @@ export function createSheetView({ campaign, opened, row, persist, viewer = "owne
     );
   }
   paintState("saved");
-  if (readOnly && !isDm) stateEl.className = "save-state warn";
+  if (readOnly && !viewOnly) stateEl.className = "save-state warn";
 
   return {
     element,
