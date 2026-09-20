@@ -64,7 +64,7 @@ switcher until someone actually has more than one.
 
 ### Still to build
 
-- **A DM "download all sheets" button** (Phase 4). The DM can already read every
+- **A DM "download all sheets" button.** Built (ADR 0009). The DM can already read every
   sheet, so this is a one-click backup of the whole table. The per-player
   `.eclipse` export stays.
 

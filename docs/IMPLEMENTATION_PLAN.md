@@ -10,7 +10,7 @@
 > The DM roster query below also needs a rethink: `characters` and
 > `campaign_players` have no foreign key between them, so the embedded select
 > shown will not work as written. The player sheet (Phase 3) is built as described in
-> ADR 0008, not as the file layout below.
+> ADR 0008, and the DM roster (Phase 4) as described in ADR 0009, not as the file layout below.
 
 This is the plan for turning `eclipse-site` from its current placeholder
 "coming soon" page into the live character sheet + DM roster viewer,
