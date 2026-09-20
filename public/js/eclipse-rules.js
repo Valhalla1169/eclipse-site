@@ -45,7 +45,7 @@ export const PROFS = {
   "Corporate Executive": { a: "pre", m: "Bartering" },
   "Criminal / Outlaw": { a: "ins", m: "Stealth" },
   Engineer: { a: "cla", m: "Engineering" },
-  "Entertainer / Artist": { a: "pre", m: "Presence" },
+  "Entertainer / Artist": { a: "pre", m: "Persuasion" },
   Farmer: { a: "end", m: "Survival" },
   "Law Enforcement": { a: "ins", m: "Perception" },
   Mechanic: { a: "cla", m: "Engineering" },

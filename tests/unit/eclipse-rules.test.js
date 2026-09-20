@@ -201,9 +201,7 @@ describe("attributes", () => {
 
   it("gives every profession a real attribute and a Master Skill that is a skill on the sheet", () => {
     const skills = new Set(SKILLS.flatMap(([, , list]) => list));
-    const notSkills = Object.entries(PROFS).filter(([, p]) => !skills.has(p.m));
-    // Entertainer / Artist names Presence, an attribute. There is no such skill row.
-    expect(notSkills.map(([name, p]) => [name, p.m])).toEqual([["Entertainer / Artist", "Presence"]]);
+    expect(Object.entries(PROFS).filter(([, p]) => !skills.has(p.m))).toEqual([]);
     for (const p of Object.values(PROFS)) expect(SKILLS.some(([, k]) => k === p.a)).toBe(true);
   });
 

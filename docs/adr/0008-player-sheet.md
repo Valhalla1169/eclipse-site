@@ -14,8 +14,8 @@ one on their first visit. The DM has no sheet (ADR 0001) and sees a link to the 
 
 1. **Keep V4's game logic and layout.** Only storage, inline styles and the theme changed. The pure
    rules were moved to `js/eclipse-rules.js` and checked against V4's own functions on random sheets
-   before V4's code was set aside. Rules that V4 got wrong were kept as they were, and are listed
-   under "Known gaps".
+   before V4's code was set aside. One rules-data fix was made on the way: the Entertainer /
+   Artist profession's Master Skill is Persuasion (V4 named Presence, an attribute).
 2. **Two devices editing one sheet: detect and ask.** A save is an update that matches only while
    `updated_at` is still what the page last saw. If it matches nothing, the page reads the row:
    a newer `updated_at` is a conflict, and anything else means the database refused the write. On a
@@ -62,9 +62,6 @@ one on their first visit. The DM has no sheet (ADR 0001) and sees a link to the 
 
 ## Known gaps
 
-- **Entertainer / Artist names Presence as its Master Skill.** Presence is an attribute, not a
-  skill, so the Master Skill list cannot show it. It is kept as V4 has it. A rules owner should
-  choose the skill (`PROFS` in `eclipse-rules.js`; a unit test lists the exception).
 - **No live update.** Changes made on another device appear after a reload, or as a conflict on the
   next save. The DM roster (Phase 4) is where Realtime is used.
 - **Print styles** are ported from V4 and were not tried on a printer.
