@@ -33,56 +33,57 @@
       expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 86400 * 30, user: userObject(id, email) };
   }
 
-  // The characters table, the way the real one behaves for the row's owner: writes go
+  // The characters table, the way the real one behaves for a row's owner: writes go
   // through only for the columns a client may write (ADR 0006), an update matches only
-  // while updated_at is still what the client saw, and every accepted update gets a new
-  // updated_at. `c.character` is the one row; `c.characterBlocked` makes updates match
-  // nothing (a player who left the campaign); `c.failPatches` fails that many updates
-  // with a network error first, and `c.failCharacters` fails every call.
-  var WRITABLE = ["owner_id", "campaign_id", "character_name", "data", "schema_version"];
+  // while updated_at is still what the client saw (and never for a deleted character),
+  // every accepted update gets a new updated_at, and a person can have 10 characters
+  // that are not deleted (ADR 0011). `c.characters` holds the rows. `c.characterBlocked`
+  // makes updates match nothing, `c.failPatches` fails that many updates with a network
+  // error first, and `c.failCharacters` fails every call.
+  var WRITABLE = ["owner_id", "character_name", "data", "schema_version"];
   var UPDATABLE = ["character_name", "data", "schema_version"];
+  var MAX_LIVE = 10;
   var MAX_DATA_BYTES = 524288;
   function stamp(c) {
     c.clock = (c.clock || 0) + 1;
     return new Date(Date.UTC(2026, 8, 19, 12, 0, c.clock)).toISOString().replace("Z", "456+00:00");
   }
   function pgError(message, code) { return json(400, { code: code || "P0001", message: message, details: null, hint: null }); }
-  function characters(c, u, method, body) {
-    if (c.failCharacters) throw new TypeError("Failed to fetch");
-    var row = c.character || null;
+  function projector(u) {
     var select = (u.searchParams.get("select") || "").split(",").map(function (x) { return x.trim(); });
-    function project(r) {
+    return function (r) {
       var out = {};
       select.forEach(function (k) { out[k] = r[k]; });
       return out;
-    }
+    };
+  }
+  function idList(value) { return value && value.indexOf("in.(") === 0 ? value.slice(4, -1).split(",") : null; }
+  function matches(u, r, names) {
+    return names.every(function (name) {
+      var wanted = u.searchParams.get(name);
+      if (!wanted) return true;
+      var list = idList(wanted);
+      return list ? list.indexOf(String(r[name])) !== -1 : "eq." + r[name] === wanted;
+    });
+  }
+  function characters(c, u, method, body) {
+    if (c.failCharacters) throw new TypeError("Failed to fetch");
+    var all = c.characters || [];
+    var project = projector(u);
     if (method === "GET") {
-      var all = c.characters || (row ? [row] : []);
-      var byId = u.searchParams.get("id");
-      var byCampaign = u.searchParams.get("campaign_id");
-      var byOwner = u.searchParams.get("owner_id");
-      var ids = byId && byId.indexOf("in.(") === 0 ? byId.slice(4, -1).split(",") : null;
-      var found = all.filter(function (r) {
-        if (ids && ids.indexOf(r.id) === -1) return false;
-        if (byId && !ids && "eq." + r.id !== byId) return false;
-        if (byCampaign && "eq." + r.campaign_id !== byCampaign) return false;
-        if (byOwner && "eq." + r.owner_id !== byOwner) return false;
-        return true;
-      });
+      var found = all.filter(function (r) { return matches(u, r, ["id", "owner_id"]); });
+      if ((u.searchParams.get("order") || "").indexOf("updated_at.desc") === 0) found.sort(function (a, b) { return b.updated_at.localeCompare(a.updated_at); });
       return json(200, found.map(project));
     }
     if (method === "POST") {
       var bad = Object.keys(body).filter(function (k) { return WRITABLE.indexOf(k) === -1; });
       if (bad.length) return pgError("permission denied for column " + bad[0], "42501");
-      if (row || c.characterInsertRace) {
-        if (c.characterInsertRace && !row) {
-          c.character = row = { id: "40000000-0000-4000-8000-000000000001", owner_id: body.owner_id, campaign_id: body.campaign_id, schema_version: 1, character_name: "Made elsewhere", data: c.characterInsertRace, updated_at: stamp(c) };
-          save(c);
-        }
-        return pgError("duplicate key value violates unique constraint", "23505");
-      }
-      row = { id: "40000000-0000-4000-8000-000000000001", owner_id: body.owner_id, campaign_id: body.campaign_id, schema_version: body.schema_version, character_name: body.character_name, data: body.data, updated_at: stamp(c) };
-      c.character = row; save(c);
+      var live = all.filter(function (r) { return r.owner_id === body.owner_id && !r.deleted_at; }).length;
+      if (live >= MAX_LIVE) return pgError("you already have 10 characters, the most one person can have");
+      c.made = (c.made || 0) + 1;
+      var row = { id: "40000000-0000-4000-8000-" + String(900000 + c.made).padStart(12, "0"), owner_id: body.owner_id, schema_version: body.schema_version, character_name: body.character_name, data: body.data, updated_at: stamp(c), deleted_at: null };
+      all.push(row);
+      c.characters = all; save(c);
       return json(201, [project(row)]);
     }
     if (method === "PATCH") {
@@ -90,15 +91,56 @@
       if (forbidden.length) return pgError("permission denied for column " + forbidden[0], "42501");
       if (c.failPatches > 0) { c.failPatches -= 1; save(c); throw new TypeError("Failed to fetch"); }
       if (JSON.stringify(body.data || {}).length > MAX_DATA_BYTES) return pgError("new row violates check constraint \"characters_data_size\"", "23514");
-      if (row && body.schema_version < row.schema_version) return pgError("schema_version can only increase");
-      var matches = row && !c.characterBlocked && "eq." + row.id === u.searchParams.get("id") && "eq." + row.updated_at === u.searchParams.get("updated_at");
-      if (!matches) return json(200, []);
-      Object.keys(body).forEach(function (k) { row[k] = body[k]; });
-      row.updated_at = stamp(c);
+      var target = all.filter(function (r) { return "eq." + r.id === u.searchParams.get("id"); })[0];
+      if (target && body.schema_version < target.schema_version) return pgError("schema_version can only increase");
+      var ok = target && !c.characterBlocked && !target.deleted_at && "eq." + target.updated_at === u.searchParams.get("updated_at");
+      if (!ok) return json(200, []);
+      Object.keys(body).forEach(function (k) { target[k] = body[k]; });
+      target.updated_at = stamp(c);
       save(c);
-      return json(200, [{ updated_at: row.updated_at }]);
+      return json(200, [{ updated_at: target.updated_at }]);
     }
     return json(405, { message: "fake-supabase: unhandled " + method + " /rest/v1/characters" });
+  }
+
+  // Which character is active in which campaign, the copies kept from players who left,
+  // and the functions that change them (migration 0009). `c.assignments` holds
+  // { campaign_id, player_id, character_id }, `c.departed` the copies.
+  function assignments(c, u) {
+    var project = projector(u);
+    return json(200, (c.assignments || []).filter(function (r) { return matches(u, r, ["campaign_id", "player_id", "character_id"]); }).map(project));
+  }
+  function departed(c, u) {
+    var project = projector(u);
+    return json(200, (c.departed || []).filter(function (r) { return matches(u, r, ["campaign_id", "id"]); }).map(project));
+  }
+  function characterById(c, id) { return (c.characters || []).filter(function (r) { return r.id === id; })[0]; }
+  function chooseCharacter(c, body) {
+    var row = characterById(c, body.p_character_id);
+    if (!row || row.deleted_at) return pgError("that character was not found");
+    var list = c.assignments || [];
+    if (list.some(function (a) { return a.character_id === row.id && a.campaign_id !== body.p_campaign_id; })) {
+      return pgError("that character is already active in another campaign. Choose a different character there first");
+    }
+    list = list.filter(function (a) { return !(a.campaign_id === body.p_campaign_id && a.player_id === row.owner_id); });
+    list.push({ campaign_id: body.p_campaign_id, player_id: row.owner_id, character_id: row.id, assigned_at: new Date().toISOString() });
+    c.assignments = list; save(c);
+    return new Response(null, { status: 204 });
+  }
+  function deleteCharacter(c, body) {
+    var row = characterById(c, body.p_character_id);
+    if (!row) return pgError("that character was not found");
+    if ((c.assignments || []).some(function (a) { return a.character_id === row.id; })) return pgError("that character is active in a campaign. Choose a different character there first");
+    row.deleted_at = new Date().toISOString(); row.updated_at = stamp(c); save(c);
+    return new Response(null, { status: 204 });
+  }
+  function undeleteCharacter(c, body) {
+    var row = characterById(c, body.p_character_id);
+    if (!row) return pgError("that character was not found");
+    var live = (c.characters || []).filter(function (r) { return r.owner_id === row.owner_id && !r.deleted_at; }).length;
+    if (live >= MAX_LIVE) return pgError("you already have 10 characters, the most one person can have");
+    row.deleted_at = null; row.updated_at = stamp(c); save(c);
+    return new Response(null, { status: 204 });
   }
 
   // Realtime: a stand-in for the Phoenix websocket, so no network is opened. Tests
@@ -151,8 +193,7 @@
   };
 
   // character_history, as its owner sees it, and the restore function (migration 0008).
-  // `c.history` holds the snapshots; `c.restoreNotMember` makes a restore answer that the
-  // player has left the campaign.
+  // `c.history` holds the snapshots.
   function history(c, u) {
     var select = (u.searchParams.get("select") || "").split(",").map(function (x) { return x.trim(); });
     var byCharacter = u.searchParams.get("character_id");
@@ -169,9 +210,9 @@
   function restore(c, body) {
     var snap = (c.history || []).filter(function (r) { return r.id === body.p_history_id; })[0];
     if (!snap) return pgError("that version was not found");
-    var row = c.character;
-    if (!row || row.id !== snap.character_id) return pgError("that version cannot be restored because its character no longer exists");
-    if (c.restoreNotMember) return pgError("you are not a member of this campaign");
+    var row = characterById(c, snap.character_id);
+    if (!row) return pgError("that version cannot be restored because its character no longer exists");
+    if (row.deleted_at) return pgError("that character is deleted. Bring it back first");
     if (!body.p_expected || row.updated_at !== body.p_expected) return pgError("the sheet changed since you opened it");
     c.history.push({ id: c.history.reduce(function (m, r) { return Math.max(m, r.id); }, 0) + 1, character_id: row.id, schema_version: row.schema_version, character_name: row.character_name, data: row.data, reason: "restore", saved_at: new Date().toISOString() });
     row.data = snap.data; row.schema_version = snap.schema_version; row.character_name = snap.character_name;
@@ -286,6 +327,11 @@
     }
 
     if (path === "/rest/v1/characters") return characters(c, u, method, body);
+    if (path === "/rest/v1/campaign_characters" && method === "GET") return assignments(c, u);
+    if (path === "/rest/v1/departed_sheets" && method === "GET") return departed(c, u);
+    if (path === "/rest/v1/rpc/choose_character" && method === "POST") return chooseCharacter(c, body);
+    if (path === "/rest/v1/rpc/delete_character" && method === "POST") return deleteCharacter(c, body);
+    if (path === "/rest/v1/rpc/undelete_character" && method === "POST") return undeleteCharacter(c, body);
     if (path === "/rest/v1/character_history" && method === "GET") return history(c, u);
     if (path === "/rest/v1/rpc/restore_character_version" && method === "POST") return restore(c, body);
 

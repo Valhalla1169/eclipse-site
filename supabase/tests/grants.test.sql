@@ -52,10 +52,10 @@ select pg_temp.expect(
   'G3: authenticated can only READ campaign_players (writes go through RPCs)');
 select pg_temp.expect(
   has_table_privilege('authenticated', 'public.characters', 'select')
-  and pg_temp.cols('authenticated', 'public.characters', 'insert') = array['campaign_id','character_name','data','owner_id','schema_version']
-  and pg_temp.cols('authenticated', 'public.characters', 'update') = array['campaign_id','character_name','data','owner_id','schema_version']
+  and pg_temp.cols('authenticated', 'public.characters', 'insert') = array['character_name','data','owner_id','schema_version']
+  and pg_temp.cols('authenticated', 'public.characters', 'update') = array['character_name','data','owner_id','schema_version']
   and not has_table_privilege('authenticated', 'public.characters', 'delete'),
-  'G4: characters: id and updated_at are never client-writable, and there is no delete (0004, 0006)');
+  'G4: characters: id, updated_at and deleted_at are never client-writable, and there is no delete (0004, 0006, 0009)');
 select pg_temp.expect(
   has_table_privilege('authenticated', 'public.campaign_creators', 'select')
   and not has_table_privilege('authenticated', 'public.campaign_creators', 'insert')
@@ -68,6 +68,17 @@ select pg_temp.expect(
   and not has_table_privilege('authenticated', 'public.character_history', 'update')
   and not has_table_privilege('authenticated', 'public.character_history', 'delete'),
   'G6: authenticated can only READ character_history (0004)');
+
+select pg_temp.expect(
+  has_table_privilege('authenticated', 'public.campaign_characters', 'select')
+  and not has_table_privilege('authenticated', 'public.campaign_characters', 'insert')
+  and not has_table_privilege('authenticated', 'public.campaign_characters', 'update')
+  and not has_table_privilege('authenticated', 'public.campaign_characters', 'delete')
+  and has_table_privilege('authenticated', 'public.departed_sheets', 'select')
+  and not has_table_privilege('authenticated', 'public.departed_sheets', 'insert')
+  and not has_table_privilege('authenticated', 'public.departed_sheets', 'update')
+  and not has_table_privilege('authenticated', 'public.departed_sheets', 'delete'),
+  'G6b: authenticated can only READ campaign_characters and departed_sheets (changes go through functions, 0009)');
 
 -- campaign_invites: column-level. The DM reads metadata, never the hash.
 select pg_temp.expect(
@@ -90,7 +101,8 @@ select pg_temp.expect(
   not exists (
     select 1
     from unnest(array['public.profiles','public.campaigns','public.campaign_players','public.characters',
-                      'public.campaign_creators','public.campaign_invites','public.character_history']) as t(tbl),
+                      'public.campaign_creators','public.campaign_invites','public.character_history',
+                      'public.campaign_characters','public.departed_sheets']) as t(tbl),
          unnest(array['anon','authenticated']) as r(role),
          unnest(array['truncate','references','trigger']) as p(priv)
     where has_table_privilege(r.role, t.tbl, p.priv)),
@@ -101,7 +113,8 @@ select pg_temp.expect(
   not exists (
     select 1
     from unnest(array['public.profiles','public.campaigns','public.campaign_players','public.characters',
-                      'public.campaign_creators','public.campaign_invites','public.character_history']) as t(tbl),
+                      'public.campaign_creators','public.campaign_invites','public.character_history',
+                      'public.campaign_characters','public.departed_sheets']) as t(tbl),
          unnest(array['select','insert','update','delete']) as p(priv)
     where has_table_privilege('anon', t.tbl, p.priv)),
   'G11: anon has no select/insert/update/delete on any table');
@@ -123,12 +136,18 @@ select pg_temp.expect(
   and has_function_privilege('authenticated', 'public.is_player_of_campaign(uuid)', 'execute')
   and has_function_privilege('authenticated', 'public.is_campaign_creator()', 'execute')
   and has_function_privilege('authenticated', 'public.shares_campaign_with(uuid)', 'execute')
-  and has_function_privilege('authenticated', 'public.restore_character_version(bigint,timestamptz)', 'execute'),
+  and has_function_privilege('authenticated', 'public.restore_character_version(bigint,timestamptz)', 'execute')
+  and has_function_privilege('authenticated', 'public.choose_character(uuid,uuid)', 'execute')
+  and has_function_privilege('authenticated', 'public.delete_character(uuid)', 'execute')
+  and has_function_privilege('authenticated', 'public.undelete_character(uuid)', 'execute')
+  and has_function_privilege('authenticated', 'public.dm_sees_character(uuid,timestamptz)', 'execute'),
   'G13: authenticated can execute the RPCs and the RLS helper functions');
 select pg_temp.expect(
   not has_function_privilege('authenticated', 'public.set_updated_at()', 'execute')
   and not has_function_privilege('authenticated', 'public.characters_lock_identity()', 'execute')
   and not has_function_privilege('authenticated', 'public.snapshot_character()', 'execute')
+  and not has_function_privilege('authenticated', 'public.characters_enforce_limits()', 'execute')
+  and not has_function_privilege('authenticated', 'public.freeze_sheet(uuid,uuid,text)', 'execute')
   and not has_function_privilege('authenticated', 'public.handle_new_user()', 'execute')
   and not has_function_privilege('authenticated', 'public.derive_display_name(jsonb,text)', 'execute')
   and not has_function_privilege('authenticated', 'public.generate_invite_code()', 'execute'),

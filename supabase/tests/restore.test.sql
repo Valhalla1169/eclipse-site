@@ -20,7 +20,7 @@ $$;
 
 -- ── seed (as superuser) ─────────────────────────────────────────────────
 -- dm ...01 runs C1. pl ...02 and pl2 ...04 are members. out ...03 is in nothing.
--- gone ...05 has a sheet in C1 but is no longer a member.
+-- gone ...05 has a sheet but is in no campaign.
 insert into auth.users (id, email) values
   ('e1000000-0000-0000-0000-000000000001', 'dm@r.test'),
   ('e1000000-0000-0000-0000-000000000002', 'pl@r.test'),
@@ -32,9 +32,9 @@ insert into public.campaigns (id, dm_id, name) values
 insert into public.campaign_players (campaign_id, player_id) values
   ('f1000000-0000-0000-0000-0000000000c1', 'e1000000-0000-0000-0000-000000000002'),
   ('f1000000-0000-0000-0000-0000000000c1', 'e1000000-0000-0000-0000-000000000004');
-insert into public.characters (id, owner_id, campaign_id, character_name, data) values
-  ('98000000-0000-0000-0000-000000000001', 'e1000000-0000-0000-0000-000000000002', 'f1000000-0000-0000-0000-0000000000c1', 'Dana', '{"v":1}'),
-  ('98000000-0000-0000-0000-000000000005', 'e1000000-0000-0000-0000-000000000005', 'f1000000-0000-0000-0000-0000000000c1', 'Gone', '{"g":1}');
+insert into public.characters (id, owner_id, character_name, data) values
+  ('98000000-0000-0000-0000-000000000001', 'e1000000-0000-0000-0000-000000000002', 'Dana', '{"v":1}'),
+  ('98000000-0000-0000-0000-000000000005', 'e1000000-0000-0000-0000-000000000005', 'Gone', '{"g":1}');
 grant select on all tables in schema public to anon;
 
 -- Give the owner three edits: v1 is snapshotted at the first (the 10-minute window
@@ -83,7 +83,7 @@ select t.expect_denied_with(
 select t.expect_count($q$select 1 from public.characters where id = '98000000-0000-0000-0000-000000000001' and data = '{"v":3}'$q$, 1,
   'RS4c: a refused restore changes nothing');
 
--- ═══ 4. Only the owner, only while a member ═════════════════════════════
+-- ═══ 4. Only the owner ═════════════════════════════
 select t.act_as('e1000000-0000-0000-0000-000000000004');
 select t.expect_denied_with(
   $q$select public.restore_character_version((select min(id) from public.character_history where character_id = '98000000-0000-0000-0000-000000000001'), t.stamp('98000000-0000-0000-0000-000000000001'))$q$,
@@ -98,13 +98,13 @@ select t.expect_denied_with(
   'was not found', 'RS7: an unrelated user cannot');
 select t.expect_denied_with($q$select public.restore_character_version(-1, now())$q$, 'was not found', 'RS8: an id that does not exist gives the same answer');
 
--- The removed player owns a snapshot but is no longer a member.
+-- A person in no campaign restores their own sheet: it is theirs (ADR 0011).
 select t.act_as_superuser();
 update public.characters set data = '{"g":2}' where id = '98000000-0000-0000-0000-000000000005';
 select t.act_as('e1000000-0000-0000-0000-000000000005');
-select t.expect_denied_with(
-  $q$select public.restore_character_version((select id from public.character_history where character_id = '98000000-0000-0000-0000-000000000005'), t.stamp('98000000-0000-0000-0000-000000000005'))$q$,
-  'not a member', 'RS9: someone who left the campaign cannot restore (same rule as writing, ADR 0002)');
+select t.expect_count(
+  $q$select 1 from (select public.restore_character_version((select id from public.character_history where character_id = '98000000-0000-0000-0000-000000000005'), t.stamp('98000000-0000-0000-0000-000000000005'))) x$q$, 1,
+  'RS9: a person who is in no campaign can restore their own sheet');
 
 
 -- ═══ 5. A deleted character cannot be restored this way ═════════════════
@@ -117,8 +117,8 @@ select t.expect_denied_with(
 
 -- ═══ 6. It restores the version number with the data ════════════════════
 select t.act_as_superuser();
-insert into public.characters (id, owner_id, campaign_id, character_name, data) values
-  ('98000000-0000-0000-0000-000000000006', 'e1000000-0000-0000-0000-000000000004', 'f1000000-0000-0000-0000-0000000000c1', 'Pia', '{"m":1}');
+insert into public.characters (id, owner_id, character_name, data) values
+  ('98000000-0000-0000-0000-000000000006', 'e1000000-0000-0000-0000-000000000004', 'Pia', '{"m":1}');
 select t.act_as('e1000000-0000-0000-0000-000000000004');
 update public.characters set schema_version = 3, data = '{"m":3}' where id = '98000000-0000-0000-0000-000000000006';
 select t.expect_count(
@@ -157,7 +157,16 @@ select t.expect_count(
        and id = (select max(id) from public.character_history where character_id = '98000000-0000-0000-0000-000000000006') and reason = 'edit'$q$, 1,
   'RS13: an ordinary edit after a restore is an ordinary edit snapshot');
 
--- ═══ 9. Privileges ══════════════════════════════════════════════════════
+-- ═══ 9. A deleted (hidden) character cannot be restored ═════════════════
+select t.act_as_superuser();
+update public.characters set deleted_at = now() where id = '98000000-0000-0000-0000-000000000006';
+select t.act_as('e1000000-0000-0000-0000-000000000004');
+select t.expect_denied_with(
+  $q$select public.restore_character_version((select min(id) from public.character_history where character_id = '98000000-0000-0000-0000-000000000006'), t.stamp('98000000-0000-0000-0000-000000000006'))$q$,
+  'is deleted', 'RS13b: a deleted character has to be brought back first');
+select t.act_as_superuser();
+
+-- ═══ 10. Privileges ══════════════════════════════════════════════════════
 select t.act_as_superuser();
 select t.expect_count($q$select 1 where has_function_privilege('authenticated', 'public.restore_character_version(bigint,timestamptz)', 'execute')$q$, 1,
   'RS14: signed-in users can call it');

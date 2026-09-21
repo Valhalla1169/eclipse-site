@@ -4,10 +4,11 @@ import { h } from "./dom.js";
 import { reasonLabel } from "./history.js";
 import { friendlyError, timeAgo } from "./util.js";
 
-// onSaveCopy(entry) downloads that version as an .eclipse file.
-export function historyView({ campaign, entries, onSaveCopy }) {
+// badge: who the sheet is. intro: what the list is. back: { href, label }.
+// snapshotPath(entry) is where "Look at it" goes. onSaveCopy(entry) downloads that
+// version as an .eclipse file.
+export function historyView({ badge, intro, back, snapshotPath, entries, onSaveCopy }) {
   const status = h("p", { class: "status", role: "status", "aria-live": "polite" });
-  const id = encodeURIComponent(campaign.id);
 
   const saveCopy = async (event, entry) => {
     const button = event.currentTarget;
@@ -37,7 +38,7 @@ export function historyView({ campaign, entries, onSaveCopy }) {
       h(
         "div",
         { class: "actions" },
-        h("a", { class: "btn btn-primary btn-small", href: `/campaign/${id}/play/history/${encodeURIComponent(entry.id)}` }, "Look at it"),
+        h("a", { class: "btn btn-primary btn-small", href: snapshotPath(entry) }, "Look at it"),
         h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: (event) => saveCopy(event, entry) }, "Save a copy"),
       ),
     );
@@ -45,16 +46,12 @@ export function historyView({ campaign, entries, onSaveCopy }) {
   return h(
     "div",
     { class: "stack" },
-    h("div", { class: "card-head" }, h("h1", {}, "Version history"), h("span", { class: "badge" }, campaign.name)),
-    h(
-      "p",
-      { class: "muted" },
-      "The site keeps a copy of your sheet before your edits (at most one every 10 minutes) and before each rules update. Each copy below is the sheet as it was just before the time shown. Look at one, then put it back if you want it.",
-    ),
-    h("p", {}, h("a", { class: "btn btn-quiet", href: `/campaign/${id}/play` }, "Back to my sheet")),
+    h("div", { class: "card-head" }, h("h1", {}, "Version history"), h("span", { class: "badge" }, badge)),
+    h("p", { class: "muted" }, intro),
+    h("p", {}, h("a", { class: "btn btn-quiet", href: back.href }, back.label)),
     status,
     entries.length
       ? h("ul", { class: "history" }, ...entries.map(item))
-      : h("p", { class: "muted" }, "There are no earlier versions yet. The first one is kept the next time your sheet changes."),
+      : h("p", { class: "muted" }, "There are no earlier versions yet. The first one is kept the next time the sheet changes."),
   );
 }

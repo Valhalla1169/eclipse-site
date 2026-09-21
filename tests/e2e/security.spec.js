@@ -31,7 +31,7 @@ baseTest.describe("what the server publishes", () => {
   }
 
   baseTest("every response carries the security headers", async ({ request }) => {
-    for (const path of ["/", "/login", "/style.css", "/js/app.js", "/campaign/x/play"]) {
+    for (const path of ["/", "/login", "/style.css", "/js/app.js", "/characters/x"]) {
       const headers = (await request.get(path)).headers();
       const csp = headers["content-security-policy"];
       baseExpect(csp, path).toContain("default-src 'none'");

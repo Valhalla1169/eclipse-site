@@ -1,8 +1,9 @@
 // Campaign and invite queries. Every one runs as the signed-in user; RLS and
 // grants decide what comes back, so a query for something you may not see returns
 // nothing. No delete function exists on purpose (docs/adr/0004): removing a
-// campaign would cascade to every character in it.
+// campaign would take its invites, memberships and departed sheets with it.
 import { readCharacters } from "./characters.js";
+import { newestDeparted } from "./roster.js";
 import { sb } from "./supabase-client.js";
 
 // Only people on the allowlist may create a campaign (ADR 0005). This is for the
@@ -74,10 +75,17 @@ export async function revokeInvite(inviteId) {
   if (error) throw error;
 }
 
-// ── The DM's roster (ADR 0009) ────────────────────────────────────────
-// The DM can read every sheet in their campaign and can never write one (ADR 0001),
-// so everything here is a read. A roster is { members, profiles, characters }:
-// campaign_players rows, { playerId: display_name }, and { characterId: row }.
+// ── The DM's roster (ADR 0009, 0011) ──────────────────────────────────
+// The DM reads and never writes (ADR 0001), so everything here is a read. A roster is
+//   members      campaign_players rows
+//   assignments  campaign_characters rows: which character each player has active
+//   profiles     { playerId: display_name }
+//   characters   { characterId: row } for the characters that are active now
+//   departed     { copyId: row } for the newest copy kept from each player who left
+// The DM reads a character only while it is active in their campaign. When a player
+// leaves, the DM's copy is the sheet as it was then.
+
+const EMPTY_ROSTER = { members: [], assignments: [], profiles: {}, characters: {}, departed: {} };
 
 async function listMembers(campaignId) {
   const { data, error } = await sb.from("campaign_players").select("player_id, joined_at").eq("campaign_id", campaignId);
@@ -85,11 +93,47 @@ async function listMembers(campaignId) {
   return data;
 }
 
-// One tiny row per sheet: enough to tell which ones changed without reading them.
-async function listStamps(campaignId) {
-  const { data, error } = await sb.from("characters").select("id, updated_at").eq("campaign_id", campaignId);
+async function listAssignments(campaignId) {
+  const { data, error } = await sb.from("campaign_characters").select("player_id, character_id, assigned_at").eq("campaign_id", campaignId);
   if (error) throw error;
   return data;
+}
+
+// One tiny row per sheet: enough to tell which ones changed without reading them.
+async function listStamps(characterIds) {
+  if (!characterIds.length) return [];
+  const { data, error } = await sb.from("characters").select("id, updated_at").in("id", characterIds);
+  if (error) throw error;
+  return data;
+}
+
+async function listDepartedStamps(campaignId) {
+  const { data, error } = await sb.from("departed_sheets").select("id, player_id, kept_at").eq("campaign_id", campaignId);
+  if (error) throw error;
+  return data;
+}
+
+const DEPARTED_COLUMNS = "id, campaign_id, player_id, character_id, character_name, schema_version, data, reason, kept_at";
+
+async function readDeparted(ids) {
+  if (!ids.length) return [];
+  const { data, error } = await sb.from("departed_sheets").select(DEPARTED_COLUMNS).in("id", ids);
+  if (error) throw error;
+  return data;
+}
+
+// null when the copy does not exist or is not in a campaign the user runs.
+export async function readDepartedSheet(id) {
+  const { data, error } = await sb.from("departed_sheets").select(DEPARTED_COLUMNS).eq("id", id);
+  if (error) throw error;
+  return data[0] || null;
+}
+
+// The player who has this character active in the campaign, or null.
+export async function findAssignment(campaignId, characterId) {
+  const { data, error } = await sb.from("campaign_characters").select("player_id, character_id, assigned_at").eq("campaign_id", campaignId).eq("character_id", characterId);
+  if (error) throw error;
+  return data[0] || null;
 }
 
 export async function readProfileNames(ids) {
@@ -101,9 +145,10 @@ export async function readProfileNames(ids) {
 
 // Brings a roster up to date. Only sheets whose updated_at changed are read again,
 // so it is cheap to call often (on a live event, and on a timer as a fallback).
-// Call it with no `previous` for the first load.
-export async function syncRoster(campaignId, previous = { members: [], profiles: {}, characters: {} }) {
-  const [members, stamps] = await Promise.all([listMembers(campaignId), listStamps(campaignId)]);
+// Call it with no `previous` to read everything.
+export async function syncRoster(campaignId, previous = EMPTY_ROSTER) {
+  const [members, assignments, departedStamps] = await Promise.all([listMembers(campaignId), listAssignments(campaignId), listDepartedStamps(campaignId)]);
+  const stamps = await listStamps(assignments.map((a) => a.character_id));
   const changed = stamps.filter((s) => previous.characters[s.id]?.updated_at !== s.updated_at).map((s) => s.id);
   const fresh = await readCharacters(changed);
   const characters = {};
@@ -111,31 +156,33 @@ export async function syncRoster(campaignId, previous = { members: [], profiles:
     const row = fresh.find((r) => r.id === stamp.id) || previous.characters[stamp.id];
     if (row) characters[stamp.id] = row;
   }
-  const people = new Set([...members.map((m) => m.player_id), ...Object.values(characters).map((r) => r.owner_id)]);
+
+  const wanted = newestDeparted(departedStamps, members);
+  const freshDeparted = await readDeparted(wanted.filter((s) => !(s.id in previous.departed)).map((s) => s.id));
+  const departed = {};
+  for (const stamp of wanted) {
+    const row = freshDeparted.find((r) => r.id === stamp.id) || previous.departed[stamp.id];
+    if (row) departed[stamp.id] = row;
+  }
+
+  const people = new Set([...members.map((m) => m.player_id), ...assignments.map((a) => a.player_id), ...Object.values(departed).map((r) => r.player_id)]);
   const unknown = [...people].filter((id) => !(id in previous.profiles));
   const profiles = { ...previous.profiles, ...(await readProfileNames(unknown)) };
-  return { members, profiles, characters };
+  return { members, assignments, profiles, characters, departed };
 }
 
-// Every sheet, read fresh, for the backup file.
-export async function fetchRosterFresh(campaignId) {
-  const stamps = await listStamps(campaignId);
-  const [members, rows] = await Promise.all([listMembers(campaignId), readCharacters(stamps.map((s) => s.id))]);
-  const characters = Object.fromEntries(rows.map((r) => [r.id, r]));
-  const profiles = await readProfileNames([...new Set([...members.map((m) => m.player_id), ...rows.map((r) => r.owner_id)])]);
-  return { members, profiles, characters };
-}
-
-// Calls onChange when a sheet in the campaign is written, and onStatus with the
-// channel's state ("SUBSCRIBED" once it is live). Returns a function that stops it.
-// A realtime subscription is bound by the same RLS policies as a plain read.
-export function subscribeToCharacters(campaignId, onChange, onStatus) {
+// Calls onChange when a player chooses a different character or an active sheet is
+// written, and onStatus with the channel's state ("SUBSCRIBED" once it is live).
+// Returns a function that stops it. A realtime subscription is bound by the same RLS
+// policies as a plain read, so the sheets table only tells the DM about sheets they
+// may read. It only says that something changed: the page reads again.
+export function subscribeToRoster(campaignId, onChange, onStatus) {
   const channel = sb
-    .channel(`sheets-${campaignId}-${Math.random().toString(36).slice(2)}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "characters", filter: `campaign_id=eq.${campaignId}` }, () => onChange())
+    .channel(`roster-${campaignId}-${Math.random().toString(36).slice(2)}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "campaign_characters", filter: `campaign_id=eq.${campaignId}` }, () => onChange())
+    .on("postgres_changes", { event: "*", schema: "public", table: "characters" }, () => onChange())
     .subscribe((status) => onStatus(status));
   return () => {
     sb.removeChannel(channel);
   };
 }
-

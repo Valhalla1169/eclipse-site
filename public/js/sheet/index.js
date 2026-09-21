@@ -1,5 +1,5 @@
-// The player's sheet at /campaign/:id/play: the tabs, the save bar, saving to the
-// database, and loading or saving a .eclipse file.
+// A character's sheet: the tabs, the save bar, saving to the database, and loading or
+// saving a .eclipse file.
 //
 // The sheet is drawn from `store.sheet`. Nothing is written before the sheet has
 // loaded (the caller only builds this view from a row it read), edits are sent
@@ -32,7 +32,7 @@ const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", m
 const LOCKED_PAGES = ["#page1", "#page2", "#page3", "#page4", "#page6"];
 
 // options: {
-//   campaign, opened (from openSheet), row ({ id, updated_at }),
+//   opened (from openSheet), row ({ id, updated_at }),
 //   persist(id, expectedUpdatedAt, { name, data }) -> saveCharacter's result,
 //   readOnlyNotice: when set, the sheet is shown read only with this message, and
 //     without Save now or Load file (a DM watching a player, ADR 0009; an old version
@@ -41,7 +41,7 @@ const LOCKED_PAGES = ["#page1", "#page2", "#page3", "#page4", "#page6"];
 // }
 // Returns { element, flush, update, dispose }. update(opened) shows a newer copy of a
 // sheet that is being watched; dispose removes the page-wide listeners.
-export function createSheetView({ campaign, opened, row, persist, readOnlyNotice = null, onOpenHistory = null }) {
+export function createSheetView({ opened, row, persist, readOnlyNotice = null, onOpenHistory = null }) {
   const viewOnly = readOnlyNotice !== null;
   const store = { sheet: opened.sheet, token: row.updated_at, lastSavedAt: null, tab: "1" };
   const readOnly = viewOnly || opened.readOnly;
@@ -151,7 +151,7 @@ export function createSheetView({ campaign, opened, row, persist, readOnlyNotice
   function showBlocked() {
     setNotice(
       "error",
-      h("p", {}, "The database refused to save this sheet. You may have left the campaign, or your sign-in may have ended. Your changes are still on this page."),
+      h("p", {}, "The database refused to save this sheet. Your sign-in may have ended, or this character may have been deleted. Your changes are still on this page."),
       h("div", { class: "actions" }, button("Try again", () => autosave.resume({ edited: true })), button("Save a copy", () => saveCopy(store.sheet))),
     );
   }
@@ -299,7 +299,7 @@ export function createSheetView({ campaign, opened, row, persist, readOnlyNotice
     notices,
     dropVeil,
     pages,
-    h("footer", { class: "sheet-foot" }, h("span", {}, "AGE OF ECLIPSE · SURVIVOR'S TESTAMENT · PLAYER RECORD"), h("span", {}, campaign.name)),
+    h("footer", { class: "sheet-foot" }, h("span", {}, "AGE OF ECLIPSE · SURVIVOR'S TESTAMENT · PLAYER RECORD")),
     dialogs.elements,
   );
   mountPages();

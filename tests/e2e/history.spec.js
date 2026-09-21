@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { blank } from "../../public/js/eclipse-rules.js";
-import { CHARACTER_ID, FIRST_STAMP, callsTo, campaign, characterRow, expect, ids, open, otherDeviceSaves, players, seed, storedCharacter, test } from "./helpers.js";
+import { CHARACTER_ID, FIRST_STAMP, assignmentRow, calls, callsTo, campaign, characterRow, expect, ids, open, otherDeviceSaves, players, seed, sheetPath, storedCharacter, test } from "./helpers.js";
 
 const { dana, dm } = players;
-const play = `/campaign/${ids.campaign}/play`;
-const HISTORY = `${play}/history`;
+const HISTORY = `${sheetPath()}/history`;
+const DM_SHEET = `/campaign/${ids.campaign}/dm/${CHARACTER_ID}`;
 
 const sheetOf = (name, change = () => {}) => {
   const data = blank();
@@ -32,7 +32,7 @@ const SNAPSHOTS = [
 
 async function openSheet(page, mock = {}) {
   await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], character: characterRow(CURRENT), history: SNAPSHOTS, ...mock }, user: dana });
-  await open(page, play);
+  await open(page, sheetPath());
   await expect(page.locator("#f_name")).toBeVisible();
 }
 
@@ -76,13 +76,12 @@ test.describe("the history list", () => {
     expect(file).toMatchObject({ schemaVersion: 1, id: { name: "Marlo V." }, cm: { shock: 2 } });
   });
 
-  test("a DM has no history, and a player with no sheet is told", async ({ page }) => {
-    await seed(page, { mock: { profile: dm.profile, campaigns: [campaign] }, user: dm });
+  test("someone else's character, and a bad id, are not found", async ({ page }) => {
+    await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], character: characterRow(CURRENT, { owner_id: ids.dm }), history: SNAPSHOTS }, user: dana });
     await open(page, HISTORY);
-    await expect(page.getByText("A DM does not have a character sheet.")).toBeVisible();
-    await seed(page, { mock: { profile: dana.profile, campaigns: [campaign] }, user: dana });
-    await open(page, HISTORY);
-    await expect(page.getByText("You do not have a sheet in this campaign yet.")).toBeVisible();
+    await expect(page.getByText("We could not find that character.")).toBeVisible();
+    await open(page, "/characters/not-an-id/history");
+    await expect(page.getByText("We could not find that character.")).toBeVisible();
   });
 });
 
@@ -104,7 +103,7 @@ test.describe("looking at a copy", () => {
     expect((await rpcCalls(page)).length).toBe(0);
   });
 
-  test("a copy that is not this player's sheet, or a bad id, is not found", async ({ page }) => {
+  test("a copy that is not this character's, or a bad id, is not found", async ({ page }) => {
     await openSheet(page, { history: [...SNAPSHOTS, snapshot(9, "edit", "2026-09-19T10:45:00.000000+00:00", sheetOf("Someone else"), { character_id: "40000000-0000-4000-8000-0000000000ee" })] });
     await open(page, `${HISTORY}/9`);
     await expect(page.getByText("We could not find that version of your sheet.")).toBeVisible();
@@ -141,7 +140,7 @@ test.describe("putting a copy back", () => {
     await lookAt(page, 2);
     page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "Put this version back" }).click();
-    await expect(page).toHaveURL(new RegExp(`${play}$`));
+    await expect(page).toHaveURL(new RegExp(`${sheetPath()}$`));
     await expect(page.locator("#f_name")).toHaveValue("Marlo V.");
     await expect(page.locator('[data-t="shock"].on')).toHaveCount(2);
     const [call] = await rpcCalls(page);
@@ -180,12 +179,60 @@ test.describe("putting a copy back", () => {
     await expect(page.getByRole("button", { name: "Put this version back" })).toBeEnabled();
   });
 
-  test("a player who has left the campaign is told, and nothing changes", async ({ page }) => {
-    await openSheet(page, { restoreNotMember: true });
+  test("a deleted character has to be brought back first, and nothing changes", async ({ page }) => {
+    await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], character: characterRow(CURRENT, { deleted_at: "2026-09-19T11:30:00.000000+00:00" }), history: SNAPSHOTS }, user: dana });
     await lookAt(page, 2);
     page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "Put this version back" }).click();
-    await expect(page.getByText("You are not in this campaign, so you cannot change this sheet.")).toBeVisible();
+    await expect(page.getByText("That character is deleted. Bring it back first.")).toBeVisible();
     expect((await storedCharacter(page)).character_name).toBe("Marlo Vance");
+  });
+});
+
+test.describe("the DM's history", () => {
+  const dmSeed = (page, mock = {}) =>
+    seed(page, {
+      mock: { profile: dm.profile, campaigns: [campaign], members: [{ player_id: ids.player, joined_at: "2026-09-01T00:00:00Z" }], profiles: [dana.profile], characters: [characterRow(CURRENT)], assignments: [assignmentRow()], history: SNAPSHOTS, ...mock },
+      user: dm,
+    });
+  const writes = async (page) => (await calls(page)).filter((c) => c.path.startsWith("/rest/v1/") && c.method !== "GET");
+
+  test("the roster card has a History link, and the list reads only", async ({ page }) => {
+    await dmSeed(page);
+    await open(page, `/campaign/${ids.campaign}/dm`);
+    await page.locator(".roster > li").first().getByRole("link", { name: "History" }).click();
+    await expect(page).toHaveURL(new RegExp(`${DM_SHEET}/history$`));
+    await expect(page.getByRole("heading", { name: "Version history" })).toBeVisible();
+    await expect(page.getByText("Dana Voss's sheet")).toBeVisible();
+    await expect(page.getByText("since this character became active in your campaign")).toBeVisible();
+    await expect(items(page)).toHaveCount(3);
+    expect(await writes(page)).toEqual([]);
+  });
+
+  test("a copy opens read only, with no way to put it back", async ({ page }) => {
+    await dmSeed(page);
+    await open(page, `${DM_SHEET}/history`);
+    await items(page).nth(1).getByRole("link", { name: "Look at it" }).click();
+    await expect(page).toHaveURL(new RegExp(`${DM_SHEET}/history/2$`));
+    await expect(page.locator("#f_name")).toHaveValue("Marlo V.");
+    await expect(page.getByText("This is Dana Voss's sheet as it was just before")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Put this version back" })).toHaveCount(0);
+    await expect(page.locator("#saveState")).toHaveText("Read only");
+    await expect(page.getByRole("link", { name: "Back to the history" })).toBeVisible();
+    expect(await writes(page)).toEqual([]);
+  });
+
+  test("a character that is not active in the campaign has no history page", async ({ page }) => {
+    await dmSeed(page, { assignments: [] });
+    await open(page, `${DM_SHEET}/history`);
+    await expect(page.getByText("We could not find that sheet in this campaign.")).toBeVisible();
+    await open(page, `${DM_SHEET}/history/2`);
+    await expect(page.getByText("We could not find that version of the sheet.")).toBeVisible();
+  });
+
+  test("only the campaign's DM can open it", async ({ page }) => {
+    await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], characters: [characterRow(CURRENT)], assignments: [assignmentRow()], history: SNAPSHOTS }, user: dana });
+    await open(page, `${DM_SHEET}/history`);
+    await expect(page.getByText("Only the DM of this campaign can open this page.")).toBeVisible();
   });
 });

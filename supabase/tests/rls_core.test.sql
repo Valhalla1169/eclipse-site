@@ -33,11 +33,13 @@ select t.expect_count($q$select * from public.join_campaign('TABLE1')$q$, 1, 'C2
 select t.act_as('f1000000-0000-0000-0000-000000000004');
 select t.expect_denied($q$select * from public.join_campaign('NOTREAL')$q$, 'C3: eve''s wrong code is refused');
 
--- alice and bob each create their character, as themselves
+-- alice and bob each make a character, as themselves, and make it active in the campaign
 select t.act_as('f1000000-0000-0000-0000-000000000002');
-select t.expect_affects($q$insert into public.characters (owner_id, campaign_id, character_name, data) values ('f1000000-0000-0000-0000-000000000002', 'f2000000-0000-0000-0000-0000000000c1', 'Dana Voss', '{"hp":10}')$q$, 1, 'C4: alice creates her character');
+select t.expect_affects($q$insert into public.characters (owner_id, character_name, data) values ('f1000000-0000-0000-0000-000000000002', 'Dana Voss', '{"hp":10}')$q$, 1, 'C4: alice creates her character');
+select t.expect_count($q$select 1 from (select public.choose_character('f2000000-0000-0000-0000-0000000000c1', (select id from public.characters where owner_id = 'f1000000-0000-0000-0000-000000000002'))) x$q$, 1, 'C4b: alice makes it active in the campaign');
 select t.act_as('f1000000-0000-0000-0000-000000000003');
-select t.expect_affects($q$insert into public.characters (owner_id, campaign_id, character_name, data) values ('f1000000-0000-0000-0000-000000000003', 'f2000000-0000-0000-0000-0000000000c1', 'Grix', '{"hp":8}')$q$, 1, 'C5: bob creates his character');
+select t.expect_affects($q$insert into public.characters (owner_id, character_name, data) values ('f1000000-0000-0000-0000-000000000003', 'Grix', '{"hp":8}')$q$, 1, 'C5: bob creates his character');
+select t.expect_count($q$select 1 from (select public.choose_character('f2000000-0000-0000-0000-0000000000c1', (select id from public.characters where owner_id = 'f1000000-0000-0000-0000-000000000003'))) x$q$, 1, 'C5b: bob makes it active in the campaign');
 
 -- ═══ Reading ═════════════════════════════════════════════════════════════
 select t.act_as('f1000000-0000-0000-0000-000000000002');
@@ -45,7 +47,7 @@ select t.expect_count($q$select 1 from public.characters where owner_id = 'f1000
 select t.expect_count($q$select 1 from public.characters where owner_id = 'f1000000-0000-0000-0000-000000000003'$q$, 0, 'C7: alice cannot read bob''s character, even by naming its owner');
 select t.expect_count($q$select 1 from public.characters$q$, 1, 'C7b: an unfiltered read shows alice only her own');
 select t.act_as('f1000000-0000-0000-0000-000000000001');
-select t.expect_count($q$select 1 from public.characters where campaign_id = 'f2000000-0000-0000-0000-0000000000c1'$q$, 2, 'C8: the DM reads every character in their campaign');
+select t.expect_count($q$select 1 from public.characters$q$, 2, 'C8: the DM reads every character active in their campaign');
 select t.act_as('f1000000-0000-0000-0000-000000000004');
 select t.expect_count($q$select 1 from public.characters$q$, 0, 'C9: eve, who never joined, reads none');
 select t.expect_count($q$select 1 from public.campaigns where id = 'f2000000-0000-0000-0000-0000000000c1'$q$, 0, 'C10: eve cannot read the campaign even by guessing its id');
@@ -71,10 +73,16 @@ select t.expect_denied($q$insert into public.campaign_players (campaign_id, play
 -- ═══ Removal ═════════════════════════════════════════════════════════════
 select t.act_as('f1000000-0000-0000-0000-000000000001');
 select t.expect_affects($q$select public.remove_player('f2000000-0000-0000-0000-0000000000c1', 'f1000000-0000-0000-0000-000000000003')$q$, 1, 'C15: the DM removes bob');
-select t.expect_count($q$select 1 from public.characters where campaign_id = 'f2000000-0000-0000-0000-0000000000c1'$q$, 2, 'C16: the DM can still read bob''s sheet (needed for Restore)');
+select t.expect_count($q$select 1 from public.characters$q$, 1, 'C16: the DM no longer reads bob''s live sheet (he can keep editing it)');
+select t.expect_count($q$select 1 from public.departed_sheets where player_id = 'f1000000-0000-0000-0000-000000000003' and character_name = 'Grix' and data = '{"hp":8}' and reason = 'removed'$q$, 1,
+  'C16b: the DM reads the copy kept when bob was removed');
 select t.expect_count($q$select 1 from public.campaign_players where campaign_id = 'f2000000-0000-0000-0000-0000000000c1'$q$, 1, 'C17: the active roster now shows only alice');
 select t.act_as('f1000000-0000-0000-0000-000000000003');
 select t.expect_count($q$select 1 from public.characters where owner_id = 'f1000000-0000-0000-0000-000000000003'$q$, 1, 'C18: bob''s sheet still exists for him (removed, not deleted)');
+select t.expect_affects($q$update public.characters set data = '{"hp":1}' where owner_id = 'f1000000-0000-0000-0000-000000000003'$q$, 1, 'C18b: bob can keep editing his own character');
+select t.act_as('f1000000-0000-0000-0000-000000000001');
+select t.expect_count($q$select 1 from public.departed_sheets where player_id = 'f1000000-0000-0000-0000-000000000003' and data = '{"hp":8}'$q$, 1, 'C18c: ...and the DM''s copy does not change');
+select t.act_as('f1000000-0000-0000-0000-000000000003');
 select t.expect_count($q$select 1 from public.campaigns where id = 'f2000000-0000-0000-0000-0000000000c1'$q$, 0, 'C19: a removed player can no longer read the campaign itself');
 
 \echo ALL CORE TESTS PASSED

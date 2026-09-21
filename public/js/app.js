@@ -2,6 +2,8 @@
 // Loaded as <script type="module"> after /vendor/supabase.js (see index.html).
 import * as auth from "./auth.js";
 import * as characters from "./characters.js";
+import { activeByCampaign, copyOfRow, describeCharacters, displayName } from "./character-list.js";
+import { charactersView, chooseCharacterView, deletedCharacterView } from "./character-views.js";
 import * as data from "./data.js";
 import { SheetFormatError, openSheet } from "./eclipse-rules.js";
 import { h } from "./dom.js";
@@ -9,7 +11,7 @@ import { createRouter } from "./router.js";
 import { historyView } from "./history-view.js";
 import { FALLBACK_REFRESH_MS, createRosterPanel } from "./roster-view.js";
 import { createSheetView } from "./sheet/index.js";
-import { downloadText, fileNameForName, serializeStored } from "./sheet/files.js";
+import { downloadText, fileNameForName, readSheetFile, serializeStored } from "./sheet/files.js";
 import * as views from "./views.js";
 import { cleanDisplayName, friendlyError, isUuid, normalizeCode, safeNextPath } from "./util.js";
 
@@ -21,11 +23,16 @@ const ROUTES = [
   { name: "reset", pattern: "/reset-password" },
   { name: "account", pattern: "/account" },
   { name: "join", pattern: "/join/:code" },
-  { name: "play", pattern: "/campaign/:id/play" },
-  { name: "history", pattern: "/campaign/:id/play/history" },
-  { name: "snapshot", pattern: "/campaign/:id/play/history/:historyId" },
+  { name: "characters", pattern: "/characters" },
+  { name: "character", pattern: "/characters/:characterId" },
+  { name: "history", pattern: "/characters/:characterId/history" },
+  { name: "snapshot", pattern: "/characters/:characterId/history/:historyId" },
+  { name: "choose", pattern: "/campaign/:id/character" },
   { name: "dm", pattern: "/campaign/:id/dm" },
   { name: "dmsheet", pattern: "/campaign/:id/dm/:characterId" },
+  { name: "dmhistory", pattern: "/campaign/:id/dm/:characterId/history" },
+  { name: "dmsnapshot", pattern: "/campaign/:id/dm/:characterId/history/:historyId" },
+  { name: "departed", pattern: "/campaign/:id/left/:copyId" },
 ];
 
 const main = document.getElementById("main");
@@ -192,12 +199,18 @@ async function onRoute({ path, search, match, initial }) {
     if (match.name === "home") {
       if (!(await ensureReady({ path, initial }))) return;
       showHere(views.loadingView("Loading your campaign..."));
-      const [campaigns, canCreate] = await Promise.all([data.listMyCampaigns(user.id), data.isCampaignCreator(user.id)]);
+      const [campaigns, canCreate, rows, assignments] = await Promise.all([
+        data.listMyCampaigns(user.id),
+        data.isCampaignCreator(user.id),
+        characters.listCharacters(user.id),
+        characters.listMyAssignments(user.id),
+      ]);
       if (!alive()) return;
       return showHere(
         views.homeView({
           profile: state.profile,
           campaigns,
+          activeByCampaign: activeByCampaign(rows, assignments),
           canCreate,
           onJoin: async (code) => router.go(`/join/${encodeURIComponent(code)}`),
           onCreate: async (name) => {
@@ -216,10 +229,23 @@ async function onRoute({ path, search, match, initial }) {
       showHere(views.loadingView("Joining the campaign..."));
       const joined = await data.joinCampaign(code);
       if (!alive()) return;
-      return router.go(`/campaign/${encodeURIComponent(joined.campaign_id)}/play`, { replace: true });
+      return router.go(`/campaign/${encodeURIComponent(joined.campaign_id)}/character`, { replace: true });
     }
 
-    // play and dm
+    if (match.name === "characters") {
+      if (!(await ensureReady({ path, initial }))) return;
+      return await showCharacters({ user, alive, announce });
+    }
+    if (match.name === "character" || match.name === "history" || match.name === "snapshot") {
+      if (!isUuid(match.params.characterId)) return showHere(views.notFoundView("We could not find that character."), "Not found");
+      if (!(await ensureReady({ path, initial }))) return;
+      const here = { user, characterId: match.params.characterId, alive, announce };
+      if (match.name === "character") return await showSheet(here);
+      if (match.name === "history") return await showHistory(here);
+      return await showSnapshot({ ...here, historyId: match.params.historyId });
+    }
+
+    // choose and the DM's pages
     if (!isUuid(match.params.id)) return showHere(views.notFoundView("We could not find that campaign."), "Not found");
     if (!(await ensureReady({ path, initial }))) return;
     showHere(views.loadingView("Loading the campaign..."));
@@ -227,49 +253,34 @@ async function onRoute({ path, search, match, initial }) {
     if (!alive()) return;
     if (!campaign) return showHere(views.notFoundView("We could not find that campaign, or you are not a member of it."), "Not found");
 
-    if (match.name === "dm" || match.name === "dmsheet") {
-      if (campaign.dm_id !== user.id) {
-        return showHere(views.notFoundView("Only the DM of this campaign can open this page."), "Not allowed");
-      }
-      if (match.name === "dmsheet") return showPlayersSheet({ campaign, characterId: match.params.characterId, alive, announce });
-      const roster = createRosterPanel({ campaign, api: { sync: data.syncRoster, fetchFresh: data.fetchRosterFresh, subscribe: data.subscribeToCharacters }, download: downloadText });
-      return show(
-        views.dmView({
-          campaign,
-          roster: roster.element,
-          loadInvites: () => data.listInvites(campaign.id),
-          createInvite: (options) => data.createInvite(campaign.id, options),
-          revokeInvite: (id) => data.revokeInvite(id),
-          onCopy: (text) => navigator.clipboard.writeText(text),
-        }),
-        campaign.name,
-        announce,
-        { dispose: roster.dispose },
-      );
+    if (match.name === "choose") {
+      if (campaign.dm_id === user.id) return showHere(views.dmHasNoSheetView({ campaign }), campaign.name);
+      return await showChoose({ campaign, user, alive, announce });
     }
-    // play, history and snapshot: the player's own sheet. A DM has none.
-    if (campaign.dm_id === user.id) return showHere(views.dmHasNoSheetView({ campaign }), campaign.name);
-    if (match.name === "history") return showHistory({ campaign, user, alive, announce });
-    if (match.name === "snapshot") return showSnapshot({ campaign, user, historyId: match.params.historyId, alive, announce });
-    // Nothing is drawn until the row has loaded and been read.
-    const row = await characters.loadCharacter(campaign.id, user.id);
-    if (!alive()) return;
-    let opened;
-    try {
-      opened = openSheet(row);
-    } catch (err) {
-      if (!(err instanceof SheetFormatError)) throw err;
-      console.error(err);
-      return showHere(views.sheetUnreadableView({ campaign }), campaign.name);
+
+    // Everything else here is the DM's, and read only.
+    if (campaign.dm_id !== user.id) {
+      return showHere(views.notFoundView("Only the DM of this campaign can open this page."), "Not allowed");
     }
-    const sheet = createSheetView({
-      campaign,
-      opened,
-      row,
-      persist: characters.saveCharacter,
-      onOpenHistory: () => router.go(`/campaign/${encodeURIComponent(campaign.id)}/play/history`),
-    });
-    return show(sheet.element, campaign.name, announce, { wide: true, dispose: sheet.dispose, flush: sheet.flush });
+    const inCampaign = { campaign, alive, announce };
+    if (match.name === "dmsheet") return await showPlayersSheet({ ...inCampaign, characterId: match.params.characterId });
+    if (match.name === "dmhistory") return await showPlayersHistory({ ...inCampaign, characterId: match.params.characterId });
+    if (match.name === "dmsnapshot") return await showPlayersSnapshot({ ...inCampaign, characterId: match.params.characterId, historyId: match.params.historyId });
+    if (match.name === "departed") return await showDepartedSheet({ ...inCampaign, copyId: match.params.copyId });
+    const roster = createRosterPanel({ campaign, api: { sync: data.syncRoster, subscribe: data.subscribeToRoster }, download: downloadText });
+    return show(
+      views.dmView({
+        campaign,
+        roster: roster.element,
+        loadInvites: () => data.listInvites(campaign.id),
+        createInvite: (options) => data.createInvite(campaign.id, options),
+        revokeInvite: (id) => data.revokeInvite(id),
+        onCopy: (text) => navigator.clipboard.writeText(text),
+      }),
+      campaign.name,
+      announce,
+      { dispose: roster.dispose },
+    );
   } catch (err) {
     if (!alive()) return;
     console.error(err);
@@ -277,44 +288,146 @@ async function onRoute({ path, search, match, initial }) {
   }
 }
 
-// The copies the database has kept of the player's own sheet (ADR 0010).
-async function showHistory({ campaign, user, alive, announce }) {
-  const row = await characters.findCharacter(campaign.id, user.id);
-  if (!alive()) return;
-  if (!row) return show(views.notFoundView("You do not have a sheet in this campaign yet."), "Not found", announce);
-  const entries = await characters.listHistory(row.id);
-  if (!alive()) return;
-  const saveCopy = async (entry) => {
-    const snapshot = await characters.readSnapshot(entry.id);
-    if (!snapshot) throw new Error("that version was not found");
-    downloadText(fileNameForName(snapshot.character_name), serializeStored(snapshot));
-  };
-  return show(historyView({ campaign, entries, onSaveCopy: saveCopy }), "Version history", announce);
-}
+const characterPath = (id) => `/characters/${encodeURIComponent(id)}`;
+const campaignPath = (campaign) => `/campaign/${encodeURIComponent(campaign.id)}`;
+const isHistoryId = (value) => /^\d{1,15}$/.test(value);
 
-// One old copy, read only, with the choice to put it back.
-async function showSnapshot({ campaign, user, historyId, alive, announce }) {
-  if (!/^\d{1,15}$/.test(historyId)) return show(views.notFoundView("We could not find that version."), "Not found", announce);
-  const row = await characters.findCharacter(campaign.id, user.id);
-  const snapshot = row && (await characters.readSnapshot(Number(historyId)));
-  if (!alive()) return;
-  if (!row || !snapshot || snapshot.character_id !== row.id) return show(views.notFoundView("We could not find that version of your sheet."), "Not found", announce);
-  let opened;
+const backBar = (href, label, ...more) => h("p", { class: "sheet-back" }, h("a", { class: "btn btn-quiet btn-small", href }, label), ...more);
+
+// Opens a stored sheet, or says it cannot be read (and returns null). The stored copy
+// is left exactly as it is.
+function openStored(row, { ownSheet, title, announce }) {
   try {
-    opened = openSheet(snapshot);
+    return openSheet(row);
   } catch (err) {
     if (!(err instanceof SheetFormatError)) throw err;
     console.error(err);
-    return show(views.sheetUnreadableView({ campaign, ownSheet: false }), "Version history", announce);
+    show(views.sheetUnreadableView({ ownSheet }), title, announce);
+    return null;
   }
+}
+
+async function loadCharacterList(user) {
+  const [rows, assignments, campaigns] = await Promise.all([characters.listCharacters(user.id), characters.listMyAssignments(user.id), data.listMyCampaigns(user.id)]);
+  return describeCharacters({ rows, assignments, campaigns });
+}
+
+// A person's characters, in or out of a campaign (ADR 0011).
+async function showCharacters({ user, alive, announce }) {
+  const draw = async (focus) => {
+    const list = await loadCharacterList(user);
+    if (!alive()) return;
+    show(
+      charactersView({
+        list,
+        onCreate: async () => router.go(characterPath((await characters.createCharacter(user.id)).id)),
+        onCreateFromFile: async (file) => {
+          const sheet = await readSheetFile(file);
+          const made = await characters.createCharacter(user.id, { name: (sheet.id.name || "").trim().slice(0, 100), data: sheet });
+          router.go(characterPath(made.id));
+        },
+        onCopy: async (id) => {
+          const row = await characters.readCharacter(id);
+          if (!row) throw new Error("that character was not found");
+          await characters.createCharacter(user.id, copyOfRow(row));
+          await draw(false);
+        },
+        onDelete: async (id) => {
+          await characters.deleteCharacter(id);
+          await draw(false);
+        },
+        onUndelete: async (id) => {
+          await characters.undeleteCharacter(id);
+          await draw(false);
+        },
+      }),
+      "Your characters",
+      focus,
+    );
+  };
+  return draw(announce);
+}
+
+// Which character the player uses in this campaign.
+async function showChoose({ campaign, user, alive, announce }) {
+  const list = await loadCharacterList(user);
+  if (!alive()) return;
+  const choose = async (id) => {
+    await characters.chooseCharacter(campaign.id, id);
+    router.go(characterPath(id));
+  };
+  return show(
+    chooseCharacterView({
+      campaign,
+      list,
+      onChoose: choose,
+      onCreate: async () => choose((await characters.createCharacter(user.id)).id),
+    }),
+    campaign.name,
+    announce,
+  );
+}
+
+// The player's own character sheet. Nothing is drawn until the row has loaded and been read.
+async function showSheet({ user, characterId, alive, announce }) {
+  const row = await characters.readCharacter(characterId);
+  if (!alive()) return;
+  if (!row || row.owner_id !== user.id) return show(views.notFoundView("We could not find that character."), "Not found", announce);
+  if (row.deleted_at) return show(deletedCharacterView(), "Deleted character", announce);
+  const opened = openStored(row, { ownSheet: true, title: "Character sheet", announce });
+  if (!opened) return;
+  const sheet = createSheetView({
+    opened,
+    row,
+    persist: characters.saveCharacter,
+    onOpenHistory: () => router.go(`${characterPath(row.id)}/history`),
+  });
+  return show(h("div", {}, backBar("/characters", "Back to my characters"), sheet.element), displayName(row), announce, { wide: true, dispose: sheet.dispose, flush: sheet.flush });
+}
+
+// The copies the database has kept of a sheet: its own copy for a download.
+async function saveCopyOf(entry) {
+  const snapshot = await characters.readSnapshot(entry.id);
+  if (!snapshot) throw new Error("that version was not found");
+  downloadText(fileNameForName(snapshot.character_name), serializeStored(snapshot));
+}
+
+// The copies the database has kept of the player's own sheet (ADR 0010).
+async function showHistory({ user, characterId, alive, announce }) {
+  const row = await characters.readCharacter(characterId);
+  if (!alive()) return;
+  if (!row || row.owner_id !== user.id) return show(views.notFoundView("We could not find that character."), "Not found", announce);
+  const entries = await characters.listHistory(row.id);
+  if (!alive()) return;
+  return show(
+    historyView({
+      badge: displayName(row),
+      intro:
+        "The site keeps a copy of your sheet before your edits (at most one every 10 minutes) and before each rules update. Each copy below is the sheet as it was just before the time shown. Look at one, then put it back if you want it.",
+      back: { href: characterPath(row.id), label: "Back to my sheet" },
+      snapshotPath: (entry) => `${characterPath(row.id)}/history/${encodeURIComponent(entry.id)}`,
+      entries,
+      onSaveCopy: saveCopyOf,
+    }),
+    "Version history",
+    announce,
+  );
+}
+
+// One old copy, read only, with the choice to put it back.
+async function showSnapshot({ user, characterId, historyId, alive, announce }) {
+  if (!isHistoryId(historyId)) return show(views.notFoundView("We could not find that version."), "Not found", announce);
+  const [row, snapshot] = await Promise.all([characters.readCharacter(characterId), characters.readSnapshot(Number(historyId))]);
+  if (!alive()) return;
+  if (!row || row.owner_id !== user.id || !snapshot || snapshot.character_id !== row.id) return show(views.notFoundView("We could not find that version of your sheet."), "Not found", announce);
+  const opened = openStored(snapshot, { ownSheet: false, title: "Version history", announce });
+  if (!opened) return;
   const when = new Date(snapshot.saved_at).toLocaleString();
   const view = createSheetView({
-    campaign,
     opened,
     row: { id: snapshot.id, updated_at: snapshot.saved_at },
     readOnlyNotice: `This is your sheet as it was just before ${when}. It is read only, and your current sheet has not changed.`,
   });
-  const historyPath = `/campaign/${encodeURIComponent(campaign.id)}/play/history`;
   const status = h("span", { class: "status", role: "status", "aria-live": "polite" });
   const restore = h("button", { class: "btn btn-primary btn-small", type: "button" }, "Put this version back");
   restore.addEventListener("click", async () => {
@@ -323,63 +436,132 @@ async function showSnapshot({ campaign, user, historyId, alive, announce }) {
     status.textContent = "";
     try {
       await characters.restoreVersion(snapshot.id, row.updated_at);
-      router.go(`/campaign/${encodeURIComponent(campaign.id)}/play`);
+      router.go(characterPath(row.id));
     } catch (err) {
       console.error(err);
       status.textContent = `The sheet was not changed. ${friendlyError(err)}`;
       restore.disabled = false;
     }
   });
-  const bar = h("p", { class: "sheet-back" }, h("a", { class: "btn btn-quiet btn-small", href: historyPath }, "Back to the history"), " ", restore, " ", status);
-  return show(h("div", {}, bar, view.element), campaign.name, announce, { wide: true, dispose: view.dispose });
+  const bar = backBar(`${characterPath(row.id)}/history`, "Back to the history", " ", restore, " ", status);
+  return show(h("div", {}, bar, view.element), displayName(row), announce, { wide: true, dispose: view.dispose });
 }
+
+// ── The DM's pages. Read only, and only for characters active in their campaign. ──
 
 // The DM's read-only view of one player's sheet. It follows the row while it is open.
 async function showPlayersSheet({ campaign, characterId, alive, announce }) {
   if (!isUuid(characterId)) return show(views.notFoundView("We could not find that sheet."), "Not found", announce);
-  const row = await characters.readCharacter(characterId);
+  const assignment = await data.findAssignment(campaign.id, characterId);
+  const row = assignment && (await characters.readCharacter(characterId));
   if (!alive()) return;
-  if (!row || row.campaign_id !== campaign.id) return show(views.notFoundView("We could not find that sheet in this campaign."), "Not found", announce);
-  let opened;
-  try {
-    opened = openSheet(row);
-  } catch (err) {
-    if (!(err instanceof SheetFormatError)) throw err;
-    console.error(err);
-    return show(views.sheetUnreadableView({ campaign, ownSheet: false }), campaign.name, announce);
-  }
-  const names = await data.readProfileNames([row.owner_id]);
+  if (!row) return show(views.notFoundView("We could not find that sheet in this campaign. The player may have chosen a different character."), "Not found", announce);
+  const opened = openStored(row, { ownSheet: false, title: campaign.name, announce });
+  if (!opened) return;
+  const names = await data.readProfileNames([assignment.player_id]);
   if (!alive()) return;
-  const playerName = names[row.owner_id] || "a player";
+  const playerName = names[assignment.player_id] || "a player";
   const view = createSheetView({
-    campaign,
     opened,
     row,
     readOnlyNotice: `You are viewing ${playerName}'s sheet as the DM. It is read only, and it updates when they make changes.`,
   });
+  const status = h("p", { class: "muted", role: "status" });
 
   let seen = row.updated_at;
+  let unsubscribe = () => {};
+  let poll = null;
+  const stopWatching = () => {
+    unsubscribe();
+    clearInterval(poll);
+  };
   const catchUp = async () => {
     try {
       const latest = await characters.readCharacter(characterId);
-      if (!latest || latest.updated_at === seen) return;
+      if (!latest) {
+        status.textContent = `${playerName} has chosen a different character, or has left. This sheet is no longer updated.`;
+        stopWatching();
+        return;
+      }
+      if (latest.updated_at === seen) return;
       seen = latest.updated_at;
       view.update(openSheet(latest));
     } catch (err) {
       console.error(err);
     }
   };
-  const unsubscribe = data.subscribeToCharacters(campaign.id, catchUp, () => {});
-  const poll = setInterval(catchUp, FALLBACK_REFRESH_MS);
-  const back = h("a", { class: "btn btn-quiet btn-small", href: `/campaign/${encodeURIComponent(campaign.id)}/dm` }, "Back to the DM page");
-  return show(h("div", {}, h("p", { class: "sheet-back" }, back), view.element), campaign.name, announce, {
+  unsubscribe = data.subscribeToRoster(campaign.id, catchUp, () => {});
+  poll = setInterval(catchUp, FALLBACK_REFRESH_MS);
+  const bar = backBar(`${campaignPath(campaign)}/dm`, "Back to the DM page", " ", h("a", { class: "btn btn-quiet btn-small", href: `${campaignPath(campaign)}/dm/${encodeURIComponent(characterId)}/history` }, "History"));
+  return show(h("div", {}, bar, status, view.element), campaign.name, announce, {
     wide: true,
     dispose() {
-      unsubscribe();
-      clearInterval(poll);
+      stopWatching();
       view.dispose();
     },
   });
+}
+
+// The copies kept of a player's sheet since it became active in the DM's campaign.
+async function showPlayersHistory({ campaign, characterId, alive, announce }) {
+  if (!isUuid(characterId)) return show(views.notFoundView("We could not find that sheet."), "Not found", announce);
+  const assignment = await data.findAssignment(campaign.id, characterId);
+  if (!assignment) return show(views.notFoundView("We could not find that sheet in this campaign."), "Not found", announce);
+  const [entries, names] = await Promise.all([characters.listHistory(characterId), data.readProfileNames([assignment.player_id])]);
+  if (!alive()) return;
+  const sheetPath = `${campaignPath(campaign)}/dm/${encodeURIComponent(characterId)}`;
+  return show(
+    historyView({
+      badge: `${names[assignment.player_id] || "A player"}'s sheet`,
+      intro:
+        "The site keeps a copy of a sheet before each edit (at most one every 10 minutes) and before each rules update. You see the copies kept since this character became active in your campaign. Each is the sheet as it was just before the time shown. You can only look: a DM never changes a sheet.",
+      back: { href: sheetPath, label: "Back to the sheet" },
+      snapshotPath: (entry) => `${sheetPath}/history/${encodeURIComponent(entry.id)}`,
+      entries,
+      onSaveCopy: saveCopyOf,
+    }),
+    "Version history",
+    announce,
+  );
+}
+
+async function showPlayersSnapshot({ campaign, characterId, historyId, alive, announce }) {
+  if (!isUuid(characterId) || !isHistoryId(historyId)) return show(views.notFoundView("We could not find that version."), "Not found", announce);
+  const assignment = await data.findAssignment(campaign.id, characterId);
+  const snapshot = assignment && (await characters.readSnapshot(Number(historyId)));
+  if (!alive()) return;
+  if (!snapshot || snapshot.character_id !== characterId) return show(views.notFoundView("We could not find that version of the sheet."), "Not found", announce);
+  const opened = openStored(snapshot, { ownSheet: false, title: "Version history", announce });
+  if (!opened) return;
+  const names = await data.readProfileNames([assignment.player_id]);
+  if (!alive()) return;
+  const when = new Date(snapshot.saved_at).toLocaleString();
+  const view = createSheetView({
+    opened,
+    row: { id: snapshot.id, updated_at: snapshot.saved_at },
+    readOnlyNotice: `This is ${names[assignment.player_id] || "a player"}'s sheet as it was just before ${when}. It is read only.`,
+  });
+  const bar = backBar(`${campaignPath(campaign)}/dm/${encodeURIComponent(characterId)}/history`, "Back to the history");
+  return show(h("div", {}, bar, view.element), campaign.name, announce, { wide: true, dispose: view.dispose });
+}
+
+// The sheet as it was when a player left or was removed. It never changes.
+async function showDepartedSheet({ campaign, copyId, alive, announce }) {
+  if (!isHistoryId(copyId)) return show(views.notFoundView("We could not find that sheet."), "Not found", announce);
+  const copy = await data.readDepartedSheet(Number(copyId));
+  if (!alive()) return;
+  if (!copy || copy.campaign_id !== campaign.id) return show(views.notFoundView("We could not find that sheet in this campaign."), "Not found", announce);
+  const opened = openStored(copy, { ownSheet: false, title: campaign.name, announce });
+  if (!opened) return;
+  const names = await data.readProfileNames([copy.player_id]);
+  if (!alive()) return;
+  const when = new Date(copy.kept_at).toLocaleString();
+  const view = createSheetView({
+    opened,
+    row: { id: copy.id, updated_at: copy.kept_at },
+    readOnlyNotice: `This is ${names[copy.player_id] || "a player"}'s sheet as it was when ${copy.reason === "removed" ? "you removed them" : "they left"}, on ${when}. It is read only and it does not change.`,
+  });
+  return show(h("div", {}, backBar(`${campaignPath(campaign)}/dm`, "Back to the DM page"), view.element), campaign.name, announce, { wide: true, dispose: view.dispose });
 }
 
 async function boot() {

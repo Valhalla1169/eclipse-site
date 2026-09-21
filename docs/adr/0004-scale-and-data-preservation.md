@@ -1,7 +1,9 @@
 # ADR 0004: Scale limits and never losing a character
 
 Status: Accepted. The database protections below are implemented by migration
-`0004_protect_characters_from_deletion.sql`.
+`0004_protect_characters_from_deletion.sql`. Amended by ADR 0010 (a player can restore) and ADR 0011
+(a campaign no longer holds characters, so deleting one no longer cascades to them; a player's
+"delete" hides a character).
 Date: 2026-09-19
 
 ## Context

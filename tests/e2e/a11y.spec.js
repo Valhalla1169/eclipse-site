@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { blank } from "../../public/js/eclipse-rules.js";
-import { CHARACTER_ID, campaign, characterRow, expect, ids, open, players, seed, test } from "./helpers.js";
+import { CHARACTER_ID, assignmentRow, campaign, characterRow, expect, ids, open, players, seed, sheetPath, test } from "./helpers.js";
 
 // An automated accessibility check (DESIGN.md sections 4 and 6.4) of every page, in the
 // lightest and the darkest theme. It finds what a machine can find, mainly contrast,
@@ -37,9 +37,9 @@ for (const theme of ["latte", "mocha"]) {
         await open(page, path);
         await expectClean(page, path);
       }
-      await seed(page, { mock: { profile: players.dana.profile, campaigns: [campaign], character: row }, user: players.dana });
+      await seed(page, { mock: { profile: players.dana.profile, campaigns: [campaign], character: row, assignments: [assignmentRow()] }, user: players.dana });
       await setTheme(page);
-      for (const path of ["/", "/account"]) {
+      for (const path of ["/", "/account", "/characters", `/campaign/${ids.campaign}/character`]) {
         await open(page, path);
         await expectClean(page, path);
       }
@@ -48,22 +48,22 @@ for (const theme of ["latte", "mocha"]) {
     test("every page of the sheet", async ({ page }) => {
       await seed(page, { mock: { profile: players.dana.profile, campaigns: [campaign], character: row, history }, user: players.dana });
       await setTheme(page);
-      await open(page, `/campaign/${ids.campaign}/play`);
+      await open(page, sheetPath());
       for (const tab of ["Core", "Equipment", "Casting", "Testament", "Log", "Reference"]) {
         await page.getByRole("tab", { name: tab }).click();
         await expectClean(page, `sheet ${tab}`);
       }
-      await open(page, `/campaign/${ids.campaign}/play/history`);
+      await open(page, `${sheetPath()}/history`);
       await expect(page.locator(".history > li")).toHaveCount(1);
       await expectClean(page, "version history");
-      await open(page, `/campaign/${ids.campaign}/play/history/1`);
+      await open(page, `${sheetPath()}/history/1`);
       await expectClean(page, "an old version");
     });
 
     test("the DM's roster and a player's sheet", async ({ page }) => {
       const members = [{ player_id: PLAYER_ID, joined_at: "2026-09-01T00:00:00Z" }];
       const profiles = [{ id: PLAYER_ID, display_name: "Dana" }];
-      await seed(page, { mock: { profile: players.dm.profile, campaigns: [campaign], members, profiles, characters: [row] }, user: players.dm });
+      await seed(page, { mock: { profile: players.dm.profile, campaigns: [campaign], members, profiles, characters: [row], assignments: [assignmentRow()] }, user: players.dm });
       await setTheme(page);
       await open(page, `/campaign/${ids.campaign}/dm`);
       await expect(page.locator(".roster > li")).toHaveCount(1);

@@ -4,6 +4,7 @@ Status: Accepted
 Date: 2026-09-19
 Amends: ADR 0002 (the sheet-size cap), ADR 0003 (grants are now per column), ADR 0004
 (history retention)
+Amended by: ADR 0011 (`characters.campaign_id` is gone; `deleted_at` is server-controlled)
 Migration: `supabase/migrations/0006_least_privilege_columns_and_bounded_history.sql`
 
 ## Context

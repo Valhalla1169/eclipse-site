@@ -3,7 +3,8 @@
 Status: **Accepted.** Built.
 Date: 2026-09-20
 Builds on: ADR 0001 (the DM reads every sheet and never writes one), 0004 (a backup button for the
-DM) and 0008 (the player sheet).
+DM) and 0008 (the player sheet). ADR 0011 changed what the roster reads: each player's active
+character, and the copies kept from players who left, instead of one sheet per player per campaign.
 
 ## What it is
 

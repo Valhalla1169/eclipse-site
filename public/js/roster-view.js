@@ -30,9 +30,10 @@ function playerStats(summary) {
   );
 }
 
-// api: { sync(campaignId, previous), fetchFresh(campaignId), subscribe(campaignId, onChange, onStatus) }
+// api: { sync(campaignId, previous), subscribe(campaignId, onChange, onStatus) }. sync with no
+// `previous` reads every sheet again, which the backup uses.
 export function createRosterPanel({ campaign, api, download }) {
-  let roster = { members: [], profiles: {}, characters: {} };
+  let roster = { members: [], assignments: [], profiles: {}, characters: {}, departed: {} };
   let busy = false;
   let again = false;
   let eventTimer = null;
@@ -44,10 +45,12 @@ export function createRosterPanel({ campaign, api, download }) {
   const formerBox = h("div", { class: "stack" });
   const empty = h("p", { class: "muted" });
 
+  const campaignPath = `/campaign/${encodeURIComponent(campaign.id)}`;
+
   const cardFor = (entry) => {
     const { character } = entry;
-    const row = character && roster.characters[character.id];
-    const name = character ? character.name || "Unnamed survivor" : "No sheet yet";
+    const name = character ? character.name || "Unnamed survivor" : "No character chosen yet";
+    const verb = character && character.copyId ? "Kept" : "Saved";
     const summary = character && character.summary;
     const flag = summary && (summary.starved ? "Starved" : summary.critical);
     return h(
@@ -59,7 +62,10 @@ export function createRosterPanel({ campaign, api, download }) {
         h("div", {}, h("h3", {}, name), h("p", { class: "muted" }, `Player: ${entry.playerName}`)),
         flag ? h("span", { class: "badge badge-alert" }, flag) : null,
       ),
-      !character ? h("p", { class: "muted" }, "They have not opened their sheet yet.") : null,
+      !character ? h("p", { class: "muted" }, "They have not chosen a character for this campaign yet.") : null,
+      character && character.copyId
+        ? h("p", { class: "muted" }, `This is their sheet as it was when ${character.reason === "removed" ? "you removed them" : "they left"}. It does not change.`)
+        : null,
       character && character.unreadable ? h("p", { class: "notice notice-error" }, h("strong", {}, "Error: "), "This sheet could not be read. It is safe in the database and in the backup file.") : null,
       character && character.newerVersion ? h("p", { class: "muted" }, "Saved by a newer version of the app. Some fields may not show.") : null,
       summary
@@ -69,15 +75,16 @@ export function createRosterPanel({ campaign, api, download }) {
             playerStats(summary),
           ]
         : null,
-      character ? h("p", { class: "muted small saved", "data-stamp": character.updatedAt, title: new Date(character.updatedAt).toLocaleString() }, `Saved ${timeAgo(character.updatedAt)}`) : null,
+      character
+        ? h("p", { class: "muted small saved", "data-stamp": character.updatedAt, "data-verb": verb, title: new Date(character.updatedAt).toLocaleString() }, `${verb} ${timeAgo(character.updatedAt)}`)
+        : null,
       character
         ? h(
             "div",
             { class: "actions" },
-            h("a", { class: "btn btn-primary btn-small", href: `/campaign/${encodeURIComponent(campaign.id)}/dm/${encodeURIComponent(character.id)}` }, "Open sheet"),
-            row
-              ? h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: () => download(fileNameForName(character.name || entry.playerName), serializeStored(row)) }, "Save a copy")
-              : null,
+            h("a", { class: "btn btn-primary btn-small", href: character.copyId ? `${campaignPath}/left/${encodeURIComponent(character.copyId)}` : `${campaignPath}/dm/${encodeURIComponent(character.id)}` }, "Open sheet"),
+            character.copyId ? null : h("a", { class: "btn btn-quiet btn-small", href: `${campaignPath}/dm/${encodeURIComponent(character.id)}/history` }, "History"),
+            h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: () => download(fileNameForName(character.name || entry.playerName), serializeStored(character.row)) }, "Save a copy"),
           )
         : null,
     );
@@ -91,7 +98,7 @@ export function createRosterPanel({ campaign, api, download }) {
       ...(former.length
         ? [
             h("h3", {}, "Former players"),
-            h("p", { class: "muted" }, "They are no longer in the campaign. Their sheets are kept."),
+            h("p", { class: "muted" }, "They are no longer in the campaign. Each sheet below is a copy kept when they left."),
             h("ul", { class: "roster" }, ...former.map(cardFor)),
           ]
         : []),
@@ -136,10 +143,10 @@ export function createRosterPanel({ campaign, api, download }) {
     button.disabled = true;
     status.textContent = "Preparing the backup...";
     try {
-      const fresh = await api.fetchFresh(campaign.id);
+      const fresh = await api.sync(campaign.id);
       const file = backupFile({ campaign, ...fresh });
       download(file.name, file.text);
-      const count = Object.keys(fresh.characters).length;
+      const count = Object.keys(fresh.characters).length + Object.keys(fresh.departed).length;
       status.textContent = `Downloaded ${count} ${count === 1 ? "sheet" : "sheets"} in ${file.name}.`;
     } catch (error) {
       console.error(error);
@@ -153,7 +160,7 @@ export function createRosterPanel({ campaign, api, download }) {
   const poll = setInterval(refresh, FALLBACK_REFRESH_MS);
   // Keep "Saved 5 minutes ago" true while the page sits open.
   const clock = setInterval(() => {
-    for (const el of list.querySelectorAll("[data-stamp]")) el.textContent = `Saved ${timeAgo(el.dataset.stamp)}`;
+    for (const el of list.querySelectorAll("[data-stamp]")) el.textContent = `${el.dataset.verb} ${timeAgo(el.dataset.stamp)}`;
   }, 30_000);
   refresh();
 

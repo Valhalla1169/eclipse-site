@@ -1,6 +1,6 @@
 # ADR 0001: Eclipse data model, auth, and access control on Supabase
 
-Status: Accepted, amended by ADR 0002 (character writes require membership), ADR 0003 (explicit grants), ADR 0004 (no client deletes, snapshot history), ADR 0005 (campaign creator allowlist, hashed invites instead of a permanent campaign code, profile visibility), ADR 0006 (least-privilege columns), ADR 0007 (password accounts replace magic-link-only sign-in), ADR 0008 (the player sheet), ADR 0009 (the DM roster) and ADR 0010 (version history)
+Status: Accepted, amended by ADR 0011 (characters belong to people, not campaigns; what the DM reads), ADR 0002 (character writes require membership), ADR 0003 (explicit grants), ADR 0004 (no client deletes, snapshot history), ADR 0005 (campaign creator allowlist, hashed invites instead of a permanent campaign code, profile visibility), ADR 0006 (least-privilege columns), ADR 0007 (password accounts replace magic-link-only sign-in), ADR 0008 (the player sheet), ADR 0009 (the DM roster) and ADR 0010 (version history)
 Date: 2026-09-19
 Repo: eclipse-site (eclipse.deyderae.dev)
 
@@ -99,6 +99,11 @@ these tables), breaking the cycle. All three affected policies
 DM-read) use these helpers rather than inline subqueries.
 
 ### `remove_player()` does not revoke DM read access — intentionally
+
+**Amended by ADR 0011.** A character no longer belongs to a campaign, so the DM reads a character
+only while it is active in their campaign. When a player leaves or is removed, the DM keeps a copy
+of the sheet as it was then (`departed_sheets`), not the live sheet. The reasoning below is the
+original one.
 
 `remove_player(campaign_id, player_id)` deletes the `campaign_players` row
 (so the player drops off the "active roster"), but the DM's

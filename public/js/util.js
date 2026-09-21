@@ -85,7 +85,13 @@ export function friendlyError(err) {
   if (/failed to fetch|networkerror|load failed|network request failed/i.test(msg)) return "Could not reach the server. Check your connection and try again.";
   if (/changed since you opened it/i.test(msg)) return "Your sheet was changed somewhere else since you opened this page. Reload the page and try again.";
   if (/version was not found|no longer exists/i.test(msg)) return "That version could not be found, so it cannot be restored.";
-  if (/not a member of this campaign/i.test(msg)) return "You are not in this campaign, so you cannot change this sheet.";
+  if (/not a member of this campaign/i.test(msg)) return "You are not in this campaign.";
+  if (/already have 10 characters/i.test(msg)) return "You already have 10 characters, the most one person can have. Delete one to make room.";
+  if (/most one person can keep/i.test(msg)) return "You have made 30 characters, counting deleted ones. That is the most one person can keep. Ask the site owner if you need more.";
+  if (/already active in another campaign/i.test(msg)) return "That character is active in another campaign. Choose a different character there first, or make a copy of this one.";
+  if (/active in a campaign/i.test(msg)) return "That character is active in a campaign. Choose a different character there first.";
+  if (/character is deleted/i.test(msg)) return "That character is deleted. Bring it back first.";
+  if (/character was not found/i.test(msg)) return "That character could not be found.";
   if ((err && err.code === "PGRST301") || /jwt expired|invalid jwt/i.test(msg)) return "Your sign-in has ended. Sign in again.";
   if (/permission denied|row-level security|42501/i.test(msg)) return "You do not have access to that.";
   return "Something went wrong. Please try again.";

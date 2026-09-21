@@ -1,8 +1,9 @@
-import { GOOD_PASSWORD, callsTo, campaign, expect, ids, open, patchMock, players, seed, test } from "./helpers.js";
+import { blank } from "../../public/js/eclipse-rules.js";
+import { GOOD_PASSWORD, assignmentRow, callsTo, campaign, characterRow, expect, ids, open, patchMock, players, seed, sheetPath, test } from "./helpers.js";
 
 const { dana, dm } = players;
 const submit = (page, name) => page.getByRole("button", { name, exact: true }).click();
-const playPath = new RegExp(`/campaign/${ids.campaign}/play$`);
+const chooserPath = new RegExp(`/campaign/${ids.campaign}/character$`);
 
 test.describe("home", () => {
   test("a player with no campaign can join, and cannot create", async ({ page }) => {
@@ -36,13 +37,13 @@ test.describe("home", () => {
     expect(await callsTo(page, "/rest/v1/campaigns", "POST")).toHaveLength(0);
   });
 
-  test("a player sees their campaign and opens the sheet page", async ({ page }) => {
-    await seed(page, { mock: { profile: dana.profile, campaigns: [campaign] }, user: dana });
+  test("a player sees their campaign and opens their character's sheet", async ({ page }) => {
+    await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], character: characterRow(blank()), assignments: [assignmentRow()] }, user: dana });
     await open(page, "/");
-    await expect(page.locator(".badge")).toHaveText("Player");
+    await expect(page.locator("article .badge")).toHaveText("Player");
     await page.getByRole("link", { name: "Open my character sheet" }).click();
-    await expect(page).toHaveURL(playPath);
-    await expect(page.getByRole("heading", { name: "Age of Eclipse" })).toBeFocused();
+    await expect(page).toHaveURL(new RegExp(`${sheetPath()}$`));
+    await expect(page.locator("#f_name")).toBeVisible();
   });
 
   test("a server failure shows a retry, and retry recovers", async ({ page }) => {
@@ -66,7 +67,7 @@ test.describe("joining", () => {
     await open(page, "/");
     await page.locator("#code").fill("  abcdef0123 ");
     await submit(page, "Join campaign");
-    await expect(page).toHaveURL(playPath);
+    await expect(page).toHaveURL(chooserPath);
     await expect(page.getByRole("heading", { name: "Age of Eclipse" })).toBeVisible();
     const [rpc] = await callsTo(page, "/rest/v1/rpc/join_campaign");
     expect(rpc.body).toEqual({ p_invite_code: "ABCDEF0123" });
@@ -101,7 +102,7 @@ test.describe("joining", () => {
     await page.locator("#email").fill("dana@example.com");
     await page.locator("#password").fill(GOOD_PASSWORD);
     await submit(page, "Sign in");
-    await expect(page).toHaveURL(playPath);
+    await expect(page).toHaveURL(chooserPath);
     await expect(page.getByRole("heading", { name: "Age of Eclipse" })).toBeVisible();
   });
 
@@ -122,7 +123,7 @@ test.describe("campaign pages", () => {
 
   test("a campaign you cannot see is not found", async ({ page }) => {
     await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], hideCampaign: true }, user: dana });
-    await open(page, `/campaign/${ids.campaign}/play`);
+    await open(page, `/campaign/${ids.campaign}/character`);
     await expect(page.getByText("or you are not a member of it")).toBeVisible();
   });
 
@@ -135,12 +136,12 @@ test.describe("campaign pages", () => {
 
   test("signed out, a campaign page returns you to it after sign-in", async ({ page }) => {
     await seed(page, { mock: { profile: dana.profile, campaigns: [campaign] } });
-    await open(page, `/campaign/${ids.campaign}/play`);
+    await open(page, `/campaign/${ids.campaign}/character`);
     await expect(page).toHaveURL(/\/login\?next=/);
     await page.locator("#email").fill("dana@example.com");
     await page.locator("#password").fill(GOOD_PASSWORD);
     await submit(page, "Sign in");
-    await expect(page).toHaveURL(playPath);
+    await expect(page).toHaveURL(chooserPath);
   });
 });
 

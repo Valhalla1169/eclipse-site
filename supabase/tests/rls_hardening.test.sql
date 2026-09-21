@@ -1,4 +1,4 @@
--- Self-asserting RLS tests for 0002 (harden characters writes) and join normalisation.
+-- Self-asserting RLS tests for 0002 (harden characters writes, now ownership only, ADR 0011) and join normalisation.
 --
 -- Unlike rls_policies.test.sql (which prints results for a human to compare),
 -- every check here RAISES on failure, so `psql -v ON_ERROR_STOP=1 -f` exits
@@ -43,61 +43,76 @@ select t.expect_count($q$select * from public.join_campaign('HARDEN1')$q$, 1, 'p
 select t.act_as('a0000000-0000-0000-0000-0000000000a3');
 select t.expect_count($q$select * from public.join_campaign('HARDEN1')$q$, 1, 'p2 joins C1');
 
--- ═══ Writes require membership (ADR 0002) ═══════════════════════════════
+-- ═══ Writes need ownership, not a campaign (ADR 0011) ═══════════════════
 select t.act_as('a0000000-0000-0000-0000-0000000000a4');
+select t.expect_affects(
+  $q$insert into public.characters (owner_id, character_name) values ('a0000000-0000-0000-0000-0000000000a4', 'Loner')$q$,
+  1, 'H1: anyone signed in can make a character, with or without a campaign');
 select t.expect_denied(
-  $q$insert into public.characters (owner_id, campaign_id, character_name)
-     values ('a0000000-0000-0000-0000-0000000000a4', 'b0000000-0000-0000-0000-0000000000c1', 'Intruder')$q$,
-  'H1: a non-member cannot insert a character into a campaign they never joined');
+  $q$insert into public.characters (owner_id, character_name) values ('a0000000-0000-0000-0000-0000000000a2', 'Forged')$q$,
+  'H1b: nobody can make a character for someone else');
+select t.expect_denied(
+  $q$select public.choose_character('b0000000-0000-0000-0000-0000000000c1', (select id from public.characters where owner_id = 'a0000000-0000-0000-0000-0000000000a4'))$q$,
+  'H1c: a non-member cannot make a character active in a campaign they never joined');
 
 select t.act_as('a0000000-0000-0000-0000-0000000000a2');
 select t.expect_affects(
-  $q$insert into public.characters (owner_id, campaign_id, character_name, data)
-     values ('a0000000-0000-0000-0000-0000000000a2', 'b0000000-0000-0000-0000-0000000000c1', 'Dana', '{"hp":10}')$q$,
-  1, 'H2: a member can insert their own character');
+  $q$insert into public.characters (owner_id, character_name, data)
+     values ('a0000000-0000-0000-0000-0000000000a2', 'Dana', '{"hp":10}')$q$,
+  1, 'H2: a player can insert their own character');
 select t.expect_affects(
   $q$update public.characters set data = '{"hp":9}' where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$,
-  1, 'H2b: a member can update their own character');
+  1, 'H2b: ...and update it');
+select t.expect_count(
+  $q$select 1 from (select public.choose_character('b0000000-0000-0000-0000-0000000000c1', (select id from public.characters where owner_id = 'a0000000-0000-0000-0000-0000000000a2'))) x$q$,
+  1, 'H2c: ...and make it active in a campaign they belong to');
 
 select t.expect_denied(
-  $q$update public.characters set campaign_id = 'b0000000-0000-0000-0000-0000000000c2'
-     where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$,
-  'H3: an owner cannot move their character into another campaign');
+  $q$update public.characters set deleted_at = now() where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$,
+  'H3: a client cannot hide a character with a plain update (only delete_character does)');
 select t.expect_denied(
   $q$update public.characters set owner_id = 'a0000000-0000-0000-0000-0000000000a3'
      where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$,
   'H4: an owner cannot hand their character to someone else');
 
--- ═══ Removed players: can still read, cannot write, can be restored ══════
+-- ═══ Removed players: the DM's copy stops, the player keeps their sheet ═══
 select t.act_as('a0000000-0000-0000-0000-0000000000a3');
 select t.expect_affects(
-  $q$insert into public.characters (owner_id, campaign_id, character_name)
-     values ('a0000000-0000-0000-0000-0000000000a3', 'b0000000-0000-0000-0000-0000000000c1', 'Grix')$q$,
-  1, 'H5a: p2 creates a character before removal');
+  $q$insert into public.characters (owner_id, character_name) values ('a0000000-0000-0000-0000-0000000000a3', 'Grix')$q$,
+  1, 'H5a: p2 creates a character');
+select t.expect_count(
+  $q$select 1 from (select public.choose_character('b0000000-0000-0000-0000-0000000000c1', (select id from public.characters where owner_id = 'a0000000-0000-0000-0000-0000000000a3'))) x$q$,
+  1, 'H5a2: ...and makes it active before removal');
 select t.act_as('a0000000-0000-0000-0000-0000000000a1');
 select t.expect_affects(
   $q$select public.remove_player('b0000000-0000-0000-0000-0000000000c1', 'a0000000-0000-0000-0000-0000000000a3')$q$,
   1, 'H5b: the DM removes p2');
 select t.expect_count(
   $q$select 1 from public.characters where owner_id = 'a0000000-0000-0000-0000-0000000000a3'$q$,
-  1, 'H5c: the DM can still read a removed players sheet (needed for Restore)');
+  0, 'H5c: the DM can no longer read the live sheet of a removed player');
+select t.expect_count(
+  $q$select 1 from public.departed_sheets where player_id = 'a0000000-0000-0000-0000-0000000000a3' and character_name = 'Grix'$q$,
+  1, 'H5c2: ...but does read the copy kept at removal');
 select t.act_as('a0000000-0000-0000-0000-0000000000a3');
 select t.expect_count(
   $q$select 1 from public.characters where owner_id = 'a0000000-0000-0000-0000-0000000000a3'$q$,
   1, 'H5d: a removed player can still READ their own sheet');
-select t.expect_denied(
-  $q$update public.characters set data = '{"note":"after removal"}' where owner_id = 'a0000000-0000-0000-0000-0000000000a3'$q$,
-  'H5e: a removed player cannot WRITE their sheet');
-select t.expect_count($q$select * from public.join_campaign('HARDEN1')$q$, 1, 'H5f: p2 rejoins with the code');
 select t.expect_affects(
-  $q$update public.characters set data = '{"note":"restored"}' where owner_id = 'a0000000-0000-0000-0000-0000000000a3'$q$,
-  1, 'H5g: after rejoining, p2 can write again');
+  $q$update public.characters set data = '{"note":"after removal"}' where owner_id = 'a0000000-0000-0000-0000-0000000000a3'$q$,
+  1, 'H5e: ...and still WRITE it, because it is theirs');
+select t.expect_count($q$select * from public.join_campaign('HARDEN1')$q$, 1, 'H5f: p2 rejoins with the code');
+select t.expect_count($q$select 1 from public.campaign_characters where player_id = 'a0000000-0000-0000-0000-0000000000a3'$q$, 0,
+  'H5g: rejoining does not make the old character active again');
+select t.act_as('a0000000-0000-0000-0000-0000000000a1');
+select t.expect_count(
+  $q$select 1 from public.characters where owner_id = 'a0000000-0000-0000-0000-0000000000a3'$q$,
+  0, 'H5h: so the DM still cannot read the live sheet');
 
 -- ═══ The DM stays strictly view-only ═════════════════════════════════════
 select t.act_as('a0000000-0000-0000-0000-0000000000a1');
 select t.expect_denied(
-  $q$insert into public.characters (owner_id, campaign_id, character_name)
-     values ('a0000000-0000-0000-0000-0000000000a2', 'b0000000-0000-0000-0000-0000000000c1', 'Forged')$q$,
+  $q$insert into public.characters (owner_id, character_name)
+     values ('a0000000-0000-0000-0000-0000000000a2', 'Forged')$q$,
   'H6a: the DM cannot insert a character on a players behalf');
 select t.expect_affects(
   $q$update public.characters set character_name = 'DM edit' where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$,
@@ -105,6 +120,13 @@ select t.expect_affects(
 select t.expect_denied(
   $q$delete from public.characters where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$,
   'H6c: the DM cannot delete a players character (no DELETE grant since 0004)');
+select t.expect_denied(
+  $q$select public.delete_character((select id from public.characters where owner_id = 'a0000000-0000-0000-0000-0000000000a2'))$q$,
+  'H6d: ...or hide it with delete_character');
+select t.expect_denied(
+  $q$insert into public.campaign_characters (campaign_id, player_id, character_id)
+     select 'b0000000-0000-0000-0000-0000000000c1', owner_id, id from public.characters where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$,
+  'H6e: nobody writes campaign_characters directly');
 
 -- ═══ Invite codes: normalisation (generation and limits are in access_model.test.sql) ═══
 select t.act_as('a0000000-0000-0000-0000-0000000000a4');
@@ -153,7 +175,7 @@ select t.expect_denied_with(
   $q$update public.characters set updated_at = '1999-01-01' where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$,
   'permission denied', 'H15b: ...or updated_at (the server stamps it, and concurrency checks rely on it)');
 select t.expect_denied_with(
-  $q$insert into public.characters (id, owner_id, campaign_id) values (gen_random_uuid(), 'a0000000-0000-0000-0000-0000000000a2', 'b0000000-0000-0000-0000-0000000000c1')$q$,
+  $q$insert into public.characters (id, owner_id) values (gen_random_uuid(), 'a0000000-0000-0000-0000-0000000000a2')$q$,
   'permission denied', 'H15c: ...or choose an id when inserting');
 select t.expect_denied($q$update public.characters set schema_version = 0 where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$, 'H15d: schema_version 0 is rejected');
 select t.expect_denied($q$update public.characters set schema_version = -5 where owner_id = 'a0000000-0000-0000-0000-0000000000a2'$q$, 'H15e: a negative schema_version is rejected');

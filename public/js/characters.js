@@ -1,38 +1,28 @@
-// The player's own character row. Every call runs as the signed-in user; RLS and
-// the column grants decide what is allowed (docs/adr/0002, 0006). No delete
-// function exists on purpose (docs/adr/0004).
+// A person's characters. Every call runs as the signed-in user; RLS and the column
+// grants decide what is allowed (docs/adr/0002, 0006, 0011). A character belongs to a
+// person, not a campaign. No delete function exists on purpose (docs/adr/0004):
+// "deleting" hides a character and it can be brought back.
 import { SCHEMA_VERSION, blank } from "./eclipse-rules.js";
 import { sb } from "./supabase-client.js";
 
-const COLUMNS = "id, owner_id, campaign_id, schema_version, character_name, data, updated_at";
-const UNIQUE_VIOLATION = "23505";
+const COLUMNS = "id, owner_id, schema_version, character_name, data, updated_at, deleted_at";
+const LIST_COLUMNS = "id, character_name, schema_version, updated_at, deleted_at";
 
-// The player's own row, or null: it never creates one.
-export async function findCharacter(campaignId, ownerId) {
-  const { data, error } = await sb.from("characters").select(COLUMNS).eq("campaign_id", campaignId).eq("owner_id", ownerId);
+// Newest change first. Without the sheet data, which can be large: read one with readCharacter.
+export async function listCharacters(ownerId) {
+  const { data, error } = await sb.from("characters").select(LIST_COLUMNS).eq("owner_id", ownerId).order("updated_at", { ascending: false });
   if (error) throw error;
-  return data[0] || null;
+  return data;
 }
 
-// The sheet must load successfully before anything is written (ADR 0004): a failed
-// read throws here and the caller shows no editor. A first visit creates a blank
-// row with only the columns a client may write.
-export async function loadCharacter(campaignId, ownerId) {
-  const existing = await findCharacter(campaignId, ownerId);
-  if (existing) return existing;
-  const { data, error } = await sb
+// Makes a new character. The database refuses an eleventh one that is not deleted.
+export async function createCharacter(ownerId, { name = "", data = blank(), schemaVersion = SCHEMA_VERSION } = {}) {
+  const { data: rows, error } = await sb
     .from("characters")
-    .insert({ owner_id: ownerId, campaign_id: campaignId, schema_version: SCHEMA_VERSION, character_name: "", data: blank() })
+    .insert({ owner_id: ownerId, character_name: name, data, schema_version: schemaVersion })
     .select(COLUMNS);
-  if (error) {
-    // Another tab or device created the row first: use theirs.
-    if (error.code === UNIQUE_VIOLATION) {
-      const raced = await findCharacter(campaignId, ownerId);
-      if (raced) return raced;
-    }
-    throw error;
-  }
-  return data[0];
+  if (error) throw error;
+  return rows[0];
 }
 
 export const readCharacter = async (id) => (await readCharacters([id]))[0] || null;
@@ -44,9 +34,36 @@ export async function readCharacters(ids) {
   return data;
 }
 
+export async function deleteCharacter(id) {
+  const { error } = await sb.rpc("delete_character", { p_character_id: id });
+  if (error) throw error;
+}
+
+export async function undeleteCharacter(id) {
+  const { error } = await sb.rpc("undelete_character", { p_character_id: id });
+  if (error) throw error;
+}
+
+// ── Which character is active in which campaign (docs/adr/0011) ───────
+// A player has one active character per campaign, and a character is active in at
+// most one campaign at a time.
+
+// The signed-in player's own: [{ campaign_id, character_id }].
+export async function listMyAssignments(playerId) {
+  const { data, error } = await sb.from("campaign_characters").select("campaign_id, character_id").eq("player_id", playerId);
+  if (error) throw error;
+  return data;
+}
+
+export async function chooseCharacter(campaignId, characterId) {
+  const { error } = await sb.rpc("choose_character", { p_campaign_id: campaignId, p_character_id: characterId });
+  if (error) throw error;
+}
+
 // ── Version history (docs/adr/0010) ───────────────────────────────────
 // The database keeps a snapshot of a sheet before each change (docs/adr/0004). An
-// owner can read theirs. Restoring goes through a function so that it is always
+// owner can read theirs, and a DM can read the ones since the character became
+// active in their campaign. Restoring goes through a function so that it is always
 // snapshotted itself, and so it never overwrites a save the page has not seen.
 
 // Newest first. Without the sheet data, which can be large: read one with readSnapshot.
@@ -82,7 +99,7 @@ export async function restoreVersion(historyId, expectedUpdatedAt) {
 // Writes only if nobody saved since `expected` (the updated_at we last saw).
 // Resolves to { status: "saved", updated_at }, { status: "conflict", current }
 // when another device saved first, or { status: "blocked" } when the database
-// refused the write (for example, the player left the campaign).
+// refused the write (for example, the character was deleted).
 export async function saveCharacter(id, expected, { name, data }) {
   const { data: rows, error } = await sb
     .from("characters")

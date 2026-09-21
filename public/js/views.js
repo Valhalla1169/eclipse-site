@@ -343,38 +343,53 @@ export function accountView({ profile, email, onRename, onChangeEmail, onChangeP
   );
 }
 
-function campaignCard(campaign) {
+// active: the player's character in this campaign ({ id, name }), or undefined.
+function campaignCard(campaign, active) {
   const id = encodeURIComponent(campaign.id);
+  const chooser = `/campaign/${id}/character`;
   return h(
     "article",
     { class: "card stack" },
     h("div", { class: "card-head" }, h("h2", {}, campaign.name), h("span", { class: "badge" }, campaign.isDm ? "DM" : "Player")),
-    h(
-      "p",
-      {},
-      campaign.isDm
-        ? h("a", { class: "btn btn-primary", href: `/campaign/${id}/dm` }, "Open DM view, players and invites")
-        : h("a", { class: "btn btn-primary", href: `/campaign/${id}/play` }, "Open my character sheet"),
-    ),
+    campaign.isDm
+      ? h("p", {}, h("a", { class: "btn btn-primary", href: `/campaign/${id}/dm` }, "Open DM view, players and invites"))
+      : active
+        ? [
+            h("p", {}, "Your character: ", h("strong", {}, active.name)),
+            h("p", { class: "actions" }, h("a", { class: "btn btn-primary", href: `/characters/${encodeURIComponent(active.id)}` }, "Open my character sheet"), h("a", { class: "btn btn-quiet", href: chooser }, "Change character")),
+          ]
+        : [h("p", { class: "muted" }, "You have not chosen a character for this campaign yet."), h("p", {}, h("a", { class: "btn btn-primary", href: chooser }, "Choose a character"))],
   );
 }
+
+const charactersCard = () =>
+  h(
+    "section",
+    { class: "card stack" },
+    h("h2", {}, "Your characters"),
+    h("p", { class: "muted" }, "Make and keep your characters here, in or out of a campaign."),
+    h("p", {}, h("a", { class: "btn btn-quiet", href: "/characters" }, "Open my characters")),
+  );
 
 // Eclipse hosts one campaign (docs/adr/0004), so this is a single-campaign-first
 // page: with a campaign you just see it. Without one you can join with an invite
 // and, only if you are on the creator allowlist (ADR 0005), create one.
-export function homeView({ profile, campaigns, canCreate, onCreate, onJoin }) {
+// activeByCampaign: { campaignId: { id, name } } for the characters this player has chosen.
+export function homeView({ profile, campaigns, activeByCampaign = {}, canCreate, onCreate, onJoin }) {
   if (campaigns.length) {
     return h(
       "div",
       { class: "stack" },
       h("h1", {}, campaigns.length === 1 ? "Your campaign" : "Your campaigns"),
-      ...campaigns.map(campaignCard),
+      ...campaigns.map((campaign) => campaignCard(campaign, activeByCampaign[campaign.id])),
+      charactersCard(),
     );
   }
   return h(
     "div",
     { class: "stack" },
     h("h1", {}, `Welcome, ${profile.display_name}`),
+    charactersCard(),
     h(
       "p",
       { class: "muted" },
@@ -539,7 +554,6 @@ export function dmView({ campaign, roster, loadInvites, createInvite, revokeInvi
   );
 }
 
-// Placeholder until the player sheet (Phase 3) exists.
 // A DM runs the campaign and has no sheet of their own (docs/adr/0001).
 export function dmHasNoSheetView({ campaign }) {
   return h(
@@ -553,15 +567,15 @@ export function dmHasNoSheetView({ campaign }) {
 }
 
 // The stored sheet could not be read. The stored copy is left exactly as it is.
-export function sheetUnreadableView({ campaign, ownSheet = true }) {
+export function sheetUnreadableView({ ownSheet = true }) {
   return h(
     "section",
     { class: "card stack" },
-    h("h1", {}, campaign.name),
+    h("h1", {}, "Character sheet"),
     notice(
       "error",
       ownSheet
-        ? "Your character sheet could not be read, so it is not shown. Nothing was changed or saved. Tell your DM, who can recover it."
+        ? "Your character sheet could not be read, so it is not shown. Nothing was changed or saved. Tell the site owner, who can recover it."
         : "This character sheet could not be read, so it is not shown. Nothing was changed. The roster's download button still saves it as stored.",
     ),
     h("p", {}, h("a", { class: "btn btn-quiet", href: "/" }, "Back to home")),

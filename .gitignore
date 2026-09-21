@@ -28,3 +28,6 @@ Desktop.ini
 # Test output
 test-results/
 playwright-report/
+
+# Local notes, not committed
+TODO.md

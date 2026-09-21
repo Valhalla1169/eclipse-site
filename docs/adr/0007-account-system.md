@@ -114,8 +114,10 @@ campaign". So the model changes are small:
 - **Who may create a campaign** is decision D1 below.
 - **Dashboard.** `/` lists every campaign the person runs or plays in. A person can run one
   campaign and play in others. A DM still cannot also play in their own campaign.
-- **Optional, later:** transfer a campaign to another member; a co-DM role; several
-  characters per campaign with one active. I do not recommend a rebuild into a general
+- **Built in ADR 0011:** several characters per person, one active per campaign. Anyone signed in
+  can now make characters, so "an account with no invite can do nothing" no longer holds; sign-up
+  needs CAPTCHA (step 3) more than before.
+- **Optional, later:** transfer a campaign to another member; a co-DM role. I do not recommend a rebuild into a general
   `campaign_members` table now. Nothing asks for it.
 - **Account deletion** is a CLI script for the owner (like `creators`). It refuses if the
   person runs a campaign. The character history trigger snapshots their sheets first.

@@ -27,8 +27,11 @@ insert into public.campaigns (id, dm_id, name) values
 insert into public.campaign_players (campaign_id, player_id) values
   ('f0000000-0000-0000-0000-0000000000c1', 'e0000000-0000-0000-0000-000000000002'),
   ('f0000000-0000-0000-0000-0000000000c2', 'e0000000-0000-0000-0000-000000000002');
-insert into public.characters (id, owner_id, campaign_id, character_name, data) values
-  ('99000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-0000000000c1', 'Dana', '{"v":1}');
+insert into public.characters (id, owner_id, character_name, data) values
+  ('99000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000002', 'Dana', '{"v":1}');
+-- Dana's sheet is active in C1 from long ago, so the DM's history window covers all of it.
+insert into public.campaign_characters (campaign_id, player_id, character_id, assigned_at) values
+  ('f0000000-0000-0000-0000-0000000000c1', 'e0000000-0000-0000-0000-000000000002', '99000000-0000-0000-0000-000000000001', '2000-01-01');
 grant select on all tables in schema public to anon;   -- see rls_hardening.test.sql
 
 -- ═══ 1. No client can delete ═════════════════════════════════════════════
@@ -88,8 +91,8 @@ select t.expect_count($q$select 1 from public.character_history where character_
   'PH8b: the schema_change snapshot is kept regardless');
 
 -- ═══ 5. Restore ═════════════════════════════════════════════════════════
-insert into public.characters (id, owner_id, campaign_id, character_name, data) values
-  ('99000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-0000000000c2', 'Grix', '{"hp":10,"notes":"precious"}');
+insert into public.characters (id, owner_id, character_name, data) values
+  ('99000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-000000000002', 'Grix', '{"hp":10,"notes":"precious"}');
 update public.characters set data = '{"hp":0,"notes":"BROKEN BY A BAD DEPLOY"}' where id = '99000000-0000-0000-0000-000000000002';
 select t.expect_count($q$select 1 from public.characters where id = '99000000-0000-0000-0000-000000000002' and data->>'notes' = 'BROKEN BY A BAD DEPLOY'$q$, 1, 'PH9: a sheet gets damaged');
 update public.characters c
@@ -106,20 +109,26 @@ select t.expect_count($q$select 1 from public.character_history where character_
   'PH10: deleting a character (as admin) snapshots it first');
 select t.expect_count($q$select 1 from public.characters where id = '99000000-0000-0000-0000-000000000002'$q$, 0, 'PH10b: the row is gone but its history is not');
 
-insert into public.characters (id, owner_id, campaign_id, character_name, data) values
-  ('99000000-0000-0000-0000-000000000003', 'e0000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-0000000000c2', 'Cascade', '{"c":1}');
+insert into public.characters (id, owner_id, character_name, data) values
+  ('99000000-0000-0000-0000-000000000003', 'e0000000-0000-0000-0000-000000000002', 'Survivor', '{"c":1}');
+insert into public.campaign_characters (campaign_id, player_id, character_id) values
+  ('f0000000-0000-0000-0000-0000000000c2', 'e0000000-0000-0000-0000-000000000002', '99000000-0000-0000-0000-000000000003');
 delete from public.campaigns where id = 'f0000000-0000-0000-0000-0000000000c2';
-select t.expect_count($q$select 1 from public.character_history where character_id = '99000000-0000-0000-0000-000000000003' and reason = 'delete'$q$, 1,
-  'PH11: deleting a whole campaign snapshots every character it cascades to');
+select t.expect_count($q$select 1 from public.characters where id = '99000000-0000-0000-0000-000000000003'$q$, 1,
+  'PH11: deleting a whole campaign leaves the characters in it (they belong to their players)');
+select t.expect_count($q$select 1 from public.campaign_characters where character_id = '99000000-0000-0000-0000-000000000003'$q$, 0,
+  'PH11b: ...and only removes the link');
+select t.expect_count($q$select 1 from public.character_history where character_id = '99000000-0000-0000-0000-000000000003'$q$, 0,
+  'PH11c: ...so there is nothing to snapshot');
 
 -- ═══ 7. Who can see history, and that nobody can write it ═══════════════
 select t.act_as('e0000000-0000-0000-0000-000000000002');
 select t.expect_count($q$select 1 from public.character_history where character_id = '99000000-0000-0000-0000-000000000001'$q$, 31, 'PH12: an owner can read their own sheet''s history');
-select t.expect_denied($q$insert into public.character_history (character_id, owner_id, campaign_id, schema_version, character_name, data, reason) values (gen_random_uuid(), 'e0000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-0000000000c1', 1, 'x', '{}', 'edit')$q$, 'PH13: a client cannot write history');
+select t.expect_denied($q$insert into public.character_history (character_id, owner_id, schema_version, character_name, data, reason) values (gen_random_uuid(), 'e0000000-0000-0000-0000-000000000002', 1, 'x', '{}', 'edit')$q$, 'PH13: a client cannot write history');
 select t.expect_denied($q$update public.character_history set data = '{}'$q$, 'PH13b: ...or edit it');
 select t.expect_denied($q$delete from public.character_history$q$, 'PH13c: ...or delete it');
 select t.act_as('e0000000-0000-0000-0000-000000000001');
-select t.expect_count($q$select 1 from public.character_history where character_id = '99000000-0000-0000-0000-000000000001'$q$, 31, 'PH14: the DM can read the history of characters in their campaign');
+select t.expect_count($q$select 1 from public.character_history where character_id = '99000000-0000-0000-0000-000000000001'$q$, 31, 'PH14: the DM can read the history of a character active in their campaign');
 select t.act_as('e0000000-0000-0000-0000-000000000003');
 select t.expect_count($q$select 1 from public.character_history$q$, 0, 'PH15: an unrelated user sees no history');
 select t.act_as_superuser();

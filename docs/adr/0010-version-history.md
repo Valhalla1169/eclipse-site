@@ -2,9 +2,10 @@
 
 Status: **Accepted.** Built.
 Date: 2026-09-20
-Builds on: ADR 0004 (the database keeps snapshots), 0002 (writes need membership) and 0008 (the sheet).
+Builds on: ADR 0004 (the database keeps snapshots), 0002 (writes need ownership, ADR 0011) and 0008 (the sheet).
+Amended by ADR 0011: the pages are under `/characters/:id`, a restore no longer needs a campaign, and the DM has a read-only history page.
 Migration: `supabase/migrations/0008_restore_character_version.sql`.
-Tests: `supabase/tests/restore.test.sql` (24 checks), `tests/e2e/history.spec.js`.
+Tests: `supabase/tests/restore.test.sql` (25 checks), `tests/e2e/history.spec.js`.
 
 ## Problem
 
@@ -14,10 +15,10 @@ file load or a wrong rules update meant asking the owner.
 
 ## What it is
 
-- A **History** button on the sheet opens `/campaign/:id/play/history`: the copies the database
+- A **History** button on the sheet opens `/characters/:id/history`: the copies the database
   has kept, newest first. Each says when, what it was kept before, and the character's name at the
   time.
-- **Look at it** opens that copy in the same sheet, read only (`/campaign/:id/play/history/:id`).
+- **Look at it** opens that copy in the same sheet, read only (`/characters/:id/history/:id`).
   Nothing changes until the player chooses **Put this version back**, and confirms.
 - **Save a copy** on a row downloads that version as an `.eclipse` file, as stored.
 - A copy is the sheet as it was just before the time shown. Copies are kept before an edit (at
@@ -37,8 +38,7 @@ file load or a wrong rules update meant asking the owner.
 3. **A restore never overwrites a save it has not seen.** The page sends the `updated_at` it last
    saw. If the sheet changed since, the function refuses and the page says so (the same rule as the
    two-device conflict in ADR 0008).
-4. **Same rules as writing the sheet.** Only the owner, and only while a member of the campaign
-   (ADR 0002). Someone else's history id, a missing id, and a DM all get the same answer, "that
+4. **Same rules as writing the sheet.** Only the owner, and not for a deleted character (ADR 0011). Someone else's history id, a missing id, and a DM all get the same answer, "that
    version was not found", so history ids cannot be probed.
 5. **Data and `schema_version` come back as a pair.** Restoring a copy from before a rules update
    puts the older version number back too, and the app migrates it again when it opens. The
@@ -46,9 +46,8 @@ file load or a wrong rules update meant asking the owner.
    function's owner). Nothing else does.
 6. **The History button saves first.** The page reads the stored sheet, so the sheet view saves
    what is waiting, and asks if it cannot.
-7. **The DM has no history page.** The DM can already read the history (ADR 0006 flagged this as
-   a privacy choice to confirm) but cannot write, so there is nothing to restore. It stays that way
-   until it is asked for.
+7. **The DM has a history page, and cannot restore** (ADR 0011). The DM reads the copies of a
+   character kept since it became active in their campaign, to see how a sheet changed during play.
 
 ## Known gaps
 

@@ -1,9 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { blank } from "../../public/js/eclipse-rules.js";
-import { callsTo, campaign, characterRow, expect, ids, open, otherDeviceSaves, patchMock, players, seed, storedCharacter, test } from "./helpers.js";
+import { callsTo, campaign, characterRow, expect, ids, open, otherDeviceSaves, patchMock, players, seed, sheetPath, storedCharacter, test } from "./helpers.js";
 
 const { dana, dm } = players;
-const play = `/campaign/${ids.campaign}/play`;
+const play = sheetPath();
 const CHARACTERS = "/rest/v1/characters";
 
 const named = (name, more = {}) => {
@@ -12,8 +12,8 @@ const named = (name, more = {}) => {
   return Object.assign(data, more);
 };
 
-async function openSheet(page, { character, mock = {} } = {}) {
-  await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], ...(character ? { character } : {}), ...mock }, user: dana });
+async function openSheet(page, { character = characterRow(blank()), mock = {} } = {}) {
+  await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], character, ...mock }, user: dana });
   await open(page, play);
   await expect(page.locator("#f_name")).toBeVisible();
 }
@@ -22,15 +22,6 @@ const saved = (page) => expect(page.locator("#saveState")).toContainText("Saved"
 const tab = (page, name) => page.getByRole("tab", { name }).click();
 
 test.describe("loading", () => {
-  test("a first visit creates a blank sheet with only the columns a player may write", async ({ page }) => {
-    await openSheet(page);
-    const posts = await callsTo(page, CHARACTERS, "POST");
-    expect(posts).toHaveLength(1);
-    expect(Object.keys(posts[0].body).sort()).toEqual(["campaign_id", "character_name", "data", "owner_id", "schema_version"]);
-    expect(posts[0].body).toMatchObject({ owner_id: ids.player, campaign_id: ids.campaign, schema_version: 1, character_name: "" });
-    expect(await callsTo(page, CHARACTERS, "PATCH")).toHaveLength(0);
-  });
-
   test("an existing sheet is shown as stored, and nothing is written just for opening it", async ({ page }) => {
     const data = named("Marlo Vance", { starve: 4 });
     data.base.end = 3;
@@ -46,15 +37,9 @@ test.describe("loading", () => {
     expect(await callsTo(page, CHARACTERS, "PATCH")).toHaveLength(0);
   });
 
-  test("a row created by another tab first is used instead of failing", async ({ page }) => {
-    await openSheet(page, { mock: { characterInsertRace: named("Made elsewhere") } });
-    await expect(page.locator("#f_name")).toHaveValue("Made elsewhere");
-    expect(await callsTo(page, CHARACTERS, "PATCH")).toHaveLength(0);
-  });
-
   test("a failed load shows an error and writes nothing", async ({ page }) => {
     test.setTimeout(30_000);
-    await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], failCharacters: true }, user: dana });
+    await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], character: characterRow(blank()), failCharacters: true }, user: dana });
     await page.goto(play);
     await expect(page.getByRole("heading", { name: "Something went wrong" })).toBeVisible({ timeout: 20_000 });
     await expect(page.locator("#f_name")).toHaveCount(0);
@@ -92,7 +77,7 @@ test.describe("loading", () => {
 
   test("the DM has no sheet and no character rows are touched", async ({ page }) => {
     await seed(page, { mock: { profile: dm.profile, campaigns: [campaign] }, user: dm });
-    await open(page, play);
+    await open(page, `/campaign/${ids.campaign}/character`);
     await expect(page.getByText("A DM does not have a character sheet.")).toBeVisible();
     await expect(page.getByRole("link", { name: "Open the DM page" })).toHaveAttribute("href", `/campaign/${ids.campaign}/dm`);
     expect(await callsTo(page, CHARACTERS)).toHaveLength(0);

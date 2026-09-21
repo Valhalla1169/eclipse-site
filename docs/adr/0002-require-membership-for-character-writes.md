@@ -1,6 +1,6 @@
 # ADR 0002: Require campaign membership to write a character; server-side invite codes
 
-Status: Accepted
+Status: Accepted. The membership rule for writing a sheet is replaced by ownership alone (ADR 0011). The invite code hardening and the size limits still stand.
 Date: 2026-09-19
 Amends: ADR 0001 (the `characters` write policies and invite codes)
 Migration: `supabase/migrations/0002_harden_characters_and_invite_codes.sql`

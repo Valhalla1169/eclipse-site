@@ -2,13 +2,13 @@
 
 Status: **Accepted.** Built.
 Date: 2026-09-19
-Builds on: ADR 0001, 0002, 0004 and 0006.
+Builds on: ADR 0001, 0002, 0004 and 0006. ADR 0011 moved the sheet from `/campaign/:id/play` to `/characters/:id`.
 
 ## What it is
 
-`/campaign/:id/play` shows the player's own character sheet: the V4 sheet ported into the app. The
-player edits it, and it saves to their `characters` row in Supabase. A player with no row gets a blank
-one on their first visit. The DM has no sheet (ADR 0001) and sees a link to the DM page instead.
+`/characters/:id` shows one of the player's characters: the V4 sheet ported into the app. The
+player edits it, and it saves to that `characters` row in Supabase (ADR 0011 explains which
+character is active in which campaign). The DM has no sheet (ADR 0001).
 
 ## Decisions
 
