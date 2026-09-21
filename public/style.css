@@ -205,7 +205,10 @@ p { margin: 0; }
 .page > * { max-width: var(--content-w); margin-inline: auto; }
 .page-roomy > *, .page-wide > * { max-width: none; }
 .page-roomy p { max-width: 60ch; }
-.page-roomy .narrow { max-width: var(--content-w); margin-inline: auto; }
+/* The lists reset their own margins, so give them the stack's gap. */
+.stack > :is(.characters, .history, .roster) { margin-top: 1rem; }
+/* Cards side by side, as wide as the panel above them. */
+.two-up { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); gap: 1rem; align-items: start; }
 .stack > * + * { margin-top: 1rem; }
 .muted { color: var(--subtext1); }
 .hint { font-size: 0.9rem; color: var(--subtext1); }

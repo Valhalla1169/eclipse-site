@@ -127,12 +127,38 @@ test.describe("width", () => {
     }
   });
 
-  test("the DM's invite forms are centred under the wide roster", async ({ page }) => {
+  test("the DM's invite cards line up with the roster panel above them", async ({ page }) => {
     await page.setViewportSize({ width: 1800, height: 900 });
     await seed(page, { mock: { profile: players.dm.profile, campaigns: [campaign], members: [], profiles: [] }, user: players.dm });
     await open(page, `/campaign/${campaign.id}/dm`);
-    const invite = await box(page.locator("section.narrow").first());
-    expect(Math.abs(invite.x + invite.width / 2 - 900)).toBeLessThan(2);
+    const panel = await box(page.locator("section[aria-labelledby='roster-title']"));
+    const first = await box(page.locator(".two-up > section").first());
+    const last = await box(page.locator(".two-up > section").last());
+    expect(Math.abs(first.x - panel.x)).toBeLessThan(2);
+    expect(Math.abs(last.x + last.width - (panel.x + panel.width))).toBeLessThan(2);
+  });
+
+  test("a list has a gap above it, on the chooser and the history page", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await signedIn(page);
+    await open(page, `/campaign/${campaign.id}/character`);
+    const gap = async (list) => {
+      const [above, below] = await page.evaluate((selector) => {
+        const el = document.querySelector(selector);
+        return [el.previousElementSibling.getBoundingClientRect().bottom, el.getBoundingClientRect().top];
+      }, list);
+      return below - above;
+    };
+    expect(await gap("ul.characters")).toBeGreaterThanOrEqual(15);
+  });
+
+  test("the sheet's edge is the header's edge on a mid-size screen", async ({ page }) => {
+    await page.setViewportSize({ width: 1200, height: 800 });
+    await signedIn(page);
+    await open(page, sheetPath());
+    const gutter = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector(".bar")).paddingLeft));
+    expect((await box(page.locator(".sheet-back"))).x).toBeCloseTo(gutter, 0);
+    expect((await box(page.locator(".logo"))).x).toBeCloseTo(gutter, 0);
   });
 });
 

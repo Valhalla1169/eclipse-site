@@ -548,14 +548,18 @@ export function dmView({ campaign, roster, loadInvites, createInvite, revokeInvi
     h("div", { class: "card-head" }, h("h1", {}, campaign.name), h("span", { class: "badge" }, "DM view")),
     roster,
     h(
-      "section",
-      { class: "card stack narrow" },
-      h("h2", {}, "Invite a player"),
-      h("p", { class: "muted" }, "Players can only join with a link you create here. Each link expires, has a use limit, and can be revoked."),
-      createForm,
-      fresh,
+      "div",
+      { class: "two-up" },
+      h(
+        "section",
+        { class: "card stack" },
+        h("h2", {}, "Invite a player"),
+        h("p", { class: "muted" }, "Players can only join with a link you create here. Each link expires, has a use limit, and can be revoked."),
+        createForm,
+        fresh,
+      ),
+      h("section", { class: "card stack" }, h("h2", {}, "Invites"), problem, list),
     ),
-    h("section", { class: "card stack narrow" }, h("h2", {}, "Invites"), problem, list),
   );
 }
 
@@ -564,8 +568,7 @@ export function dmHasNoSheetView({ campaign }) {
   return h(
     "section",
     { class: "card stack" },
-    h("h1", {}, campaign.name),
-    h("span", { class: "badge" }, "DM"),
+    h("div", { class: "card-head" }, h("h1", {}, campaign.name), h("span", { class: "badge" }, "DM")),
     h("p", {}, "You are the DM of this campaign. A DM does not have a character sheet."),
     h("p", {}, h("a", { class: "btn btn-primary", href: `/campaign/${campaign.id}/dm` }, "Open the DM page"), " ", h("a", { class: "btn btn-quiet", href: "/" }, "Back to home")),
   );

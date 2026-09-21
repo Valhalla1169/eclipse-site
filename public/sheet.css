@@ -27,7 +27,7 @@
 /* The sheet is wider than the account pages and sits on the darkest surface. */
 .page.page-wide {
   max-width: none;
-  padding: 21px 16px 69px;
+  padding: 21px var(--gutter) 69px;
   background: radial-gradient(120% 80% at 50% -10%, var(--mantle) 0%, transparent 60%), var(--crust);
 }
 
