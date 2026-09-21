@@ -140,7 +140,9 @@ select pg_temp.expect(
   and has_function_privilege('authenticated', 'public.choose_character(uuid,uuid)', 'execute')
   and has_function_privilege('authenticated', 'public.delete_character(uuid)', 'execute')
   and has_function_privilege('authenticated', 'public.undelete_character(uuid)', 'execute')
-  and has_function_privilege('authenticated', 'public.dm_sees_character(uuid,timestamptz)', 'execute'),
+  and has_function_privilege('authenticated', 'public.dm_sees_character(uuid,timestamptz)', 'execute')
+  and has_function_privilege('authenticated', 'public.preview_invite(text)', 'execute')
+  and has_function_privilege('authenticated', 'public.replace_invite(uuid)', 'execute'),
   'G13: authenticated can execute the RPCs and the RLS helper functions');
 select pg_temp.expect(
   not has_function_privilege('authenticated', 'public.set_updated_at()', 'execute')
@@ -148,6 +150,7 @@ select pg_temp.expect(
   and not has_function_privilege('authenticated', 'public.snapshot_character()', 'execute')
   and not has_function_privilege('authenticated', 'public.characters_enforce_limits()', 'execute')
   and not has_function_privilege('authenticated', 'public.freeze_sheet(uuid,uuid,text)', 'execute')
+  and not has_function_privilege('authenticated', 'public.assert_invite_room(uuid)', 'execute')
   and not has_function_privilege('authenticated', 'public.handle_new_user()', 'execute')
   and not has_function_privilege('authenticated', 'public.derive_display_name(jsonb,text)', 'execute')
   and not has_function_privilege('authenticated', 'public.generate_invite_code()', 'execute'),

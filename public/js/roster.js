@@ -34,7 +34,7 @@ export function newestDeparted(stamps, members) {
 // See syncRoster in data.js for the shape. Players are in the order they joined; one
 // with no active character has `character: null`. Someone who left or was removed is
 // in `former` with the copy kept then, which is what the DM can still read.
-export function buildRoster({ members, assignments, profiles, characters, departed }) {
+export function buildRoster({ members, assignments, profiles, characters, departed, invites = {} }) {
   const nameOf = (playerId) => profiles[playerId] || UNKNOWN_PLAYER;
   const activeOf = new Map(assignments.map((a) => [a.player_id, characters[a.character_id]]));
   const players = [...members]
@@ -46,6 +46,7 @@ export function buildRoster({ members, assignments, profiles, characters, depart
         playerName: nameOf(m.player_id),
         joinedAt: m.joined_at,
         member: true,
+        invite: m.invite_id ? { label: invites[m.invite_id] || null } : null,
         character: row ? describeSheet({ id: row.id, savedAt: row.updated_at, sheet: row }) : null,
       };
     });

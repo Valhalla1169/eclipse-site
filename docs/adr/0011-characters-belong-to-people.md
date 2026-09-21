@@ -78,7 +78,7 @@ campaign without starting over.
 
 - A campaign's name on the sheet is gone from the footer. A "Campaign" entry at the top of the sheet
   is planned.
-- There is still no button to leave a campaign or to remove a player. The functions exist and keep the copy.
+- Leaving and removing have buttons now (ADR 0012). Coming back still needs a new invite.
 - The history a DM reads stops when a player leaves. What the DM keeps is the one departed copy.
 - An owner cannot restore a character that is deleted, and a character deleted by an administrator
   is a delete snapshot in `character_history` (ADR 0004).

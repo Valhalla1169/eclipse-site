@@ -32,8 +32,10 @@ function playerStats(summary) {
 
 // api: { sync(campaignId, previous), subscribe(campaignId, onChange, onStatus) }. sync with no
 // `previous` reads every sheet again, which the backup uses.
-export function createRosterPanel({ campaign, api, download }) {
-  let roster = { members: [], assignments: [], profiles: {}, characters: {}, departed: {} };
+// actions: { onRemove(playerId), onInviteAgain(playerName) }. They are the DM's own choices, not
+// part of reading a sheet: the roster changes nothing on its own.
+export function createRosterPanel({ campaign, api, download, actions = {} }) {
+  let roster = { members: [], assignments: [], profiles: {}, characters: {}, departed: {}, invites: {} };
   let busy = false;
   let again = false;
   let eventTimer = null;
@@ -62,6 +64,7 @@ export function createRosterPanel({ campaign, api, download }) {
         h("div", {}, h("h3", {}, name), h("p", { class: "muted" }, `Player: ${entry.playerName}`)),
         flag ? h("span", { class: "badge badge-alert" }, flag) : null,
       ),
+      entry.invite ? h("p", { class: "muted small" }, entry.invite.label ? `Joined with the invite "${entry.invite.label}".` : "Joined with an invite that has no name.") : null,
       !character ? h("p", { class: "muted" }, "They have not chosen a character for this campaign yet.") : null,
       character && character.copyId
         ? h("p", { class: "muted" }, `This is their sheet as it was when ${character.reason === "removed" ? "you removed them" : "they left"}. It does not change.`)
@@ -78,17 +81,34 @@ export function createRosterPanel({ campaign, api, download }) {
       character
         ? h("p", { class: "muted small saved", "data-stamp": character.updatedAt, "data-verb": verb, title: new Date(character.updatedAt).toLocaleString() }, `${verb} ${timeAgo(character.updatedAt)}`)
         : null,
-      character
-        ? h(
-            "div",
-            { class: "actions" },
-            h("a", { class: "btn btn-primary btn-small", href: character.copyId ? `${campaignPath}/left/${encodeURIComponent(character.copyId)}` : `${campaignPath}/dm/${encodeURIComponent(character.id)}` }, "Open sheet"),
-            character.copyId ? null : h("a", { class: "btn btn-quiet btn-small", href: `${campaignPath}/dm/${encodeURIComponent(character.id)}/history` }, "History"),
-            h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: () => download(fileNameForName(character.name || entry.playerName), serializeStored(character.row)) }, "Save a copy"),
-          )
-        : null,
+      h(
+        "div",
+        { class: "actions" },
+        character ? h("a", { class: "btn btn-primary btn-small", href: character.copyId ? `${campaignPath}/left/${encodeURIComponent(character.copyId)}` : `${campaignPath}/dm/${encodeURIComponent(character.id)}` }, "Open sheet") : null,
+        character && !character.copyId ? h("a", { class: "btn btn-quiet btn-small", href: `${campaignPath}/dm/${encodeURIComponent(character.id)}/history` }, "History") : null,
+        character ? h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: () => download(fileNameForName(character.name || entry.playerName), serializeStored(character.row)) }, "Save a copy") : null,
+        entry.member && actions.onRemove ? h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: (event) => removePlayer(event, entry) }, "Remove from campaign") : null,
+        !entry.member && actions.onInviteAgain ? h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: () => actions.onInviteAgain(entry.playerName) }, "Invite again") : null,
+      ),
     );
   };
+
+  async function removePlayer(event, entry) {
+    const message = `Remove ${entry.playerName} from ${campaign.name}? You keep a copy of their active sheet as it is now, and they keep their characters. They need a new invite to come back.`;
+    if (!window.confirm(message)) return;
+    const button = event.currentTarget;
+    button.disabled = true;
+    status.textContent = "";
+    try {
+      await actions.onRemove(entry.playerId);
+      status.textContent = `${entry.playerName} was removed. Their sheet is kept under Former players.`;
+      await refresh();
+    } catch (error) {
+      console.error(error);
+      status.textContent = `${entry.playerName} was not removed. ${friendlyError(error)}`;
+      button.disabled = false;
+    }
+  }
 
   function paint() {
     const { players, former } = buildRoster(roster);

@@ -5,6 +5,7 @@ Date: 2026-09-20
 Builds on: ADR 0001 (the DM reads every sheet and never writes one), 0004 (a backup button for the
 DM) and 0008 (the player sheet). ADR 0011 changed what the roster reads: each player's active
 character, and the copies kept from players who left, instead of one sheet per player per campaign.
+ADR 0012 added **Remove from campaign** and **Invite again** to the cards, and the invite each player joined with.
 
 ## What it is
 

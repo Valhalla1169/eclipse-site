@@ -79,6 +79,9 @@ export function friendlyError(err) {
   if (/invalid invite code/i.test(msg)) return "That invite code is not valid. Check it with your DM.";
   if (/you run this campaign/i.test(msg)) return "You are the DM of this campaign, so you cannot join it as a player.";
   if (/only the dm/i.test(msg)) return "Only the DM of this campaign can do that.";
+  if (/50 active invites/i.test(msg)) return "This campaign already has 50 active invites. Revoke one first.";
+  if (/500 invites/i.test(msg)) return "This campaign has made 500 invites, the most it can keep.";
+  if (/not active, or is not yours/i.test(msg)) return "That invite is no longer active.";
   if (/already revoked|not found, already/i.test(msg)) return "That invite could not be revoked. It may already be revoked.";
   if ((err && err.status === 429) || /rate limit|too many/i.test(msg)) return "Too many attempts. Wait a minute and try again.";
   if (/signups? (not allowed|are disabled)|not allowed for otp/i.test(msg)) return "New accounts are closed. Ask your DM to invite you.";

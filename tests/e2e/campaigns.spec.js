@@ -60,17 +60,48 @@ test.describe("home", () => {
 });
 
 test.describe("joining", () => {
-  const joinable = { ABCDEF0123: { id: ids.campaign, name: "Age of Eclipse" } };
+  const joinable = { ABCDEF0123: { id: ids.campaign, name: "Age of Eclipse", dmName: "Ravi the DM" } };
+  const confirmJoin = (page) => page.getByRole("button", { name: "Yes, join this campaign" }).click();
 
-  test("a pasted code is cleaned up and joins the campaign", async ({ page }) => {
+  test("a pasted code is cleaned up, shows what it is for, and joins only when confirmed", async ({ page }) => {
     await seed(page, { mock: { profile: dana.profile, joinable }, user: dana });
     await open(page, "/");
     await page.locator("#code").fill("  abcdef0123 ");
     await submit(page, "Join campaign");
+    await expect(page.getByRole("heading", { name: "Join Age of Eclipse?" })).toBeVisible();
+    await expect(page.getByText("Ravi the DM runs this campaign.")).toBeVisible();
+    const [preview] = await callsTo(page, "/rest/v1/rpc/preview_invite");
+    expect(preview.body).toEqual({ p_invite_code: "ABCDEF0123" });
+    expect(await callsTo(page, "/rest/v1/rpc/join_campaign")).toHaveLength(0);
+    await confirmJoin(page);
     await expect(page).toHaveURL(chooserPath);
     await expect(page.getByRole("heading", { name: "Age of Eclipse" })).toBeVisible();
     const [rpc] = await callsTo(page, "/rest/v1/rpc/join_campaign");
     expect(rpc.body).toEqual({ p_invite_code: "ABCDEF0123" });
+  });
+
+  test("Not now goes home and joins nothing", async ({ page }) => {
+    await seed(page, { mock: { profile: dana.profile, joinable }, user: dana });
+    await open(page, "/join/ABCDEF0123");
+    await page.getByRole("link", { name: "Not now" }).click();
+    await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/);
+    expect(await callsTo(page, "/rest/v1/rpc/join_campaign")).toHaveLength(0);
+  });
+
+  test("someone who is already in the campaign goes straight to it, with no confirmation", async ({ page }) => {
+    await seed(page, { mock: { profile: dana.profile, joinable: { ABCDEF0123: { ...joinable.ABCDEF0123, member: true } }, campaigns: [campaign] }, user: dana });
+    await open(page, "/join/ABCDEF0123");
+    await expect(page).toHaveURL(chooserPath);
+    expect(await callsTo(page, "/rest/v1/rpc/join_campaign")).toHaveLength(0);
+  });
+
+  test("a refusal while joining is shown and nothing changes", async ({ page }) => {
+    await seed(page, { mock: { profile: dana.profile, joinable }, user: dana });
+    await open(page, "/join/ABCDEF0123");
+    await patchMock(page, { joinError: "invalid invite code" });
+    await confirmJoin(page);
+    await expect(page.getByRole("alert")).toContainText("That invite code is not valid.");
+    await expect(page).toHaveURL(/\/join\/ABCDEF0123$/);
   });
 
   test("a code that cannot be a code never reaches the server", async ({ page }) => {
@@ -102,6 +133,8 @@ test.describe("joining", () => {
     await page.locator("#email").fill("dana@example.com");
     await page.locator("#password").fill(GOOD_PASSWORD);
     await submit(page, "Sign in");
+    await expect(page.getByRole("heading", { name: "Join Age of Eclipse?" })).toBeVisible();
+    await confirmJoin(page);
     await expect(page).toHaveURL(chooserPath);
     await expect(page.getByRole("heading", { name: "Age of Eclipse" })).toBeVisible();
   });

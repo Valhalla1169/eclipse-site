@@ -213,6 +213,10 @@ async function onRoute({ path, search, match, initial }) {
           activeByCampaign: activeByCampaign(rows, assignments),
           canCreate,
           onJoin: async (code) => router.go(`/join/${encodeURIComponent(code)}`),
+          onLeave: async (campaignId) => {
+            await data.leaveCampaign(campaignId);
+            router.go("/", { replace: true });
+          },
           onCreate: async (name) => {
             await data.createCampaign(user.id, name);
             router.go("/", { replace: true });
@@ -226,10 +230,22 @@ async function onRoute({ path, search, match, initial }) {
       const code = normalizeCode(match.params.code);
       if (!code) return showHere(views.notFoundView("That invite link does not look right. Ask your DM to send it again."), "Invalid invite");
       if (!(await ensureReady({ path: `/join/${code}`, initial }))) return;
-      showHere(views.loadingView("Joining the campaign..."));
-      const joined = await data.joinCampaign(code);
+      showHere(views.loadingView("Checking the invite..."));
+      const preview = await data.previewInvite(code);
       if (!alive()) return;
-      return router.go(`/campaign/${encodeURIComponent(joined.campaign_id)}/character`, { replace: true });
+      const chooser = (campaignId) => `/campaign/${encodeURIComponent(campaignId)}/character`;
+      // Already in: nothing to confirm, and re-opening a link is harmless.
+      if (preview.already_member) return router.go(chooser(preview.campaign_id), { replace: true });
+      return showHere(
+        views.joinView({
+          preview,
+          onJoin: async () => {
+            const joined = await data.joinCampaign(code);
+            router.go(chooser(joined.campaign_id), { replace: true });
+          },
+        }),
+        `Join ${preview.campaign_name}`,
+      );
     }
 
     if (match.name === "characters") {
@@ -267,13 +283,26 @@ async function onRoute({ path, search, match, initial }) {
     if (match.name === "dmhistory") return await showPlayersHistory({ ...inCampaign, characterId: match.params.characterId });
     if (match.name === "dmsnapshot") return await showPlayersSnapshot({ ...inCampaign, characterId: match.params.characterId, historyId: match.params.historyId });
     if (match.name === "departed") return await showDepartedSheet({ ...inCampaign, copyId: match.params.copyId });
-    const roster = createRosterPanel({ campaign, api: { sync: data.syncRoster, subscribe: data.subscribeToRoster }, download: downloadText });
+    const prefill = { invite: null };
+    const roster = createRosterPanel({
+      campaign,
+      api: { sync: data.syncRoster, subscribe: data.subscribeToRoster },
+      download: downloadText,
+      actions: {
+        onRemove: (playerId) => data.removePlayer(campaign.id, playerId),
+        onInviteAgain: (name) => prefill.invite && prefill.invite(name),
+      },
+    });
     return show(
       views.dmView({
         campaign,
         roster: roster.element,
         loadInvites: () => data.listInvites(campaign.id),
         createInvite: (options) => data.createInvite(campaign.id, options),
+        replaceInvite: (id) => data.replaceInvite(id),
+        registerPrefill: (fn) => {
+          prefill.invite = fn;
+        },
         revokeInvite: (id) => data.revokeInvite(id),
         onCopy: (text) => navigator.clipboard.writeText(text),
       }),

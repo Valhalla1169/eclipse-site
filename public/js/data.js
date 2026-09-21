@@ -70,14 +70,44 @@ export async function createInvite(campaignId, { label, maxUses, ttlHours }) {
   return row; // { invite_id, code, expires_at }
 }
 
+// What an invite is for, before joining it. Changes nothing (migration 0010).
+export async function previewInvite(code) {
+  const { data, error } = await sb.rpc("preview_invite", { p_invite_code: code });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) throw new Error("invalid invite code");
+  return row; // { campaign_id, campaign_name, dm_name, already_member }
+}
+
+// Ends an active invite and makes a new one like it. The new code comes back once.
+export async function replaceInvite(inviteId) {
+  const { data, error } = await sb.rpc("replace_invite", { p_invite_id: inviteId });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) throw new Error("no invite returned");
+  return row; // { invite_id, code, expires_at }
+}
+
+// Leaving, and removing a player. The database keeps a copy of their active sheet for the DM.
+export async function leaveCampaign(campaignId) {
+  const { error } = await sb.rpc("leave_campaign", { p_campaign_id: campaignId });
+  if (error) throw error;
+}
+
+export async function removePlayer(campaignId, playerId) {
+  const { error } = await sb.rpc("remove_player", { p_campaign_id: campaignId, p_player_id: playerId });
+  if (error) throw error;
+}
+
 export async function revokeInvite(inviteId) {
   const { error } = await sb.rpc("revoke_invite", { p_invite_id: inviteId });
   if (error) throw error;
 }
 
 // ── The DM's roster (ADR 0009, 0011) ──────────────────────────────────
-// The DM reads and never writes (ADR 0001), so everything here is a read. A roster is
-//   members      campaign_players rows
+// The DM reads sheets and never writes one (ADR 0001), so everything here is a read. A roster is
+//   members      campaign_players rows, with the invite each joined with
+//   invites      { inviteId: label }
 //   assignments  campaign_characters rows: which character each player has active
 //   profiles     { playerId: display_name }
 //   characters   { characterId: row } for the characters that are active now
@@ -85,12 +115,18 @@ export async function revokeInvite(inviteId) {
 // The DM reads a character only while it is active in their campaign. When a player
 // leaves, the DM's copy is the sheet as it was then.
 
-const EMPTY_ROSTER = { members: [], assignments: [], profiles: {}, characters: {}, departed: {} };
+const EMPTY_ROSTER = { members: [], assignments: [], profiles: {}, characters: {}, departed: {}, invites: {} };
 
 async function listMembers(campaignId) {
-  const { data, error } = await sb.from("campaign_players").select("player_id, joined_at").eq("campaign_id", campaignId);
+  const { data, error } = await sb.from("campaign_players").select("player_id, joined_at, invite_id").eq("campaign_id", campaignId);
   if (error) throw error;
   return data;
+}
+
+async function listInviteLabels(campaignId) {
+  const { data, error } = await sb.from("campaign_invites").select("id, label").eq("campaign_id", campaignId);
+  if (error) throw error;
+  return Object.fromEntries(data.map((invite) => [invite.id, invite.label]));
 }
 
 async function listAssignments(campaignId) {
@@ -147,7 +183,7 @@ export async function readProfileNames(ids) {
 // so it is cheap to call often (on a live event, and on a timer as a fallback).
 // Call it with no `previous` to read everything.
 export async function syncRoster(campaignId, previous = EMPTY_ROSTER) {
-  const [members, assignments, departedStamps] = await Promise.all([listMembers(campaignId), listAssignments(campaignId), listDepartedStamps(campaignId)]);
+  const [members, assignments, departedStamps, invites] = await Promise.all([listMembers(campaignId), listAssignments(campaignId), listDepartedStamps(campaignId), listInviteLabels(campaignId)]);
   const stamps = await listStamps(assignments.map((a) => a.character_id));
   const changed = stamps.filter((s) => previous.characters[s.id]?.updated_at !== s.updated_at).map((s) => s.id);
   const fresh = await readCharacters(changed);
@@ -168,7 +204,7 @@ export async function syncRoster(campaignId, previous = EMPTY_ROSTER) {
   const people = new Set([...members.map((m) => m.player_id), ...assignments.map((a) => a.player_id), ...Object.values(departed).map((r) => r.player_id)]);
   const unknown = [...people].filter((id) => !(id in previous.profiles));
   const profiles = { ...previous.profiles, ...(await readProfileNames(unknown)) };
-  return { members, assignments, profiles, characters, departed };
+  return { members, assignments, profiles, characters, departed, invites };
 }
 
 // Calls onChange when a player chooses a different character or an active sheet is

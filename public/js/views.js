@@ -344,9 +344,25 @@ export function accountView({ profile, email, onRename, onChangeEmail, onChangeP
 }
 
 // active: the player's character in this campaign ({ id, name }), or undefined.
-function campaignCard(campaign, active) {
+// onLeave(campaignId) leaves the campaign. The database keeps a copy of the active sheet for the DM.
+function campaignCard(campaign, active, onLeave) {
   const id = encodeURIComponent(campaign.id);
   const chooser = `/campaign/${id}/character`;
+  const status = h("div", { class: "stack" });
+  const leave = h("button", { class: "btn btn-quiet", type: "button" }, "Leave campaign");
+  leave.addEventListener("click", async () => {
+    const message = `Leave ${campaign.name}? Your DM keeps a copy of your active character's sheet as it is now. Your characters stay yours. You need a new invite to come back.`;
+    if (!window.confirm(message)) return;
+    leave.disabled = true;
+    status.replaceChildren();
+    try {
+      await onLeave(campaign.id);
+    } catch (err) {
+      console.error(err);
+      status.replaceChildren(notice("error", friendlyError(err)));
+      leave.disabled = false;
+    }
+  });
   return h(
     "article",
     { class: "card stack" },
@@ -356,9 +372,14 @@ function campaignCard(campaign, active) {
       : active
         ? [
             h("p", {}, "Your character: ", h("strong", {}, active.name)),
-            h("p", { class: "actions" }, h("a", { class: "btn btn-primary", href: `/characters/${encodeURIComponent(active.id)}` }, "Open my character sheet"), h("a", { class: "btn btn-quiet", href: chooser }, "Change character")),
+            h("p", { class: "actions" }, h("a", { class: "btn btn-primary", href: `/characters/${encodeURIComponent(active.id)}` }, "Open my character sheet"), h("a", { class: "btn btn-quiet", href: chooser }, "Change character"), onLeave ? leave : null),
+            status,
           ]
-        : [h("p", { class: "muted" }, "You have not chosen a character for this campaign yet."), h("p", {}, h("a", { class: "btn btn-primary", href: chooser }, "Choose a character"))],
+        : [
+            h("p", { class: "muted" }, "You have not chosen a character for this campaign yet."),
+            h("p", { class: "actions" }, h("a", { class: "btn btn-primary", href: chooser }, "Choose a character"), onLeave ? leave : null),
+            status,
+          ],
   );
 }
 
@@ -379,14 +400,14 @@ const charactersCard = () =>
 // page: with a campaign you just see it. Without one you can join with an invite
 // and, only if you are on the creator allowlist (ADR 0005), create one.
 // activeByCampaign: { campaignId: { id, name } } for the characters this player has chosen.
-export function homeView({ profile, campaigns, activeByCampaign = {}, canCreate, onCreate, onJoin }) {
+export function homeView({ profile, campaigns, activeByCampaign = {}, canCreate, onCreate, onJoin, onLeave }) {
   if (campaigns.length) {
     return h(
       "div",
       { class: "stack" },
       hero(profile, "Pick up where you left off."),
       h("h2", { class: "section-title" }, campaigns.length === 1 ? "Your campaign" : "Your campaigns"),
-      ...campaigns.map((campaign) => campaignCard(campaign, activeByCampaign[campaign.id])),
+      ...campaigns.map((campaign) => campaignCard(campaign, activeByCampaign[campaign.id], onLeave)),
       charactersCard(),
     );
   }
@@ -437,13 +458,32 @@ export function homeView({ profile, campaigns, activeByCampaign = {}, canCreate,
   );
 }
 
+// What an invite is for, and one click to join it. preview: { campaign_name, dm_name }.
+export function joinView({ preview, onJoin }) {
+  return h(
+    "section",
+    { class: "card stack" },
+    h("h1", {}, `Join ${preview.campaign_name}?`),
+    h("p", {}, h("strong", {}, preview.dm_name), " runs this campaign. If you join, you become a player. Your DM can see the character you choose for it, and you can leave later."),
+    form({
+      fields: [],
+      submitLabel: "Yes, join this campaign",
+      onSubmit: async () => {
+        await onJoin();
+      },
+    }),
+    h("p", {}, h("a", { class: "btn btn-quiet", href: "/" }, "Not now")),
+  );
+}
+
 const USES = [[1, "1 person (recommended)"], [2, "2 people"], [5, "5 people"], [12, "12 people"]];
 const LIFETIMES = [[24, "1 day"], [168, "7 days (recommended)"], [720, "30 days"]];
 
 // The DM page: the roster of players' sheets (an element made by roster-view.js)
 // and invites. The invite link is shown exactly once, when it is created: the database keeps only a hash of the
 // code, so it cannot be shown again. Lose it and revoke it, then make a new one.
-export function dmView({ campaign, roster, loadInvites, createInvite, revokeInvite, onCopy }) {
+// registerPrefill(fn) gives the page a function that fills in the invite form for a named player.
+export function dmView({ campaign, roster, loadInvites, createInvite, replaceInvite, revokeInvite, onCopy, registerPrefill }) {
   // `fresh` holds the once-only invite link and must never be overwritten by
   // anything else, or a link the DM has not copied yet is lost for good. Errors from
   // revoking go in `problem`.
@@ -472,35 +512,56 @@ export function dmView({ campaign, roster, loadInvites, createInvite, revokeInvi
     await refresh();
   }
 
+  async function replace(event, invite) {
+    const button = event.currentTarget;
+    if (!window.confirm(`Make a new link${invite.label ? ` for ${invite.label}` : ""} and end the old one? Anyone with the old link can no longer use it.`)) return;
+    button.disabled = true;
+    problem.replaceChildren();
+    try {
+      showNewLink(await replaceInvite(invite.id), "New link made. The old one no longer works. ");
+    } catch (err) {
+      console.error(err);
+      problem.replaceChildren(notice("error", friendlyError(err)));
+    }
+    await refresh();
+  }
+
+  const inviteRow = (invite) => {
+    const status = inviteStatus(invite);
+    return h(
+      "li",
+      { class: "invite" },
+      h(
+        "div",
+        { class: "invite-main" },
+        h("strong", {}, invite.label || "Invite"),
+        h("span", { class: "badge" }, status),
+        h("span", { class: "muted" }, `${invite.use_count} of ${invite.max_uses} used`),
+        h("span", { class: "muted" }, `expires ${new Date(invite.expires_at).toLocaleString()}`),
+      ),
+      status === "active"
+        ? h(
+            "div",
+            { class: "actions" },
+            h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: (event) => replace(event, invite) }, "Replace link"),
+            h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: (event) => revoke(event, invite) }, "Revoke"),
+          )
+        : null,
+    );
+  };
+
+  // Active invites first. The rest (used up, expired, revoked) are folded away.
   function renderInvites(invites) {
     if (!invites.length) return [h("p", { class: "muted" }, "No invites yet. Create one above and send the link to a player.")];
+    const active = invites.filter((invite) => inviteStatus(invite) === "active");
+    const older = invites.filter((invite) => inviteStatus(invite) !== "active");
     return [
-      h(
-        "ul",
-        { class: "invites" },
-        ...invites.map((invite) => {
-          const status = inviteStatus(invite);
-          return h(
-            "li",
-            { class: "invite" },
-            h(
-              "div",
-              { class: "invite-main" },
-              h("strong", {}, invite.label || "Invite"),
-              h("span", { class: "badge" }, status),
-              h("span", { class: "muted" }, `${invite.use_count} of ${invite.max_uses} used`),
-              h("span", { class: "muted" }, `expires ${new Date(invite.expires_at).toLocaleString()}`),
-            ),
-            status === "active"
-              ? h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: (event) => revoke(event, invite) }, "Revoke")
-              : null,
-          );
-        }),
-      ),
+      active.length ? h("ul", { class: "invites" }, ...active.map(inviteRow)) : h("p", { class: "muted" }, "No active invites."),
+      older.length ? h("details", {}, h("summary", {}, `Older invites (${older.length})`), h("ul", { class: "invites" }, ...older.map(inviteRow))) : null,
     ];
   }
 
-  function showNewLink(created) {
+  function showNewLink(created, heading = "Invite created. ") {
     const link = `${location.origin}/join/${encodeURIComponent(created.code)}`;
     const status = h("span", { class: "status", "aria-live": "polite" });
     const copy = async () => {
@@ -515,16 +576,17 @@ export function dmView({ campaign, roster, loadInvites, createInvite, revokeInvi
       h(
         "div",
         { class: "notice notice-success stack", role: "status" },
-        h("p", {}, h("strong", {}, "Invite created. "), "This link is shown only once, so copy it now."),
+        h("p", {}, h("strong", {}, heading), "This link is shown only once, so copy it now."),
         h("p", {}, h("code", { class: "code linkbox" }, link)),
         h("div", { class: "actions" }, h("button", { class: "btn btn-primary", type: "button", onclick: copy }, "Copy link"), status),
       ),
     );
   }
 
+  const labelField = field({ id: "label", label: "Who is it for? (optional)", maxlength: 60, autocomplete: "off", hint: "Only you see this. For example, the player's name." });
   const createForm = form({
     fields: [
-      field({ id: "label", label: "Who is it for? (optional)", maxlength: 60, autocomplete: "off", hint: "Only you see this. For example, the player's name." }),
+      labelField,
       selectField({ id: "uses", label: "How many people can use it?", options: USES, value: 1 }),
       selectField({ id: "lifetime", label: "How long is it valid?", options: LIFETIMES, value: 168 }),
     ],
@@ -540,6 +602,26 @@ export function dmView({ campaign, roster, loadInvites, createInvite, revokeInvi
     },
   });
 
+  // Not `fresh`: that one holds a link the DM has not copied yet.
+  const prefillNote = h("p", { class: "muted", role: "status", "aria-live": "polite" });
+  const createSection = h(
+    "section",
+    { class: "card stack" },
+    h("h2", {}, "Invite a player"),
+    h("p", { class: "muted" }, "Players can only join with a link you create here. Each link expires, has a use limit, and can be revoked."),
+    createForm,
+    prefillNote,
+    fresh,
+  );
+  if (registerPrefill) {
+    registerPrefill((name) => {
+      labelField.querySelector("input").value = String(name).slice(0, 60);
+      prefillNote.textContent = `Ready to invite ${name} again. Press Create invite link.`;
+      createSection.scrollIntoView({ block: "center" });
+      createForm.querySelector('button[type="submit"]').focus();
+    });
+  }
+
   refresh();
 
   return h(
@@ -547,19 +629,7 @@ export function dmView({ campaign, roster, loadInvites, createInvite, revokeInvi
     { class: "stack" },
     h("div", { class: "card-head" }, h("h1", {}, campaign.name), h("span", { class: "badge" }, "DM view")),
     roster,
-    h(
-      "div",
-      { class: "two-up" },
-      h(
-        "section",
-        { class: "card stack" },
-        h("h2", {}, "Invite a player"),
-        h("p", { class: "muted" }, "Players can only join with a link you create here. Each link expires, has a use limit, and can be revoked."),
-        createForm,
-        fresh,
-      ),
-      h("section", { class: "card stack" }, h("h2", {}, "Invites"), problem, list),
-    ),
+    h("div", { class: "two-up" }, createSection, h("section", { class: "card stack" }, h("h2", {}, "Invites"), problem, list)),
   );
 }
 

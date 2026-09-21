@@ -335,6 +335,46 @@
     if (path === "/rest/v1/character_history" && method === "GET") return history(c, u);
     if (path === "/rest/v1/rpc/restore_character_version" && method === "POST") return restore(c, body);
 
+    // Previewing, replacing, removing and leaving (migration 0010 and 0001).
+    // `c.joinable` maps a code to { id, name, dmName, member }; c.joinError, c.removeError,
+    // c.leaveError and c.replaceError make the call fail with that message.
+    function rpcError(message) { return json(400, { code: "P0001", message: message, details: null, hint: null }); }
+    if (path === "/rest/v1/rpc/preview_invite" && method === "POST") {
+      if (c.joinError) return rpcError(c.joinError);
+      var previewed = (c.joinable || {})[body.p_invite_code];
+      if (!previewed) return rpcError("invalid invite code");
+      return json(200, [{ campaign_id: previewed.id, campaign_name: previewed.name, dm_name: previewed.dmName || "The DM", already_member: !!previewed.member }]);
+    }
+    if (path === "/rest/v1/rpc/replace_invite" && method === "POST") {
+      if (c.replaceError) return rpcError(c.replaceError);
+      var old = (c.invites || []).filter(function (i) { return i.id === body.p_invite_id; })[0];
+      if (!old || old.revoked_at || new Date(old.expires_at) <= new Date() || old.use_count >= old.max_uses) return rpcError("that invite is not active, or is not yours");
+      old.revoked_at = new Date().toISOString();
+      var replacement = { id: "30000000-0000-4000-8000-0000000000" + String(50 + c.invites.length), campaign_id: old.campaign_id, label: old.label, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 168 * 3600 * 1000).toISOString(), max_uses: Math.max(1, old.max_uses - old.use_count), use_count: 0, revoked_at: null };
+      c.invites.unshift(replacement); save(c);
+      return json(200, [{ invite_id: replacement.id, code: "REPLACED0123456789ABCDEF012345", expires_at: replacement.expires_at }]);
+    }
+    if (path === "/rest/v1/rpc/remove_player" && method === "POST") {
+      if (c.removeError) return rpcError(c.removeError);
+      c.members = (c.members || []).filter(function (m) { return m.player_id !== body.p_player_id; });
+      var link = (c.assignments || []).filter(function (a) { return a.campaign_id === body.p_campaign_id && a.player_id === body.p_player_id; })[0];
+      if (link) {
+        var kept = characterById(c, link.character_id);
+        c.departed = c.departed || [];
+        c.departed.push({ id: 100 + c.departed.length, campaign_id: link.campaign_id, player_id: link.player_id, character_id: link.character_id, character_name: kept.character_name, schema_version: kept.schema_version, data: kept.data, reason: "removed", kept_at: new Date().toISOString() });
+        c.assignments = c.assignments.filter(function (a) { return a !== link && !(a.campaign_id === link.campaign_id && a.player_id === link.player_id); });
+      }
+      save(c);
+      return new Response(null, { status: 204 });
+    }
+    if (path === "/rest/v1/rpc/leave_campaign" && method === "POST") {
+      if (c.leaveError) return rpcError(c.leaveError);
+      c.campaigns = (c.campaigns || []).filter(function (x) { return x.id !== body.p_campaign_id; });
+      c.assignments = (c.assignments || []).filter(function (a) { return !(a.campaign_id === body.p_campaign_id && a.player_id === PLAYER); });
+      save(c);
+      return new Response(null, { status: 204 });
+    }
+
     if (path === "/rest/v1/rpc/join_campaign" && method === "POST") {
       if (c.joinError) return json(400, { code: "P0001", message: c.joinError, details: null, hint: null });
       var joinable = (c.joinable || {})[body.p_invite_code];

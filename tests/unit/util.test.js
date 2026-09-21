@@ -63,6 +63,9 @@ describe("friendlyError", () => {
   it("maps the database's messages to plain language", () => {
     expect(friendlyError(new Error("invalid invite code"))).toMatch(/not valid/);
     expect(friendlyError(new Error("you run this campaign"))).toMatch(/You are the DM/);
+    expect(friendlyError(new Error("this campaign already has 50 active invites. Revoke one first"))).toBe("This campaign already has 50 active invites. Revoke one first.");
+    expect(friendlyError(new Error("this campaign has made 500 invites, the most it can keep"))).toMatch(/500 invites/);
+    expect(friendlyError(new Error("that invite is not active, or is not yours"))).toBe("That invite is no longer active.");
     expect(friendlyError(new Error("only the DM of this campaign can create invites"))).toMatch(/Only the DM/);
     expect(friendlyError(new Error("invite not found, already revoked, or not yours"))).toMatch(/already be revoked/);
     expect(friendlyError({ message: "permission denied for table campaigns" })).toMatch(/access/);

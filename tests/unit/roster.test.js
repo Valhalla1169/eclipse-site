@@ -45,6 +45,22 @@ describe("buildRoster", () => {
     expect(players[0].character).toMatchObject({ id: "a", name: "Marlo", unreadable: false, summary: { profession: "Engineer", monitors: { shock: { boxes: 3 } } } });
   });
 
+  it("says which invite each member joined with, when it is known", () => {
+    const withInvites = buildRoster({
+      members: [
+        { player_id: "p1", joined_at: "2026-09-01T00:00:00Z", invite_id: "i1" },
+        { player_id: "p2", joined_at: "2026-09-02T00:00:00Z", invite_id: "i2" },
+        { player_id: "p3", joined_at: "2026-09-03T00:00:00Z", invite_id: null },
+      ],
+      assignments: [],
+      profiles,
+      characters: {},
+      departed: {},
+      invites: { i1: "for Dana", i2: null },
+    });
+    expect(withInvites.players.map((p) => p.invite)).toEqual([{ label: "for Dana" }, { label: null }, null]);
+  });
+
   it("keeps a member who has not chosen a character yet", () => {
     const { players } = roster();
     expect(players).toHaveLength(3);
