@@ -69,7 +69,7 @@ html { color-scheme: dark; scroll-behavior: smooth; }
 :root {
   --gutter: clamp(1rem, 4vw, 2rem);
   --page-w: 72rem;
-  --content-w: 44rem;
+  --content-w: 50rem;
   --link: color-mix(in srgb, var(--blue) 75%, var(--text));
   --hover-title: color-mix(in srgb, var(--green) 55%, var(--text));
   --field-border: color-mix(in srgb, var(--text) 70%, var(--base));
@@ -202,10 +202,10 @@ p { margin: 0; }
   margin: 0 auto;
   padding: clamp(1.5rem, 6vw, 3rem) var(--gutter) 4rem;
 }
-.page > * { max-width: var(--content-w); }
+.page > * { max-width: var(--content-w); margin-inline: auto; }
 .page-roomy > *, .page-wide > * { max-width: none; }
 .page-roomy p { max-width: 60ch; }
-.page-roomy .narrow { max-width: var(--content-w); }
+.page-roomy .narrow { max-width: var(--content-w); margin-inline: auto; }
 .stack > * + * { margin-top: 1rem; }
 .muted { color: var(--subtext1); }
 .hint { font-size: 0.9rem; color: var(--subtext1); }

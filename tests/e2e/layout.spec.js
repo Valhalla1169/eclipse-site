@@ -108,11 +108,31 @@ test.describe("width", () => {
     const unit = await rem(page);
     await seed(page, { mock: {}, user: null });
     await open(page, "/login");
-    expect((await box(page.locator("#main > *").first())).width).toBeLessThanOrEqual(44 * unit + 1);
+    expect((await box(page.locator("#main > *").first())).width).toBeLessThanOrEqual(50 * unit + 1);
     await signedIn(page);
     await open(page, "/characters");
-    expect((await box(page.locator("ul.characters"))).width).toBeGreaterThan(44 * unit + 100);
+    expect((await box(page.locator("ul.characters"))).width).toBeGreaterThan(50 * unit + 100);
     expect((await box(page.locator("#main"))).width).toBeLessThanOrEqual(72 * unit + 1);
+  });
+
+  test("a form page is centred, at 50rem when there is room, and on the sign-in page too", async ({ page }) => {
+    await page.setViewportSize({ width: 1800, height: 900 });
+    const unit = await rem(page);
+    await seed(page, { mock: {}, user: null });
+    for (const path of ["/login", "/signup"]) {
+      await open(page, path);
+      const column = await box(page.locator("#main > *").first());
+      expect(Math.abs(column.width - 50 * unit), path).toBeLessThan(2);
+      expect(Math.abs(column.x + column.width / 2 - 900), path).toBeLessThan(2);
+    }
+  });
+
+  test("the DM's invite forms are centred under the wide roster", async ({ page }) => {
+    await page.setViewportSize({ width: 1800, height: 900 });
+    await seed(page, { mock: { profile: players.dm.profile, campaigns: [campaign], members: [], profiles: [] }, user: players.dm });
+    await open(page, `/campaign/${campaign.id}/dm`);
+    const invite = await box(page.locator("section.narrow").first());
+    expect(Math.abs(invite.x + invite.width / 2 - 900)).toBeLessThan(2);
   });
 });
 
