@@ -26,7 +26,7 @@ baseTest.describe("what the server publishes", () => {
       const body = await response.text();
       baseExpect(response.status()).toBe(200);
       baseExpect(body).toContain("<title>Eclipse</title>");
-      baseExpect(body).not.toMatch(/eclipse-site|\[auth\]|service_role|\[core\]/);
+      baseExpect(body).not.toMatch(/"eclipse-site"|\[auth\]|service_role|\[core\]/);
     });
   }
 

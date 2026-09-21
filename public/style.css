@@ -68,8 +68,10 @@ html { color-scheme: dark; scroll-behavior: smooth; }
    ========================================================================== */
 :root {
   --gutter: clamp(1rem, 4vw, 2rem);
-  --page-w: 44rem;
+  --page-w: 72rem;
+  --content-w: 44rem;
   --link: color-mix(in srgb, var(--blue) 75%, var(--text));
+  --hover-title: color-mix(in srgb, var(--green) 55%, var(--text));
   --field-border: color-mix(in srgb, var(--text) 70%, var(--base));
   --danger: color-mix(in srgb, var(--red) 70%, var(--text));
   --success: color-mix(in srgb, var(--green) 70%, var(--text));
@@ -80,6 +82,8 @@ html { color-scheme: dark; scroll-behavior: smooth; }
 body {
   margin: 0;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   font-family: var(--font-sans);
   line-height: 1.55;
   background: var(--base);
@@ -116,10 +120,15 @@ h1 { margin: 0; font-size: 1.75rem; line-height: 1.2; }
 h2 { margin: 0; font-size: 1.25rem; line-height: 1.3; }
 p { margin: 0; }
 
-/* ---- Header ---- */
+/* ---- Header (full-width bar, like deyderae.dev) ---- */
 .site-header {
   background: var(--mantle);
   border-bottom: 1px solid var(--surface0);
+  transition: background-color 0.25s ease;
+}
+/* Sticky only where there is room: on a phone the header is two rows tall. */
+@media (min-width: 40rem) {
+  .site-header { position: sticky; top: 0; z-index: 50; }
 }
 .bar {
   max-width: var(--page-w);
@@ -133,16 +142,22 @@ p { margin: 0; }
 .brand {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.75rem;
   margin-right: auto;
   text-decoration: none;
 }
-.logo { display: block; width: 1.75rem; height: 1.75rem; }
+.logo { display: block; width: 2rem; height: 2rem; }
 .wordmark {
   font-size: 1.25rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--mauve);
+}
+.wordmark span { color: var(--text); font-weight: 400; }
+@media (max-width: 40rem) {
+  .wordmark span { display: none; }
+  .theme-switcher { order: 2; }
+  .account { order: 3; flex-basis: 100%; }
 }
 .account { display: flex; align-items: center; gap: 0.6rem; }
 .account-name {
@@ -150,8 +165,6 @@ p { margin: 0; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.9rem;
-  color: var(--subtext1);
 }
 
 /* ---- Theme switcher ---- */
@@ -179,11 +192,19 @@ p { margin: 0; }
 .theme-btn.active { box-shadow: 0 0 0 2px var(--base), 0 0 0 4px var(--mauve); }
 
 /* ---- Page and content ---- */
+/* The page is as wide as the header. Its content is a narrow column by default. A page that
+   holds a grid of cards is "roomy", and the sheet is "wide" (sheet.css). */
 .page {
+  flex: 1 0 auto;
+  width: 100%;
   max-width: var(--page-w);
   margin: 0 auto;
   padding: clamp(1.5rem, 6vw, 3rem) var(--gutter) 4rem;
 }
+.page > * { max-width: var(--content-w); }
+.page-roomy > *, .page-wide > * { max-width: none; }
+.page-roomy p { max-width: 60ch; }
+.page-roomy .narrow { max-width: var(--content-w); }
 .stack > * + * { margin-top: 1rem; }
 .muted { color: var(--subtext1); }
 .hint { font-size: 0.9rem; color: var(--subtext1); }
@@ -259,6 +280,7 @@ select {
   text-align: center;
   text-decoration: none;
   cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 .btn-primary { background: var(--mauve); color: var(--base); }
 .btn-primary:hover { background: color-mix(in srgb, var(--mauve) 85%, var(--text)); }
@@ -301,17 +323,55 @@ select {
 /* Text for screen readers only. */
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 
+/* ---- Home ---- */
+article.card h3 { margin: 0; font-size: 1.25rem; line-height: 1.3; }
+.stack > h2.section-title { margin-top: 2rem; }
+.hero h1 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.hero h1 strong { font-weight: 700; }
+.hero h1 .accent { color: var(--mauve); }
+.hero p { font-size: clamp(1rem, 2vw, 1.25rem); color: var(--subtext1); }
+h2.section-title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--subtext1);
+}
+
 /* ---- Version history ---- */
 .history { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.75rem; }
 .history-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; padding: 1rem; background: var(--base); }
 .history-item p { margin: 0.15rem 0 0; }
 
 /* ---- Characters ---- */
-.nav-link { font-size: 0.9rem; color: var(--link); }
 .characters { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 1rem; }
 .character-card { background: var(--base); padding: 1rem; }
 .character-card h2 { margin: 0; font-size: 1.15rem; line-height: 1.3; overflow-wrap: anywhere; }
 details.card summary { cursor: pointer; font-weight: 600; }
+
+/* Cards that hold actions, not links: a stronger border and a shadow on hover and focus,
+   with no lift, so they do not look like one big link (deyderae.dev lifts link cards). */
+article.card, .character-card, .player-card, .history-item {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+article.card:hover, article.card:focus-within,
+.character-card:hover, .character-card:focus-within,
+.player-card:hover, .player-card:focus-within,
+.history-item:hover, .history-item:focus-within {
+  border-color: color-mix(in srgb, var(--text) 50%, transparent);
+  box-shadow: 0 0.5rem 1.5rem color-mix(in srgb, var(--text) 15%, transparent);
+}
+.character-card h2, .player-card h3, article.card h3 { transition: color 0.2s ease; }
+.character-card:hover h2, .character-card:focus-within h2,
+.player-card:hover h3, .player-card:focus-within h3,
+article.card:hover h3, article.card:focus-within h3 { color: var(--hover-title); }
 
 /* ---- Roster (DM page) ---- */
 .roster { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 1rem; }
@@ -323,6 +383,47 @@ details.card summary { cursor: pointer; font-weight: 600; }
 .stats dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 .small { font-size: 0.85rem; }
 .badge-alert { border: 2px solid var(--danger); background: transparent; }
+
+/* ---- Footer (full-width band, like deyderae.dev) ---- */
+.site-footer {
+  background: var(--crust);
+  border-top: 1px solid var(--surface0);
+  color: var(--subtext1);
+  font-size: 0.9rem;
+  transition: background-color 0.25s ease;
+}
+.footer-inner {
+  max-width: var(--page-w);
+  margin: 0 auto;
+  padding: 2rem var(--gutter);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: center;
+}
+.footer-inner p { margin: 0; }
+.site-footer a { color: var(--text); }
+.socials {
+  display: flex;
+  gap: 0.75rem;
+  margin: 0 0 0.25rem;
+  padding: 0;
+  list-style: none;
+}
+.socials a {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  color: var(--text);
+  text-decoration: none;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+.socials a:hover { color: var(--mauve); background: var(--mantle); }
+.socials svg { width: 1.4rem; height: 1.4rem; fill: currentColor; }
+.socials svg.stroke { fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

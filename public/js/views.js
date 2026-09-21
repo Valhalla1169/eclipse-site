@@ -350,7 +350,7 @@ function campaignCard(campaign, active) {
   return h(
     "article",
     { class: "card stack" },
-    h("div", { class: "card-head" }, h("h2", {}, campaign.name), h("span", { class: "badge" }, campaign.isDm ? "DM" : "Player")),
+    h("div", { class: "card-head" }, h("h3", {}, campaign.name), h("span", { class: "badge" }, campaign.isDm ? "DM" : "Player")),
     campaign.isDm
       ? h("p", {}, h("a", { class: "btn btn-primary", href: `/campaign/${id}/dm` }, "Open DM view, players and invites"))
       : active
@@ -361,6 +361,10 @@ function campaignCard(campaign, active) {
         : [h("p", { class: "muted" }, "You have not chosen a character for this campaign yet."), h("p", {}, h("a", { class: "btn btn-primary", href: chooser }, "Choose a character"))],
   );
 }
+
+// The big greeting at the top of the home page, like the one on deyderae.dev.
+const hero = (profile, line) =>
+  h("section", { class: "hero" }, h("h1", {}, "Welcome, ", h("strong", { class: "accent" }, profile.display_name), "."), h("p", {}, line));
 
 const charactersCard = () =>
   h(
@@ -380,7 +384,8 @@ export function homeView({ profile, campaigns, activeByCampaign = {}, canCreate,
     return h(
       "div",
       { class: "stack" },
-      h("h1", {}, campaigns.length === 1 ? "Your campaign" : "Your campaigns"),
+      hero(profile, "Pick up where you left off."),
+      h("h2", { class: "section-title" }, campaigns.length === 1 ? "Your campaign" : "Your campaigns"),
       ...campaigns.map((campaign) => campaignCard(campaign, activeByCampaign[campaign.id])),
       charactersCard(),
     );
@@ -388,7 +393,7 @@ export function homeView({ profile, campaigns, activeByCampaign = {}, canCreate,
   return h(
     "div",
     { class: "stack" },
-    h("h1", {}, `Welcome, ${profile.display_name}`),
+    hero(profile, "Your characters are yours, in a campaign or not."),
     charactersCard(),
     h(
       "p",
@@ -544,13 +549,13 @@ export function dmView({ campaign, roster, loadInvites, createInvite, revokeInvi
     roster,
     h(
       "section",
-      { class: "card stack" },
+      { class: "card stack narrow" },
       h("h2", {}, "Invite a player"),
       h("p", { class: "muted" }, "Players can only join with a link you create here. Each link expires, has a use limit, and can be revoked."),
       createForm,
       fresh,
     ),
-    h("section", { class: "card stack" }, h("h2", {}, "Invites"), problem, list),
+    h("section", { class: "card stack narrow" }, h("h2", {}, "Invites"), problem, list),
   );
 }
 

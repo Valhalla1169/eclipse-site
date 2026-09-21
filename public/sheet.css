@@ -775,10 +775,13 @@ td select.tier { font-size: 13px; }
 @media (max-width: 770px) { .refcols { columns: 1; } }
 @media (max-width: 625px) { .vitals { grid-template-columns: 1fr; } .origin { grid-template-columns: 1fr; } }
 
+/* The header is sticky from 40rem up, so the Reference bar sits under it. */
+@media (min-width: 40rem) { .reftools { top: var(--header-h, 0px); } }
+
 /* ─── print: flip to paper ─────────────────────────────── */
 @media print {
   @page { size: letter portrait; margin: 0.4in; }
-  .site-header, .skip-link { display: none; }
+  .site-header, .site-footer, .skip-link { display: none; }
   .page.page-wide { background: #fff; padding: 0; }
   /* Plain white paper and black ink, whichever theme is on screen. */
   [data-theme] .sheet {

@@ -52,14 +52,14 @@ let renderToken = 0; // a newer navigation invalidates an older, slower render
 let disposeView = null; // set by a view that holds page-wide listeners, such as the sheet
 let flushView = null; // set by a view that may hold unsaved changes
 
-// options.wide: the sheet needs more room than the account pages. options.dispose:
-// runs when the view is replaced. options.flush: saves what is waiting and resolves
+// options.wide: the sheet needs more room than the account pages. options.roomy: a grid
+// of cards uses the full page width. options.dispose: runs when the view is replaced. options.flush: saves what is waiting and resolves
 // to false if something could not be saved.
-function show(node, title, announce = true, { wide = false, dispose = null, flush = null } = {}) {
+function show(node, title, announce = true, { wide = false, roomy = false, dispose = null, flush = null } = {}) {
   if (disposeView) disposeView();
   disposeView = dispose;
   flushView = flush;
-  main.className = wide ? "page page-wide" : "page";
+  main.className = wide ? "page page-wide" : roomy ? "page page-roomy" : "page";
   main.replaceChildren(node);
   document.title = title ? `${title} - Eclipse` : "Eclipse";
   // After an in-app navigation, move focus to the new heading so keyboard and
@@ -279,7 +279,7 @@ async function onRoute({ path, search, match, initial }) {
       }),
       campaign.name,
       announce,
-      { dispose: roster.dispose },
+      { dispose: roster.dispose, roomy: true },
     );
   } catch (err) {
     if (!alive()) return;
@@ -343,6 +343,7 @@ async function showCharacters({ user, alive, announce }) {
       }),
       "Your characters",
       focus,
+      { roomy: true },
     );
   };
   return draw(announce);
@@ -365,6 +366,7 @@ async function showChoose({ campaign, user, alive, announce }) {
     }),
     campaign.name,
     announce,
+    { roomy: true },
   );
 }
 
@@ -604,6 +606,10 @@ async function boot() {
     }
     router.go("/login", { replace: true });
   });
+
+  // The sheet's sticky Reference bar sits just under the sticky header.
+  const header = document.querySelector(".site-header");
+  new ResizeObserver(() => document.documentElement.style.setProperty("--header-h", `${header.offsetHeight}px`)).observe(header);
 
   router = createRouter({ table: ROUTES, onRoute });
   router.start();
