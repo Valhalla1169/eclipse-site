@@ -84,6 +84,16 @@ const ACCENTS = ["corona", "rift", "blood", "bile", "ok", "hunger", "psy"];
 const TEXT_SURFACES = ["--slab", "--slab2", "--well", "--void"];
 const GRAPHIC_SURFACES = ["--slab", "--well", "--void"];
 
+describe.each(THEMES)("footer icon colour in %s", (theme) => {
+  const tokens = tokensFor(theme);
+
+  it("is 3:1 on the footer band and the hover fill", () => {
+    for (const surface of ["--crust", "--mantle"]) {
+      expect(contrast(resolve("var(--icon)", tokens), resolve(`var(${surface})`, tokens)), `--icon on ${surface}`).toBeGreaterThanOrEqual(3);
+    }
+  });
+});
+
 describe.each(THEMES)("sheet colours in %s", (theme) => {
   const tokens = tokensFor(theme);
   const colour = (name) => resolve(`var(${name})`, tokens);

@@ -29,6 +29,17 @@ test.describe("the header and footer match deyderae.dev", () => {
     }
   });
 
+  test("the brand is at the left edge and the theme switcher at the right edge, on a very wide screen", async ({ page }) => {
+    await page.setViewportSize({ width: 1800, height: 800 });
+    await signedIn(page);
+    await open(page, "/characters");
+    const [gutter, width] = await page.evaluate(() => [parseFloat(getComputedStyle(document.querySelector(".bar")).paddingLeft), document.documentElement.clientWidth]);
+    expect((await box(page.locator(".brand"))).x).toBeCloseTo(gutter, 0);
+    const switcher = await box(page.locator(".theme-switcher"));
+    expect(switcher.x + switcher.width).toBeCloseTo(width - gutter, 0);
+    expect((await box(page.locator("#account"))).x).toBeGreaterThan((await box(page.locator(".brand"))).x + 800);
+  });
+
   test("the header stays at the top while a long page scrolls, on a wide screen", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 500 });
     await signedIn(page);
@@ -101,7 +112,7 @@ test.describe("width", () => {
     await signedIn(page);
     await open(page, "/characters");
     expect((await box(page.locator("ul.characters"))).width).toBeGreaterThan(44 * unit + 100);
-    expect((await box(page.locator(".site-header .bar"))).width).toBeLessThanOrEqual(72 * unit + 1);
+    expect((await box(page.locator("#main"))).width).toBeLessThanOrEqual(72 * unit + 1);
   });
 });
 
@@ -139,6 +150,15 @@ test.describe("hover", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     expect(await fade(".btn-primary")).toEqual(["0s"]);
     expect(await fade(".socials a")).toEqual(["0s"]);
+  });
+
+  test("the footer icons are Catppuccin green", async ({ page }) => {
+    await seed(page, { mock: {}, user: null });
+    await open(page, "/login");
+    await page.getByRole("button", { name: "Mocha theme" }).click();
+    for (const icon of await page.locator(".socials a").all()) {
+      await expect.poll(() => icon.evaluate((el) => getComputedStyle(el).color)).toBe("rgb(166, 227, 161)");
+    }
   });
 
   test("a footer icon turns mauve on hover", async ({ page }) => {
