@@ -160,7 +160,7 @@ test.describe("sign up", () => {
     await submit(page, "Create account");
   };
 
-  const approved = (email) => ({ approvals: [{ email, approved_at: "2026-09-20T10:00:00.000Z", approved_by_name: "Ada" }] });
+  const approved = (email) => ({ approvals: [{ email, approved_at: new Date().toISOString(), expires_at: new Date(Date.now() + 86400 * 1000).toISOString(), approved_by_name: "Ada" }] });
 
   test("says that only an approved email can make an account", async ({ page }) => {
     await seed(page);

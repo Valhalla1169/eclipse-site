@@ -38,10 +38,14 @@ for (const theme of ["latte", "mocha"]) {
         await expectClean(page, path);
       }
       const accounts = [
-        { user_id: PLAYER_ID, email: "dana@example.com", display_name: "Dana Voss", created_at: "2026-09-01T10:00:00.000Z", last_sign_in_at: "2026-09-19T10:00:00.000Z", is_admin: true },
-        { user_id: "00000000-0000-4000-8000-0000000000b4", email: "zed@example.com", display_name: "Zed", created_at: "2026-09-02T10:00:00.000Z", last_sign_in_at: null, is_admin: false },
+        { user_id: PLAYER_ID, email: "dana@example.com", display_name: "Dana Voss", created_at: "2026-09-01T10:00:00.000Z", last_sign_in_at: "2026-09-19T10:00:00.000Z", email_confirmed_at: "2026-09-01T11:00:00.000Z", is_admin: true },
+        { user_id: "00000000-0000-4000-8000-0000000000b4", email: "zed@example.com", display_name: "Zed", created_at: "2026-09-02T10:00:00.000Z", last_sign_in_at: null, email_confirmed_at: null, is_admin: false },
       ];
-      const approvals = [{ email: "sam@example.com", approved_at: "2026-09-20T10:00:00.000Z", approved_by_name: "Dana Voss" }];
+      const day = 86400 * 1000;
+      const approvals = [
+        { email: "sam@example.com", approved_at: new Date(Date.now() - day).toISOString(), expires_at: new Date(Date.now() + 6 * day).toISOString(), approved_by_name: "Dana Voss" },
+        { email: "kim@example.com", approved_at: new Date(Date.now() - 9 * day).toISOString(), expires_at: new Date(Date.now() - 2 * day).toISOString(), approved_by_name: "Dana Voss" },
+      ];
       await seed(page, { mock: { profile: players.dana.profile, admin: true, accounts, approvals, campaigns: [campaign], character: row, assignments: [assignmentRow()] }, user: players.dana });
       await setTheme(page);
       for (const path of ["/", "/account", "/characters", `/campaign/${ids.campaign}/character`]) {
@@ -50,6 +54,7 @@ for (const theme of ["latte", "mocha"]) {
       }
       await open(page, "/admin");
       await expect(page.locator("li.invite")).toHaveCount(accounts.length + approvals.length);
+      await page.getByText("Expired approvals (1)").click();
       await expectClean(page, "/admin");
     });
 

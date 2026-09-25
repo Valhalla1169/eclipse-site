@@ -223,37 +223,59 @@
   }
 
   // Who may make an account, and the site admin's functions (migration 0011).
-  // `c.admin` makes the signed-in person a site admin. `c.accounts` holds
-  // { user_id, email, display_name, created_at, last_sign_in_at, is_admin }, and
-  // `c.approvals` holds { email, approved_at, approved_by_name }. Supabase Auth's hook
-  // refuses a new account for an email with no approval.
+  // `c.admin` makes the signed-in person a site admin, and `c.adminCheckFails` makes
+  // is_site_admin fail. `c.accounts` holds { user_id, email, display_name, created_at,
+  // last_sign_in_at, email_confirmed_at, is_admin }, and `c.approvals` holds { email,
+  // approved_at, expires_at, approved_by_name }. Supabase Auth runs the hook only for a
+  // new email, and the hook refuses an email with no approval that has not expired. Only
+  // a confirmed account uses an approval. The admin functions refuse a signed-out caller
+  // (no execute grant) and anyone who is not an admin.
   var NOT_APPROVED = "this email is not approved to make an account";
   var MAX_WAITING = 20;
-  function hasAccount(c, email) { return (c.accounts || []).some(function (a) { return a.email === email; }); }
-  function waiting(c) { return (c.approvals || []).filter(function (a) { return !hasAccount(c, a.email); }); }
+  var APPROVAL_MS = 7 * 86400 * 1000;
+  var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  var ADMIN_RPCS = { is_site_admin: "GET", list_accounts: "GET", list_pending_approvals: "GET", approve_email: "POST", revoke_approval: "POST" };
+  function anyAccount(c, email) { return (c.accounts || []).some(function (a) { return a.email === email; }); }
+  function confirmedAccount(c, email) { return (c.accounts || []).some(function (a) { return a.email === email && a.email_confirmed_at; }); }
+  function current(approval) { return new Date(approval.expires_at) > new Date(); }
+  function waiting(c) { return (c.approvals || []).filter(function (a) { return !confirmedAccount(c, a.email); }); }
   function mayMakeAccount(c, email) {
     var wanted = String(email || "").toLowerCase();
-    return hasAccount(c, wanted) || (c.approvals || []).some(function (a) { return a.email === wanted; });
+    return anyAccount(c, wanted) || (c.approvals || []).some(function (a) { return a.email === wanted && current(a); });
+  }
+  function signedIn(input, init) {
+    var headers = new Headers((init && init.headers) || (input && input.headers) || {});
+    return (headers.get("Authorization") || "").indexOf("Bearer fake.") === 0;
   }
   function adminOnly(c, action) { return c.admin ? null : pgError("only a site admin can " + action); }
   function approveEmail(c, body) {
     var email = String(body.p_email || "").trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return pgError("that is not an email address");
+    if (email.length > 254 || !EMAIL.test(email)) return pgError("that is not an email address");
+    if (confirmedAccount(c, email)) return json(200, [{ email: email, has_account: true, expires_at: null }]);
     var list = c.approvals || [];
-    if (!list.some(function (a) { return a.email === email; })) {
-      if (waiting(c).length >= MAX_WAITING && !hasAccount(c, email)) return pgError("there are already 20 approved emails with no account. Revoke one first");
-      list.push({ email: email, approved_at: new Date().toISOString(), approved_by_name: (c.profile || {}).display_name || null });
-      c.approvals = list; save(c);
+    var existing = list.filter(function (a) { return a.email === email; })[0];
+    if (!(existing && current(existing)) && waiting(c).filter(current).length >= MAX_WAITING) {
+      return pgError("there are already 20 approved emails with no account. Revoke one first");
     }
-    return json(200, email);
+    var now = Date.now();
+    var approval = { email: email, approved_at: new Date(now).toISOString(), expires_at: new Date(now + APPROVAL_MS).toISOString(), approved_by_name: (c.profile || {}).display_name || null };
+    c.approvals = list.filter(function (a) { return a.email !== email; }).concat([approval]); save(c);
+    return json(200, [{ email: email, has_account: false, expires_at: approval.expires_at }]);
   }
   function revokeApproval(c, body) {
     var email = String(body.p_email || "").trim().toLowerCase();
-    if (hasAccount(c, email)) return pgError("that email already has an account, so its approval cannot be revoked");
+    if (confirmedAccount(c, email)) return pgError("that email already has an account, so its approval cannot be revoked");
     var list = c.approvals || [];
     if (!list.some(function (a) { return a.email === email; })) return pgError("that email is not approved");
     c.approvals = list.filter(function (a) { return a.email !== email; }); save(c);
     return new Response(null, { status: 204 });
+  }
+  function adminRpc(c, name, body) {
+    if (name === "is_site_admin") return c.adminCheckFails ? json(500, { code: "XX000", message: "fake-supabase: is_site_admin failed", details: null, hint: null }) : json(200, !!c.admin);
+    if (name === "list_accounts") return adminOnly(c, "list the accounts") || json(200, c.accounts || []);
+    if (name === "list_pending_approvals") return adminOnly(c, "list the approvals") || json(200, waiting(c));
+    if (name === "approve_email") return adminOnly(c, "approve an email") || approveEmail(c, body);
+    return adminOnly(c, "revoke an approval") || revokeApproval(c, body);
   }
 
   document.addEventListener("securitypolicyviolation", function (e) {
@@ -364,11 +386,11 @@
       }
     }
 
-    if (path === "/rest/v1/rpc/is_site_admin" && method === "GET") return json(200, !!c.admin);
-    if (path === "/rest/v1/rpc/list_accounts" && method === "GET") return adminOnly(c, "list the accounts") || json(200, c.accounts || []);
-    if (path === "/rest/v1/rpc/list_pending_approvals" && method === "GET") return adminOnly(c, "list the approvals") || json(200, waiting(c));
-    if (path === "/rest/v1/rpc/approve_email" && method === "POST") return adminOnly(c, "approve an email") || approveEmail(c, body);
-    if (path === "/rest/v1/rpc/revoke_approval" && method === "POST") return adminOnly(c, "revoke an approval") || revokeApproval(c, body);
+    var rpcName = path.indexOf("/rest/v1/rpc/") === 0 ? path.slice("/rest/v1/rpc/".length) : "";
+    if (ADMIN_RPCS[rpcName] === method) {
+      if (!signedIn(input, init)) return json(401, { code: "42501", message: "permission denied for function " + rpcName, details: null, hint: null });
+      return adminRpc(c, rpcName, body);
+    }
 
     if (path === "/rest/v1/characters") return characters(c, u, method, body);
     if (path === "/rest/v1/campaign_characters" && method === "GET") return assignments(c, u);

@@ -14,9 +14,10 @@ import { isMain, listSql, main, requireEmail, runListCommand, runSql } from "./a
 
 const ADMINS = { table: "site_admins", script: "admins" };
 
+// `approve` approves the email for 7 days, or renews its approval.
 export function sqlFor(command, email) {
   if (command === "approve") {
-    return `insert into public.approved_emails (email) values (lower('${requireEmail(email)}')) on conflict (email) do nothing returning email`;
+    return `insert into public.approved_emails (email) values (lower('${requireEmail(email)}')) on conflict (email) do update set approved_at = default, expires_at = default returning email, expires_at`;
   }
   return listSql(ADMINS, command, email);
 }
@@ -28,8 +29,8 @@ if (isMain(import.meta.url)) {
     sqlFor,
     run(args) {
       if (args.command === "approve") {
-        const rows = runSql(sqlFor("approve", args.email));
-        console.log(rows.length ? `${args.email} is approved. Make the account at https://eclipse.deyderae.dev/signup with exactly that email.` : `${args.email} was already approved.`);
+        const [row] = runSql(sqlFor("approve", args.email));
+        console.log(`${args.email} is approved until ${String(row.expires_at).slice(0, 16)}. Make the account now at https://eclipse.deyderae.dev/signup with exactly that email, and confirm it.`);
         return;
       }
       runListCommand(ADMINS, args, {

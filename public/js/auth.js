@@ -34,7 +34,7 @@ export function onAuthChange(callback) {
 }
 
 // With email confirmation on, no session comes back until the emailed link is used.
-// An email no site admin approved is answered like any other: see isUnapprovedEmail.
+// An email no site admin approved gets the same text as any other: see isUnapprovedEmail.
 export async function signUp({ email, password, displayName, next }) {
   const { data, error } = await sb.auth.signUp({
     email,
@@ -50,7 +50,8 @@ export async function signInWithPassword(email, password) {
   if (error) throw error;
 }
 
-// A link for a new email makes its account, so an email no site admin approved is refused.
+// A link for a new email makes its account, so an email no site admin approved is refused,
+// and gets the same text as any other.
 export async function sendMagicLink(email, returnPath) {
   const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: absolute(returnPath) } });
   if (error && !isUnapprovedEmail(error)) throw error;

@@ -53,12 +53,19 @@ migration. The reasoning is in [`docs/adr/`](docs/adr/).
 ## Who can make an account
 
 Only someone whose email a site admin has approved. A site admin approves emails on the Admin page
-(`/admin`), and the database refuses every other new account (ADR 0014). Nobody can make themselves an
-admin; you manage the admins with the CLI and your own login:
+(`/admin`), and the database refuses every other new account (ADR 0014). An approval lasts 7 days.
+Until the person signs up, anyone who knows the email could sign up first, so:
+
+1. Approve the email, send the person the sign-up link, and ask them to sign up and confirm their
+   email right away.
+2. If the Admin page shows an account "Not confirmed" that the person did not make, delete it in the
+   Supabase dashboard (Authentication, Users), then approve the email again.
+
+Nobody can make themselves an admin; you manage the admins with the CLI and your own login:
 
 ```
 npm run admins approve you@example.com     # an email with no admin to approve it, such as your own at the start
-npm run admins add someone@example.com     # after they have made their account
+npm run admins add someone@example.com     # after they have made and confirmed their account
 npm run admins list
 npm run admins remove someone@example.com
 ```

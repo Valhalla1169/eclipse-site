@@ -71,8 +71,9 @@ const MESSAGE_BY_CODE = {
 };
 
 // Supabase Auth's answer when the sign-up hook refuses an email no site admin approved
-// (migration 0011). Sign-up and email links answer it as they answer any other address,
-// so a page never tells whether an email is approved or has an account.
+// (migration 0011). Sign-up and email links show it the same text as any other address,
+// so the page's own words do not tell whether an email is approved or has an account.
+// The HTTP status (403) and Auth's rate-limit answers still can.
 export function isUnapprovedEmail(err) {
   return /not approved to make an account/i.test(String((err && err.message) || ""));
 }

@@ -639,19 +639,26 @@ export function dmView({ campaign, roster, loadInvites, createInvite, replaceInv
 }
 
 // The site admin page (docs/adr/0014): approve an email so that its owner can make an
-// account, revoke an approval that no account uses yet, and see every account.
+// account, renew or revoke an approval that no confirmed account uses, and see every account.
 export function adminView({ loadAccounts, loadPending, approveEmail, revokeApproval, onCopy }) {
   const fresh = h("div", { class: "stack" });
   const problem = h("div", { class: "stack" });
   const pending = h("div", { class: "stack" });
   const accounts = h("div", { class: "stack" });
   const pendingTitle = h("h2", {}, "Waiting for an account");
+  const expired = (approval) => new Date(approval.expires_at).getTime() <= Date.now();
+  const day = (iso) => new Date(iso).toLocaleDateString();
 
   async function refresh() {
     try {
       const [waiting, people] = await Promise.all([loadPending(), loadAccounts()]);
-      pendingTitle.textContent = `Waiting for an account (${waiting.length})`;
-      pending.replaceChildren(waiting.length ? h("ul", { class: "invites" }, ...waiting.map(approvalRow)) : h("p", { class: "muted" }, "No approved email is waiting for an account."));
+      const current = waiting.filter((approval) => !expired(approval));
+      const old = waiting.filter(expired);
+      pendingTitle.textContent = `Waiting for an account (${current.length})`;
+      pending.replaceChildren(
+        current.length ? h("ul", { class: "invites" }, ...current.map(approvalRow)) : h("p", { class: "muted" }, "No approved email is waiting for an account."),
+        old.length ? h("details", {}, h("summary", {}, `Expired approvals (${old.length})`), h("ul", { class: "invites" }, ...old.map(approvalRow))) : null,
+      );
       accounts.replaceChildren(h("ul", { class: "invites" }, ...people.map(accountRow)));
     } catch (err) {
       console.error(err);
@@ -659,17 +666,33 @@ export function adminView({ loadAccounts, loadPending, approveEmail, revokeAppro
     }
   }
 
-  async function revoke(event, approval) {
+  // Throws what approveEmail throws. Shows the link to send, or says that none is needed.
+  async function approve(email) {
+    const approved = await approveEmail(email);
+    fresh.replaceChildren(
+      approved.has_account
+        ? notice("info", `${approved.email} already has an account, so it needs no approval.`)
+        : linkNotice({
+            heading: "Approved. ",
+            text: `Send this link to ${approved.email} and ask them to make their account now, with exactly this email. The approval ends on ${day(approved.expires_at)}.`,
+            link: `${location.origin}/signup`,
+            onCopy,
+          }),
+    );
+    await refresh();
+  }
+
+  const act = (action) => async (event) => {
     event.currentTarget.disabled = true;
     problem.replaceChildren();
     try {
-      await revokeApproval(approval.email);
+      await action();
     } catch (err) {
       console.error(err);
       problem.replaceChildren(notice("error", friendlyError(err)));
     }
     await refresh();
-  }
+  };
 
   const approvalRow = (approval) =>
     h(
@@ -679,9 +702,16 @@ export function adminView({ loadAccounts, loadPending, approveEmail, revokeAppro
         "div",
         { class: "invite-main" },
         h("strong", {}, approval.email),
-        h("span", { class: "muted" }, `approved ${new Date(approval.approved_at).toLocaleDateString()}${approval.approved_by_name ? ` by ${approval.approved_by_name}` : ""}`),
+        expired(approval) ? h("span", { class: "badge" }, "expired") : null,
+        h("span", { class: "muted" }, `approved ${day(approval.approved_at)}${approval.approved_by_name ? ` by ${approval.approved_by_name}` : ""}`),
+        expired(approval) ? null : h("span", { class: "muted" }, `ends ${day(approval.expires_at)}`),
       ),
-      h("div", { class: "actions" }, h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: (event) => revoke(event, approval) }, "Revoke")),
+      h(
+        "div",
+        { class: "actions" },
+        expired(approval) ? h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: act(() => approve(approval.email)) }, "Approve again") : null,
+        h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: act(() => revokeApproval(approval.email)) }, "Revoke"),
+      ),
     );
 
   const accountRow = (account) =>
@@ -693,8 +723,9 @@ export function adminView({ loadAccounts, loadPending, approveEmail, revokeAppro
         { class: "invite-main" },
         h("strong", {}, account.display_name || account.email),
         account.is_admin ? h("span", { class: "badge" }, "Admin") : null,
+        account.email_confirmed_at ? null : h("span", { class: "badge badge-alert" }, "Not confirmed"),
         h("span", {}, account.email),
-        h("span", { class: "muted" }, `joined ${new Date(account.created_at).toLocaleDateString()}`),
+        h("span", { class: "muted" }, `joined ${day(account.created_at)}`),
         h("span", { class: "muted" }, account.last_sign_in_at ? `last signed in ${timeAgo(account.last_sign_in_at)}` : "never signed in"),
       ),
     );
@@ -703,12 +734,8 @@ export function adminView({ loadAccounts, loadPending, approveEmail, revokeAppro
     fields: [emailField("approveEmail", "Email address")],
     submitLabel: "Approve email",
     onSubmit: async (values) => {
-      const email = await approveEmail(await requireEmail(values.approveEmail));
-      fresh.replaceChildren(
-        linkNotice({ heading: "Approved. ", text: `Send this link to ${email}. They make their account there, with exactly this email.`, link: `${location.origin}/signup`, onCopy }),
-      );
+      await approve(await requireEmail(values.approveEmail));
       approveForm.reset();
-      await refresh();
     },
   });
 
@@ -723,12 +750,26 @@ export function adminView({ loadAccounts, loadPending, approveEmail, revokeAppro
       "section",
       { class: "card stack" },
       h("h2", {}, "Approve an email"),
-      h("p", { class: "muted" }, "At most 20 approved emails can wait for an account at one time. An approval stays after its account is made."),
+      h(
+        "p",
+        { class: "muted" },
+        "An approval lasts 7 days, and at most 20 can wait for an account at one time. Until the person makes their account, anyone who knows the email could make it first, so ask them to sign up right away.",
+      ),
       approveForm,
       fresh,
     ),
     h("section", { class: "card stack" }, pendingTitle, problem, pending),
-    h("section", { class: "card stack" }, h("h2", {}, "Accounts"), accounts),
+    h(
+      "section",
+      { class: "card stack" },
+      h("h2", {}, "Accounts"),
+      h(
+        "p",
+        { class: "muted" },
+        "Not confirmed means the account's email is not confirmed yet. If the person did not make that account, someone else did: the site owner deletes it in the Supabase dashboard (Authentication, Users), then approve the email again.",
+      ),
+      accounts,
+    ),
   );
 }
 

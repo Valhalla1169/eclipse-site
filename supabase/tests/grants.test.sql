@@ -107,13 +107,22 @@ select pg_temp.expect(
        or has_table_privilege('authenticated', t.tbl, 'delete')),
   'G5b: authenticated cannot read or write site_admins or approved_emails, not even one column');
 select pg_temp.expect(
-  pg_temp.cols('supabase_auth_admin', 'public.approved_emails', 'select') = array['email']
+  pg_temp.cols('supabase_auth_admin', 'public.approved_emails', 'select') = array['email','expires_at']
   and pg_temp.cols('supabase_auth_admin', 'public.approved_emails', 'insert') = '{}'
   and pg_temp.cols('supabase_auth_admin', 'public.approved_emails', 'update') = '{}'
-  and not has_table_privilege('supabase_auth_admin', 'public.approved_emails', 'delete')
-  and pg_temp.cols('supabase_auth_admin', 'public.site_admins', 'select') = '{}'
-  and not has_table_privilege('supabase_auth_admin', 'public.site_admins', 'delete'),
-  'G5c: supabase_auth_admin reads only approved_emails.email, and nothing of site_admins');
+  and not exists (
+    select 1 from unnest(array['delete','truncate','references','trigger']) as p(priv)
+    where has_table_privilege('supabase_auth_admin', 'public.approved_emails', p.priv)),
+  'G5c: supabase_auth_admin reads only approved_emails.email and expires_at, and holds no other right on it');
+select pg_temp.expect(
+  pg_temp.cols('supabase_auth_admin', 'public.site_admins', 'select') = '{}'
+  and pg_temp.cols('supabase_auth_admin', 'public.site_admins', 'insert') = '{}'
+  and pg_temp.cols('supabase_auth_admin', 'public.site_admins', 'update') = '{}'
+  and pg_temp.cols('supabase_auth_admin', 'public.site_admins', 'references') = '{}'
+  and not exists (
+    select 1 from unnest(array['delete','truncate','references','trigger']) as p(priv)
+    where has_table_privilege('supabase_auth_admin', 'public.site_admins', p.priv)),
+  'G5e: supabase_auth_admin holds no right at all on site_admins');
 select pg_temp.expect(
   (select relrowsecurity from pg_class where oid = 'public.site_admins'::regclass)
   and (select relrowsecurity from pg_class where oid = 'public.approved_emails'::regclass)

@@ -57,9 +57,9 @@ describe.each([
 });
 
 describe("npm run admins approve", () => {
-  it("approves the email lower-cased, and approving it twice is harmless", () => {
+  it("approves the email lower-cased, and approving it again renews the approval", () => {
     expect(adminsSql("approve", "Owner@Example.com")).toBe(
-      "insert into public.approved_emails (email) values (lower('Owner@Example.com')) on conflict (email) do nothing returning email",
+      "insert into public.approved_emails (email) values (lower('Owner@Example.com')) on conflict (email) do update set approved_at = default, expires_at = default returning email, expires_at",
     );
   });
 
