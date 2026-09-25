@@ -1,0 +1,49 @@
+# Supabase CLI configuration for the STAGING project that `npm run dev` uses (ADR 0015).
+# The project's URL and anon key are in staging.json.
+#
+#   npm run staging check     what a push would change (read-only)
+#   npm run staging push      push the migrations, then this file, to staging
+#
+# Those commands copy this file into a throwaway CLI folder as its config.toml; the live
+# project never reads it. Read config.toml's header first: the same rules apply. It is
+# the same as config.toml, except that the site is the local dev server, and there is no
+# custom SMTP, so Supabase's built-in mailer sends the emails.
+project_id = "eclipse-site-staging"
+
+[db]
+major_version = 17
+
+[auth]
+site_url = "http://localhost:8787"
+additional_redirect_urls = ["http://localhost:8787", "http://localhost:8787/**", "http://127.0.0.1:8787/**"]
+enable_signup = true
+minimum_password_length = 12
+
+[auth.email]
+enable_confirmations = true
+secure_password_change = true
+max_frequency = "1m0s"
+otp_length = 8
+
+[auth.hook.before_user_created]
+enabled = true
+uri = "pg-functions://postgres/public/hook_require_approved_email"
+
+# ── mirrored from the project; not used by the app ───────────────────────────
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.sms.twilio]
+enabled = false
+
+[db.pooler]
+default_pool_size = 15
+max_client_conn = 200
+
+[storage.analytics]
+enabled = true
+max_namespaces = 10
+
+[storage.image_transformation]
+enabled = true

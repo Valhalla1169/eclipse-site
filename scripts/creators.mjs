@@ -4,6 +4,7 @@
 //   npm run creators add you@example.com
 //   npm run creators remove you@example.com
 //   npm run creators add you@example.com print-sql          (show the SQL, run nothing)
+//   npm run creators add you@example.com staging            (on the staging project)
 //
 // The allowlist has no client write access at all, so this is the only way to change
 // it. How it runs: account-lists.mjs.
@@ -18,7 +19,7 @@ export const sqlFor = (command, email) => listSql(CREATORS, command, email);
 if (isMain(import.meta.url)) {
   main({
     commands: ["list", "add", "remove"],
-    usage: "Usage: npm run creators list | add <email> | remove <email>   (add print-sql to only show the SQL)",
+    usage: "Usage: npm run creators list | add <email> | remove <email>   (add staging for the staging project, or print-sql to only show the SQL)",
     sqlFor,
     run: (args) =>
       runListCommand(CREATORS, args, {

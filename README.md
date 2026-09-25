@@ -7,17 +7,42 @@ Cloudflare Workers static assets, with Supabase (Postgres, Auth, Realtime) as th
 This is one subdomain of `deyderae.dev`. The domain-wide design document lives in the
 `deyderae-site` repo (`DESIGN.md`); read it, and [`CLAUDE.md`](CLAUDE.md), before changing anything.
 
-## Run it locally
+## Development
 
 ```
 npm install
-npm run dev          # http://localhost:8787
+npm run dev          # http://localhost:8787 (npm run dev 8810 for another port)
 ```
 
-You create an account with an email a site admin has approved and a password (at least 12 characters),
-or sign in with an emailed link, opened in the same browser that asked for it. The site talks to the real Supabase project
-(its URL and public anon key are in `public/js/config.js`). Emails (confirmation, reset, sign-in link) are sent by Resend from `no-reply@mail.deyderae.dev`; the
-key is in `supabase/.env`, which is not committed.
+`npm run dev` uses the **staging** Supabase project, never the live one (ADR 0015). It serves a copy
+of `public/` from `.wrangler/dev-public` and keeps it in step with your edits. Only two files in the
+copy change: `_headers` (the CSP) and `js/config.js` name staging. The staging URL and public anon
+key are in `supabase/staging.json`, and its settings in `supabase/staging.config.toml`.
+
+Keep staging up to date with the repo. These commands always name the staging project, so they
+cannot reach the live one:
+
+```
+npm run staging check      # what a push would change (read-only)
+npm run staging push       # push new migrations, then the staging settings
+```
+
+Staging starts with no accounts. To get one:
+
+```
+npm run admins approve you@example.com staging
+# sign up at http://localhost:8787/signup with exactly that email, and confirm it
+npm run admins add you@example.com staging       # to use the Admin page there
+npm run creators add you@example.com staging     # to create campaigns there
+```
+
+Staging has no custom SMTP, so Supabase's built-in mailer sends its emails (confirmation, reset,
+sign-in link). It sends only to members of the Supabase organisation, and only a few an hour.
+Emailed links go to port 8787. The live project sends its emails through Resend from
+`no-reply@mail.deyderae.dev`; that key is in `supabase/.env`, which is not committed.
+
+You create an account with an email a site admin has approved and a password (at least 12
+characters), or sign in with an emailed link, opened in the same browser that asked for it.
 
 ## Tests
 
