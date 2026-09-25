@@ -30,10 +30,10 @@ const ROUTES = [
   { name: "history", pattern: "/characters/:characterId/history" },
   { name: "snapshot", pattern: "/characters/:characterId/history/:historyId" },
   { name: "choose", pattern: "/campaign/:id/character" },
-  { name: "dm", pattern: "/campaign/:id/dm" },
-  { name: "dmsheet", pattern: "/campaign/:id/dm/:characterId" },
-  { name: "dmhistory", pattern: "/campaign/:id/dm/:characterId/history" },
-  { name: "dmsnapshot", pattern: "/campaign/:id/dm/:characterId/history/:historyId" },
+  { name: "dm", pattern: "/campaign/:id/keeper" },
+  { name: "dmsheet", pattern: "/campaign/:id/keeper/:characterId" },
+  { name: "dmhistory", pattern: "/campaign/:id/keeper/:characterId/history" },
+  { name: "dmsnapshot", pattern: "/campaign/:id/keeper/:characterId/history/:historyId" },
   { name: "departed", pattern: "/campaign/:id/left/:copyId" },
 ];
 
@@ -264,7 +264,7 @@ async function onRoute({ path, search, match, initial }) {
 
     if (match.name === "join") {
       const code = normalizeCode(match.params.code);
-      if (!code) return showHere(views.notFoundView("That invite link does not look right. Ask your DM to send it again."), "Invalid invite");
+      if (!code) return showHere(views.notFoundView("That invite link does not look right. Ask your Keeper to send it again."), "Invalid invite");
       if (!(await ensureReady({ path: `/join/${code}`, initial }))) return;
       showHere(views.loadingView("Checking the invite..."));
       const preview = await data.previewInvite(code);
@@ -312,7 +312,7 @@ async function onRoute({ path, search, match, initial }) {
 
     // Everything else here is the DM's, and read only.
     if (campaign.dm_id !== user.id) {
-      return showHere(views.notFoundView("Only the DM of this campaign can open this page."), "Not allowed");
+      return showHere(views.notFoundView("Only the Keeper of this campaign can open this page."), "Not allowed");
     }
     const inCampaign = { campaign, alive, announce };
     if (match.name === "dmsheet") return await showPlayersSheet({ ...inCampaign, characterId: match.params.characterId });
@@ -531,7 +531,7 @@ async function showPlayersSheet({ campaign, characterId, alive, announce }) {
   const view = createSheetView({
     opened,
     row,
-    readOnlyNotice: `You are viewing ${playerName}'s sheet as the DM. It is read only, and it updates when they make changes.`,
+    readOnlyNotice: `You are viewing ${playerName}'s sheet as the Keeper. It is read only, and it updates when they make changes.`,
   });
   const status = h("p", { class: "muted", role: "status" });
 
@@ -559,7 +559,7 @@ async function showPlayersSheet({ campaign, characterId, alive, announce }) {
   };
   unsubscribe = data.subscribeToRoster(campaign.id, catchUp, () => {});
   poll = setInterval(catchUp, FALLBACK_REFRESH_MS);
-  const bar = backBar(`${campaignPath(campaign)}/dm`, "Back to the DM page", " ", h("a", { class: "btn btn-quiet btn-small", href: `${campaignPath(campaign)}/dm/${encodeURIComponent(characterId)}/history` }, "History"));
+  const bar = backBar(`${campaignPath(campaign)}/keeper`, "Back to the Keeper page", " ", h("a", { class: "btn btn-quiet btn-small", href: `${campaignPath(campaign)}/keeper/${encodeURIComponent(characterId)}/history` }, "History"));
   return show(h("div", {}, bar, status, view.element), campaign.name, announce, {
     wide: true,
     dispose() {
@@ -576,12 +576,12 @@ async function showPlayersHistory({ campaign, characterId, alive, announce }) {
   if (!assignment) return show(views.notFoundView("We could not find that sheet in this campaign."), "Not found", announce);
   const [entries, names] = await Promise.all([characters.listHistory(characterId), data.readProfileNames([assignment.player_id])]);
   if (!alive()) return;
-  const sheetPath = `${campaignPath(campaign)}/dm/${encodeURIComponent(characterId)}`;
+  const sheetPath = `${campaignPath(campaign)}/keeper/${encodeURIComponent(characterId)}`;
   return show(
     historyView({
       badge: `${names[assignment.player_id] || "A player"}'s sheet`,
       intro:
-        "The site keeps a copy of a sheet before each edit (at most one every 10 minutes) and before each rules update. You see the copies kept since this character became active in your campaign. Each is the sheet as it was just before the time shown. You can only look: a DM never changes a sheet.",
+        "The site keeps a copy of a sheet before each edit (at most one every 10 minutes) and before each rules update. You see the copies kept since this character became active in your campaign. Each is the sheet as it was just before the time shown. You can only look: a Keeper never changes a sheet.",
       back: { href: sheetPath, label: "Back to the sheet" },
       snapshotPath: (entry) => `${sheetPath}/history/${encodeURIComponent(entry.id)}`,
       entries,
@@ -608,7 +608,7 @@ async function showPlayersSnapshot({ campaign, characterId, historyId, alive, an
     row: { id: snapshot.id, updated_at: snapshot.saved_at },
     readOnlyNotice: `This is ${names[assignment.player_id] || "a player"}'s sheet as it was just before ${when}. It is read only.`,
   });
-  const bar = backBar(`${campaignPath(campaign)}/dm/${encodeURIComponent(characterId)}/history`, "Back to the history");
+  const bar = backBar(`${campaignPath(campaign)}/keeper/${encodeURIComponent(characterId)}/history`, "Back to the history");
   return show(h("div", {}, bar, view.element), campaign.name, announce, { wide: true, dispose: view.dispose });
 }
 
@@ -628,7 +628,7 @@ async function showDepartedSheet({ campaign, copyId, alive, announce }) {
     row: { id: copy.id, updated_at: copy.kept_at },
     readOnlyNotice: `This is ${names[copy.player_id] || "a player"}'s sheet as it was when ${copy.reason === "removed" ? "you removed them" : "they left"}, on ${when}. It is read only and it does not change.`,
   });
-  return show(h("div", {}, backBar(`${campaignPath(campaign)}/dm`, "Back to the DM page"), view.element), campaign.name, announce, { wide: true, dispose: view.dispose });
+  return show(h("div", {}, backBar(`${campaignPath(campaign)}/keeper`, "Back to the Keeper page"), view.element), campaign.name, announce, { wide: true, dispose: view.dispose });
 }
 
 async function boot() {

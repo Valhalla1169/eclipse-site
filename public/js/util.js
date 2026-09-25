@@ -85,9 +85,9 @@ export function friendlyError(err) {
   const known = err && MESSAGE_BY_CODE[err.code];
   if (known) return known;
   const msg = String((err && err.message) || err || "");
-  if (/invalid invite code/i.test(msg)) return "That invite code is not valid. Check it with your DM.";
-  if (/you run this campaign/i.test(msg)) return "You are the DM of this campaign, so you cannot join it as a player.";
-  if (/only the dm/i.test(msg)) return "Only the DM of this campaign can do that.";
+  if (/invalid invite code/i.test(msg)) return "That invite code is not valid. Check it with your Keeper.";
+  if (/you run this campaign/i.test(msg)) return "You are the Keeper of this campaign, so you cannot join it as a player.";
+  if (/only the dm/i.test(msg)) return "Only the Keeper of this campaign can do that.";
   if (/50 active invites/i.test(msg)) return "This campaign already has 50 active invites. Revoke one first.";
   if (/500 invites/i.test(msg)) return "This campaign has made 500 invites, the most it can keep.";
   if (/not active, or is not yours/i.test(msg)) return "That invite is no longer active.";

@@ -178,7 +178,7 @@ export function signupView({ next, intro, onSubmit }) {
     h("p", {}, "Only an email that a site admin has approved can make an account here. If yours is not approved yet, ask the site owner."),
     form({
       fields: [
-        field({ id: "displayName", label: "Display name", hint: "Your DM and the players in your campaigns see this name.", maxlength: 40, autocomplete: "nickname", required: true }),
+        field({ id: "displayName", label: "Display name", hint: "Your Keeper and the players in your campaigns see this name.", maxlength: 40, autocomplete: "nickname", required: true }),
         emailField("email"),
         passwordField({ id: "password", label: "Password", hint: `At least ${PASSWORD_MIN_LENGTH} characters. A phrase of several words works well.`, autocomplete: "new-password" }),
       ],
@@ -353,7 +353,7 @@ function campaignCard(campaign, active, onLeave) {
   const status = h("div", { class: "stack" });
   const leave = h("button", { class: "btn btn-quiet", type: "button" }, "Leave campaign");
   leave.addEventListener("click", async () => {
-    const message = `Leave ${campaign.name}? Your DM keeps a copy of your active character's sheet as it is now. Your characters stay yours. You need a new invite to come back.`;
+    const message = `Leave ${campaign.name}? Your Keeper keeps a copy of your active character's sheet as it is now. Your characters stay yours. You need a new invite to come back.`;
     if (!window.confirm(message)) return;
     leave.disabled = true;
     status.replaceChildren();
@@ -368,9 +368,9 @@ function campaignCard(campaign, active, onLeave) {
   return h(
     "article",
     { class: "card stack" },
-    h("div", { class: "card-head" }, h("h3", {}, campaign.name), h("span", { class: "badge" }, campaign.isDm ? "DM" : "Player")),
+    h("div", { class: "card-head" }, h("h3", {}, campaign.name), h("span", { class: "badge" }, campaign.isDm ? "Keeper" : "Player")),
     campaign.isDm
-      ? h("p", {}, h("a", { class: "btn btn-primary", href: `/campaign/${id}/dm` }, "Open DM view, players and invites"))
+      ? h("p", {}, h("a", { class: "btn btn-primary", href: `/campaign/${id}/keeper` }, "Open Keeper view, players and invites"))
       : active
         ? [
             h("p", {}, "Your character: ", h("strong", {}, active.name)),
@@ -422,8 +422,8 @@ export function homeView({ profile, campaigns, activeByCampaign = {}, canCreate,
       "p",
       { class: "muted" },
       canCreate
-        ? "You are not in a campaign yet. Join one with an invite, or create one as the DM."
-        : "You are not in a campaign yet. Open the invite link your DM sent you, or paste its code below.",
+        ? "You are not in a campaign yet. Join one with an invite, or create one as the Keeper."
+        : "You are not in a campaign yet. Open the invite link your Keeper sent you, or paste its code below.",
     ),
     h(
       "section",
@@ -434,7 +434,7 @@ export function homeView({ profile, campaigns, activeByCampaign = {}, canCreate,
         submitLabel: "Join campaign",
         onSubmit: async (values) => {
           const code = normalizeCode(values.code);
-          if (!code) throw invalid("That does not look like an invite code. Paste the whole code from your DM.");
+          if (!code) throw invalid("That does not look like an invite code. Paste the whole code from your Keeper.");
           await onJoin(code);
         },
       }),
@@ -444,7 +444,7 @@ export function homeView({ profile, campaigns, activeByCampaign = {}, canCreate,
           "section",
           { class: "card stack" },
           h("h2", {}, "Create a campaign"),
-          h("p", { class: "muted" }, "You become the DM. You then create invite links for your players."),
+          h("p", { class: "muted" }, "You become the Keeper. You then create invite links for your players."),
           form({
             fields: [field({ id: "campaignName", label: "Campaign name", maxlength: 80, required: true })],
             submitLabel: "Create campaign",
@@ -466,7 +466,7 @@ export function joinView({ preview, onJoin }) {
     "section",
     { class: "card stack" },
     h("h1", {}, `Join ${preview.campaign_name}?`),
-    h("p", {}, h("strong", {}, preview.dm_name), " runs this campaign. If you join, you become a player. Your DM can see the character you choose for it, and you can leave later."),
+    h("p", {}, h("strong", {}, preview.dm_name), " runs this campaign. If you join, you become a player. Your Keeper can see the character you choose for it, and you can leave later."),
     form({
       fields: [],
       submitLabel: "Yes, join this campaign",
@@ -632,7 +632,7 @@ export function dmView({ campaign, roster, loadInvites, createInvite, replaceInv
   return h(
     "div",
     { class: "stack" },
-    h("div", { class: "card-head" }, h("h1", {}, campaign.name), h("span", { class: "badge" }, "DM view")),
+    h("div", { class: "card-head" }, h("h1", {}, campaign.name), h("span", { class: "badge" }, "Keeper view")),
     roster,
     h("div", { class: "two-up" }, createSection, h("section", { class: "card stack" }, h("h2", {}, "Invites"), problem, list)),
   );
@@ -778,9 +778,9 @@ export function dmHasNoSheetView({ campaign }) {
   return h(
     "section",
     { class: "card stack" },
-    h("div", { class: "card-head" }, h("h1", {}, campaign.name), h("span", { class: "badge" }, "DM")),
-    h("p", {}, "You are the DM of this campaign. A DM does not have a character sheet."),
-    h("p", {}, h("a", { class: "btn btn-primary", href: `/campaign/${campaign.id}/dm` }, "Open the DM page"), " ", h("a", { class: "btn btn-quiet", href: "/" }, "Back to home")),
+    h("div", { class: "card-head" }, h("h1", {}, campaign.name), h("span", { class: "badge" }, "Keeper")),
+    h("p", {}, "You are the Keeper of this campaign. A Keeper does not have a character sheet."),
+    h("p", {}, h("a", { class: "btn btn-primary", href: `/campaign/${campaign.id}/keeper` }, "Open the Keeper page"), " ", h("a", { class: "btn btn-quiet", href: "/" }, "Back to home")),
   );
 }
 

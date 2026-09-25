@@ -414,7 +414,7 @@
       if (c.joinError) return rpcError(c.joinError);
       var previewed = (c.joinable || {})[body.p_invite_code];
       if (!previewed) return rpcError("invalid invite code");
-      return json(200, [{ campaign_id: previewed.id, campaign_name: previewed.name, dm_name: previewed.dmName || "The DM", already_member: !!previewed.member }]);
+      return json(200, [{ campaign_id: previewed.id, campaign_name: previewed.name, dm_name: previewed.dmName || "The Keeper", already_member: !!previewed.member }]);
     }
     if (path === "/rest/v1/rpc/replace_invite" && method === "POST") {
       if (c.replaceError) return rpcError(c.replaceError);

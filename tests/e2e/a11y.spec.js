@@ -59,7 +59,7 @@ for (const theme of ["latte", "mocha"]) {
     });
 
     test("the join confirmation", async ({ page }) => {
-      await seed(page, { mock: { profile: players.dana.profile, joinable: { ABCDEF0123: { id: ids.campaign, name: "Age of Eclipse", dmName: "The DM" } } }, user: players.dana });
+      await seed(page, { mock: { profile: players.dana.profile, joinable: { ABCDEF0123: { id: ids.campaign, name: "Age of Eclipse", dmName: "The Keeper" } } }, user: players.dana });
       await setTheme(page);
       await open(page, "/join/ABCDEF0123");
       await expect(page.getByRole("heading", { name: "Join Age of Eclipse?" })).toBeVisible();
@@ -81,7 +81,7 @@ for (const theme of ["latte", "mocha"]) {
       await expectClean(page, "an old version");
     });
 
-    test("the DM's roster and a player's sheet", async ({ page }) => {
+    test("the Keeper's roster and a player's sheet", async ({ page }) => {
       const members = [{ player_id: PLAYER_ID, joined_at: "2026-09-01T00:00:00Z" }];
       const profiles = [{ id: PLAYER_ID, display_name: "Dana" }];
       const invite = (id, extra) => ({ id: `30000000-0000-4000-8000-0000000000${id}`, campaign_id: ids.campaign, label: "Dana", created_at: "2026-09-18T10:00:00.000Z", expires_at: "2099-01-01T00:00:00.000Z", max_uses: 1, use_count: 0, revoked_at: null, ...extra });
@@ -89,13 +89,13 @@ for (const theme of ["latte", "mocha"]) {
       const departed = [{ id: 7, campaign_id: ids.campaign, player_id: "00000000-0000-4000-8000-0000000000b4", character_id: "40000000-0000-4000-8000-0000000000c4", character_name: "Old hand", schema_version: 1, data: sheet, reason: "left", kept_at: "2026-09-10T12:00:00.000000+00:00" }];
       await seed(page, { mock: { profile: players.dm.profile, campaigns: [campaign], members, profiles: [...profiles, { id: "00000000-0000-4000-8000-0000000000b4", display_name: "Zed" }], characters: [row], assignments: [assignmentRow()], invites, departed }, user: players.dm });
       await setTheme(page);
-      await open(page, `/campaign/${ids.campaign}/dm`);
+      await open(page, `/campaign/${ids.campaign}/keeper`);
       await expect(page.locator(".roster > li")).toHaveCount(2);
       await expectClean(page, "roster");
       await page.getByText("Older invites (1)").click();
       await expectClean(page, "roster with the older invites open");
-      await open(page, `/campaign/${ids.campaign}/dm/${row.id}`);
-      await expectClean(page, "a player's sheet as the DM");
+      await open(page, `/campaign/${ids.campaign}/keeper/${row.id}`);
+      await expectClean(page, "a player's sheet as the Keeper");
     });
   });
 }

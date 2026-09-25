@@ -3,7 +3,7 @@ import { blank } from "../../public/js/eclipse-rules.js";
 import { assignmentRow, calls, callsTo, campaign, characterRow, expect, ids, open, patchMock, players, seed, test } from "./helpers.js";
 
 const { dm } = players;
-const DM_PAGE = `/campaign/${ids.campaign}/dm`;
+const DM_PAGE = `/campaign/${ids.campaign}/keeper`;
 
 const RAVI = "00000000-0000-4000-8000-0000000000b2";
 const ZED = "00000000-0000-4000-8000-0000000000b4";
@@ -125,7 +125,7 @@ test.describe("the roster", () => {
     await expect(former).toContainText("Zed");
     await expect(former).toContainText("as it was when they left");
     await expect(former).toContainText("Kept ");
-    await expect(former.getByRole("link", { name: "Open sheet" })).toHaveAttribute("href", `${DM_PAGE.replace("/dm", "")}/left/7`);
+    await expect(former.getByRole("link", { name: "Open sheet" })).toHaveAttribute("href", `${DM_PAGE.replace("/keeper", "")}/left/7`);
     await expect(former.getByRole("link", { name: "History" })).toHaveCount(0);
   });
 
@@ -263,7 +263,7 @@ test.describe("downloads", () => {
   });
 });
 
-test.describe("a player's sheet, as the DM", () => {
+test.describe("a player's sheet, as the Keeper", () => {
   const sheetPath = `${DM_PAGE}/${DANA_ROW.id}`;
   const dmSeed = (page, mock) => seed(page, { mock: scenario(mock), user: dm });
 
@@ -273,7 +273,7 @@ test.describe("a player's sheet, as the DM", () => {
     await cards(page).nth(0).getByRole("link", { name: "Open sheet" }).click();
     await expect(page).toHaveURL(new RegExp(`${DANA_ROW.id}$`));
     await expect(page.locator("#f_name")).toHaveValue("Marlo Vance");
-    await expect(page.getByText("You are viewing Dana Voss's sheet as the DM.")).toBeVisible();
+    await expect(page.getByText("You are viewing Dana Voss's sheet as the Keeper.")).toBeVisible();
     await expect(page.locator("#saveState")).toHaveText("Read only");
     expect(await page.locator("#page1").evaluate((el) => el.inert)).toBe(true);
     await expect(page.getByRole("button", { name: "Save now" })).toBeHidden();
@@ -297,10 +297,10 @@ test.describe("a player's sheet, as the DM", () => {
     await expect(page.getByText("has chosen a different character, or has left")).toBeVisible();
   });
 
-  test("Back to the DM page returns to the roster", async ({ page }) => {
+  test("Back to the Keeper page returns to the roster", async ({ page }) => {
     await dmSeed(page, {});
     await open(page, sheetPath);
-    await page.getByRole("link", { name: "Back to the DM page" }).click();
+    await page.getByRole("link", { name: "Back to the Keeper page" }).click();
     await expect(page).toHaveURL(new RegExp(`${DM_PAGE}$`));
     await expect(cards(page)).toHaveCount(2);
   });
@@ -320,10 +320,10 @@ test.describe("a player's sheet, as the DM", () => {
     await expect(page.locator("#f_name")).toHaveCount(0);
   });
 
-  test("only the campaign's DM can open it", async ({ page }) => {
+  test("only the campaign's Keeper can open it", async ({ page }) => {
     await seed(page, { mock: { profile: players.dana.profile, campaigns: [campaign], characters: [DANA_ROW], assignments: [DANA_ACTIVE] }, user: players.dana });
     await open(page, sheetPath);
-    await expect(page.getByText("Only the DM of this campaign can open this page.")).toBeVisible();
+    await expect(page.getByText("Only the Keeper of this campaign can open this page.")).toBeVisible();
     await expect(page.locator("#f_name")).toHaveCount(0);
   });
 });
@@ -357,9 +357,9 @@ test.describe("a sheet kept from a player who left", () => {
     await expect(page.getByText("We could not find that sheet.")).toBeVisible();
   });
 
-  test("only the campaign's DM can open it", async ({ page }) => {
+  test("only the campaign's Keeper can open it", async ({ page }) => {
     await seed(page, { mock: { profile: players.dana.profile, campaigns: [campaign], departed: [ZED_COPY] }, user: players.dana });
     await open(page, leftPath);
-    await expect(page.getByText("Only the DM of this campaign can open this page.")).toBeVisible();
+    await expect(page.getByText("Only the Keeper of this campaign can open this page.")).toBeVisible();
   });
 });

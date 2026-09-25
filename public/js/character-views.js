@@ -128,7 +128,7 @@ export function chooseCharacterView({ campaign, list, onChoose, onCreate }) {
     "div",
     { class: "stack" },
     h("div", { class: "card-head" }, h("h1", {}, campaign.name), h("span", { class: "badge" }, "Player")),
-    h("p", {}, "Choose the character you play in this campaign. Your DM can see this character's sheet. You can choose a different one later."),
+    h("p", {}, "Choose the character you play in this campaign. Your Keeper can see this character's sheet. You can choose a different one later."),
     list.live.length ? h("ul", { class: "characters" }, ...list.live.map(row)) : h("p", { class: "muted" }, "You have no characters yet."),
     h("div", { class: "actions" }, h("button", { class: "btn btn-primary", type: "button", disabled: list.full, "aria-describedby": describedIfFull(list), onclick: guarded(status, onCreate) }, "Make a new character for this campaign"), h("a", { class: "btn btn-quiet", href: "/characters" }, "All my characters")),
     fullNote(list),

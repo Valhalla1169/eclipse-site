@@ -12,7 +12,7 @@ export const ids = {
 };
 export const players = {
   dana: { id: ids.player, email: "dana@example.com", profile: { id: ids.player, display_name: "Dana Voss" } },
-  dm: { id: ids.dm, email: "dm@example.com", profile: { id: ids.dm, display_name: "The DM" } },
+  dm: { id: ids.dm, email: "dm@example.com", profile: { id: ids.dm, display_name: "The Keeper" } },
 };
 export const campaign = { id: ids.campaign, name: "Age of Eclipse", dm_id: ids.dm, created_at: "2026-09-01T00:00:00Z" };
 export const GOOD_PASSWORD = "correct horse battery staple";

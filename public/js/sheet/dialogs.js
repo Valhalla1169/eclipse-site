@@ -27,7 +27,7 @@ function helpBody() {
       ["Click the boxes on the condition monitors to record damage. Everything that costs you dice feeds the big number on the Core page, so that number is what you subtract from every roll."],
       ["The ", h("b", {}, "Reference"), " tab has the rules you will reach for most, and it is searchable."],
     ),
-    section("If something looks wrong", "Press Save a copy first, then reload the page. Tell your GM if a number still looks off."),
+    section("If something looks wrong", "Press Save a copy first, then reload the page. Tell your Keeper if a number still looks off."),
   );
 }
 

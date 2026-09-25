@@ -75,11 +75,11 @@ test.describe("loading", () => {
     await expect(page.locator(".rc:not(.hide)")).toHaveCount(1);
   });
 
-  test("the DM has no sheet and no character rows are touched", async ({ page }) => {
+  test("the Keeper has no sheet and no character rows are touched", async ({ page }) => {
     await seed(page, { mock: { profile: dm.profile, campaigns: [campaign] }, user: dm });
     await open(page, `/campaign/${ids.campaign}/character`);
-    await expect(page.getByText("A DM does not have a character sheet.")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Open the DM page" })).toHaveAttribute("href", `/campaign/${ids.campaign}/dm`);
+    await expect(page.getByText("A Keeper does not have a character sheet.")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Open the Keeper page" })).toHaveAttribute("href", `/campaign/${ids.campaign}/keeper`);
     expect(await callsTo(page, CHARACTERS)).toHaveLength(0);
   });
 });

@@ -142,7 +142,7 @@ export function buildTestamentPage(sheet) {
         ["Before", "the life the Eclipse took", "story.before", "Who were you on a Tuesday afternoon, when the world still made sense?"],
         ["The first year", "how you survived it, and what it cost", "story.eclipse", "What happened when the rifts opened. What you lost. What you did to still be here."],
         ["Now", "why you travel with these people", "story.now", "What you are working toward, and what you are running from."],
-        ["Loose threads", "hooks for the Keeper", "story.threads", "Unfinished business the GM can pull on."],
+        ["Loose threads", "hooks for the Keeper", "story.threads", "Unfinished business the Keeper can pull on."],
       ].map(([label, hint, path, placeholder]) => {
         const block = prose(label, hint, path, placeholder);
         block.classList.add("storyblock");

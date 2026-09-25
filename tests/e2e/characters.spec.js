@@ -180,7 +180,7 @@ test.describe("choosing a character for a campaign", () => {
 
   test("lists the characters, chooses one, and opens its sheet", async ({ page }) => {
     await openChooser(page);
-    await expect(page.getByText("Your DM can see this character's sheet.")).toBeVisible();
+    await expect(page.getByText("Your Keeper can see this character's sheet.")).toBeVisible();
     await card(page, "Vex").getByRole("button", { name: "Use this character" }).click();
     await expect(page).toHaveURL(new RegExp(`/characters/${VEX_ID}$`));
     await expect(page.locator("#f_name")).toHaveValue("Vex");
@@ -217,10 +217,10 @@ test.describe("choosing a character for a campaign", () => {
     await expect(page.getByRole("alert")).toContainText("That character is active in another campaign");
   });
 
-  test("a DM has no character to choose", async ({ page }) => {
+  test("a Keeper has no character to choose", async ({ page }) => {
     await seed(page, { mock: { profile: dm.profile, campaigns: [campaign] }, user: dm });
     await open(page, CHOOSER);
-    await expect(page.getByText("A DM does not have a character sheet.")).toBeVisible();
+    await expect(page.getByText("A Keeper does not have a character sheet.")).toBeVisible();
   });
 });
 

@@ -84,7 +84,7 @@ npm run creators list
 npm run creators remove someone@example.com
 ```
 
-Players join only through an invite link the DM creates on the DM page.
+Players join only through an invite link the Keeper creates on the Keeper page.
 
 ## Deploying
 

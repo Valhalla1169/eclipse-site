@@ -4,7 +4,7 @@ import { CHARACTER_ID, FIRST_STAMP, assignmentRow, calls, callsTo, campaign, cha
 
 const { dana, dm } = players;
 const HISTORY = `${sheetPath()}/history`;
-const DM_SHEET = `/campaign/${ids.campaign}/dm/${CHARACTER_ID}`;
+const DM_SHEET = `/campaign/${ids.campaign}/keeper/${CHARACTER_ID}`;
 
 const sheetOf = (name, change = () => {}) => {
   const data = blank();
@@ -189,7 +189,7 @@ test.describe("putting a copy back", () => {
   });
 });
 
-test.describe("the DM's history", () => {
+test.describe("the Keeper's history", () => {
   const dmSeed = (page, mock = {}) =>
     seed(page, {
       mock: { profile: dm.profile, campaigns: [campaign], members: [{ player_id: ids.player, joined_at: "2026-09-01T00:00:00Z" }], profiles: [dana.profile], characters: [characterRow(CURRENT)], assignments: [assignmentRow()], history: SNAPSHOTS, ...mock },
@@ -199,7 +199,7 @@ test.describe("the DM's history", () => {
 
   test("the roster card has a History link, and the list reads only", async ({ page }) => {
     await dmSeed(page);
-    await open(page, `/campaign/${ids.campaign}/dm`);
+    await open(page, `/campaign/${ids.campaign}/keeper`);
     await page.locator(".roster > li").first().getByRole("link", { name: "History" }).click();
     await expect(page).toHaveURL(new RegExp(`${DM_SHEET}/history$`));
     await expect(page.getByRole("heading", { name: "Version history" })).toBeVisible();
@@ -230,9 +230,9 @@ test.describe("the DM's history", () => {
     await expect(page.getByText("We could not find that version of the sheet.")).toBeVisible();
   });
 
-  test("only the campaign's DM can open it", async ({ page }) => {
+  test("only the campaign's Keeper can open it", async ({ page }) => {
     await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], characters: [characterRow(CURRENT)], assignments: [assignmentRow()], history: SNAPSHOTS }, user: dana });
     await open(page, `${DM_SHEET}/history`);
-    await expect(page.getByText("Only the DM of this campaign can open this page.")).toBeVisible();
+    await expect(page.getByText("Only the Keeper of this campaign can open this page.")).toBeVisible();
   });
 });

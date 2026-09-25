@@ -2,7 +2,7 @@ import { blank } from "../../public/js/eclipse-rules.js";
 import { assignmentRow, callsTo, campaign, characterRow, expect, ids, open, patchMock, players, seed, test } from "./helpers.js";
 
 const { dana, dm } = players;
-const DM_PAGE = `/campaign/${ids.campaign}/dm`;
+const DM_PAGE = `/campaign/${ids.campaign}/keeper`;
 const RAVI = "00000000-0000-4000-8000-0000000000b2";
 const ZED = "00000000-0000-4000-8000-0000000000b4";
 
@@ -77,7 +77,7 @@ test.describe("replacing a lost link", () => {
     await expect(page.getByText("Older invites (2)")).toBeVisible();
   });
 
-  test("asks first, and does nothing if the DM says no", async ({ page }) => {
+  test("asks first, and does nothing if the Keeper says no", async ({ page }) => {
     await openDmPage(page);
     const messages = [];
     page.once("dialog", (dialog) => {
@@ -170,7 +170,7 @@ test.describe("removing a player", () => {
     await expect(page.locator("ul.roster").nth(1)).toContainText("as it was when you removed them");
   });
 
-  test("does nothing if the DM says no", async ({ page }) => {
+  test("does nothing if the Keeper says no", async ({ page }) => {
     await openDmPage(page);
     page.once("dialog", (dialog) => dialog.dismiss());
     await removeButton(page, 1).click();
@@ -182,7 +182,7 @@ test.describe("removing a player", () => {
     await openDmPage(page, { removeError: "only the DM of this campaign can remove a player" });
     page.once("dialog", (dialog) => dialog.accept());
     await removeButton(page, 1).click();
-    await expect(page.getByText("Ravi was not removed. Only the DM of this campaign can do that.")).toBeVisible();
+    await expect(page.getByText("Ravi was not removed. Only the Keeper of this campaign can do that.")).toBeVisible();
     await expect(removeButton(page, 1)).toBeEnabled();
   });
 
@@ -194,7 +194,7 @@ test.describe("removing a player", () => {
 });
 
 test.describe("inviting a former player again", () => {
-  test("fills in the invite form with their name and creates nothing until the DM does", async ({ page }) => {
+  test("fills in the invite form with their name and creates nothing until the Keeper does", async ({ page }) => {
     await openDmPage(page, { departed: [ZED_COPY] });
     await page.locator("ul.roster").nth(1).getByRole("button", { name: "Invite again" }).click();
     await expect(page.locator("#label")).toHaveValue("Zed");
@@ -220,7 +220,7 @@ test.describe("leaving a campaign", () => {
   const playerScenario = (mock = {}) => ({ profile: dana.profile, campaigns: [campaign], characters: [DANA_ROW], assignments: [assignmentRow(DANA_ROW.id)], ...mock });
   const leave = (page) => page.getByRole("button", { name: "Leave campaign" });
 
-  test("asks first, explains what the DM keeps, and then the campaign is gone from the home page", async ({ page }) => {
+  test("asks first, explains what the Keeper keeps, and then the campaign is gone from the home page", async ({ page }) => {
     await seed(page, { mock: playerScenario(), user: dana });
     await open(page, "/");
     const messages = [];
@@ -230,7 +230,7 @@ test.describe("leaving a campaign", () => {
     });
     await leave(page).click();
     await expect(page.getByText("You are not in a campaign yet.")).toBeVisible();
-    expect(messages[0]).toContain("Your DM keeps a copy of your active character's sheet as it is now");
+    expect(messages[0]).toContain("Your Keeper keeps a copy of your active character's sheet as it is now");
     expect(messages[0]).toContain("Your characters stay yours");
     expect(messages[0]).toContain("You need a new invite to come back");
     const [call] = await rpc(page, "leave_campaign");
@@ -257,7 +257,7 @@ test.describe("leaving a campaign", () => {
     await expect(leave(page)).toBeEnabled();
   });
 
-  test("a DM has no Leave button", async ({ page }) => {
+  test("a Keeper has no Leave button", async ({ page }) => {
     await seed(page, { mock: { profile: dm.profile, campaigns: [campaign] }, user: dm });
     await open(page, "/");
     await expect(page.getByRole("button", { name: "Leave campaign" })).toHaveCount(0);
