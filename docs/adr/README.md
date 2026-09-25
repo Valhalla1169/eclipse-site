@@ -19,6 +19,7 @@ record on a topic first. The current state is in [`CLAUDE.md`](../../CLAUDE.md).
 | [0012](0012-invite-management.md) | Invites and members: join confirmation, which invite was used, remove and leave, replace a lost link | Accepted, built |
 | [0013](0013-rule-change-process.md) | A checklist for changing the game's rules: additive is free, a shape change is versioned, a named entry is retired not deleted | Accepted, built |
 | [0014](0014-approved-signups-and-site-admins.md) | Only approved emails make accounts (a sign-up hook), site admins approve them, 5 characters each, about 10 people and up to 4 campaigns | Accepted, built |
+| [0015](0015-staging-project-and-dev-copy.md) | Development uses a staging Supabase project: `npm run dev` serves a copy of `public/` that names staging, and every staging command names its target | Accepted, built |
 
 Add a record for any decision that would be hard to guess from the code, and update this table.
 

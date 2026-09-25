@@ -20,13 +20,33 @@ describe("parseRows", () => {
     expect(parseRows('{"rows": []}')).toEqual([]);
     expect(() => parseRows("no json here")).toThrow();
   });
+
+  // Outside an agent, `db query --output-format json` prints the rows as a plain list.
+  it("reads a plain list of rows", () => {
+    expect(parseRows('[\n  {\n    "email": "a@b.co"\n  }\n]\n')).toEqual([{ email: "a@b.co" }]);
+    expect(parseRows("[]\n")).toEqual([]);
+  });
 });
 
 describe("readArgs", () => {
   it("takes plain words, so PowerShell and npm pass them through", () => {
-    expect(readArgs(["node", "admins.mjs", "approve", "a@b.co", "print-sql"])).toEqual({ command: "approve", email: "a@b.co", printSql: true });
-    expect(readArgs(["node", "admins.mjs", "--print-sql", "list"])).toEqual({ command: "list", email: undefined, printSql: true });
-    expect(readArgs(["node", "creators.mjs", "add", "a@b.co"])).toEqual({ command: "add", email: "a@b.co", printSql: false });
+    expect(readArgs(["node", "admins.mjs", "approve", "a@b.co", "print-sql"])).toEqual({ command: "approve", email: "a@b.co", printSql: true, project: "live" });
+    expect(readArgs(["node", "admins.mjs", "--print-sql", "list"])).toEqual({ command: "list", email: undefined, printSql: true, project: "live" });
+    expect(readArgs(["node", "creators.mjs", "add", "a@b.co"])).toEqual({ command: "add", email: "a@b.co", printSql: false, project: "live" });
+  });
+
+  it("uses the staging project only when the last word is staging", () => {
+    expect(readArgs(["node", "admins.mjs", "list", "staging"])).toEqual({ command: "list", email: undefined, printSql: false, project: "staging" });
+    expect(readArgs(["node", "admins.mjs", "approve", "a@b.co", "staging"])).toEqual({ command: "approve", email: "a@b.co", printSql: false, project: "staging" });
+    expect(readArgs(["node", "creators.mjs", "add", "a@b.co", "staging", "print-sql"])).toEqual({ command: "add", email: "a@b.co", printSql: true, project: "staging" });
+    expect(readArgs(["node", "creators.mjs", "add", "staging", "a@b.co"]).project).toBe("live");
+  });
+
+  // Without an email, "staging" is not taken as one.
+  it("leaves no email when staging follows the command", () => {
+    const args = readArgs(["node", "admins.mjs", "approve", "staging"]);
+    expect(args).toEqual({ command: "approve", email: undefined, printSql: false, project: "staging" });
+    expect(() => adminsSql(args.command, args.email)).toThrow(/plain email/);
   });
 });
 

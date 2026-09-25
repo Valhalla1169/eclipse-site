@@ -23,7 +23,7 @@ major_version = 17
 # Where Supabase sends people when a link has no (or a disallowed) redirect, for
 # example an expired sign-in link. The app also passes its own redirect per request.
 site_url = "https://eclipse.deyderae.dev"
-additional_redirect_urls = ["https://eclipse.deyderae.dev", "https://eclipse.deyderae.dev/**", "http://localhost:8787/**"]
+additional_redirect_urls = ["https://eclipse.deyderae.dev", "https://eclipse.deyderae.dev/**"]
 enable_signup = true
 minimum_password_length = 12
 
