@@ -34,17 +34,16 @@ $$;
 grant usage on schema auth to anon, authenticated;
 grant usage on schema public to anon, authenticated;
 
--- Mirror the REAL platform's default table privileges, read from this
--- project's pg_default_acl (2026-09-19): a new table in `public` gives
--- anon/authenticated only TRUNCATE, REFERENCES, TRIGGER and MAINTAIN -- NOT
--- select/insert/update/delete. Data API access must be granted explicitly by
--- a migration (see 0003_grant_data_api_privileges.sql), and RLS policies then
--- narrow what those grants allow row by row.
---
--- The previous version of this harness granted authenticated full CRUD on
--- every table. That silently masked the fact that 0001/0002 granted nothing,
--- so every signed-in query on the live project failed with "permission
--- denied". Do not make this more permissive than the platform.
+-- Mirror the live platform's default privileges for objects that migrations make,
+-- read from this project's pg_default_acl (2026-09-24):
+--   * A new table in `public` gives anon/authenticated only TRUNCATE, REFERENCES,
+--     TRIGGER and MAINTAIN, not select/insert/update/delete. A migration grants
+--     Data API access explicitly (0003_grant_data_api_privileges.sql), and RLS
+--     policies then narrow it row by row.
+--   * A new function keeps Postgres's own default: EXECUTE for PUBLIC, and so for
+--     anon and authenticated. Each migration revokes it (grants.test.sql G12).
+-- Never make this more permissive than the platform: a grant that a migration
+-- forgets must fail here as it fails on the live project.
 alter default privileges in schema public
   grant truncate, references, trigger, maintain on tables to anon, authenticated;
 
