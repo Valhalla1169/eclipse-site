@@ -62,6 +62,10 @@ PGHOST=127.0.0.1 PGUSER=postgres PSQL="C:/Program Files/PostgreSQL/17/bin/psql.e
 It never touches your Supabase project. The browser tests use a fake Supabase inside the page, so they
 never touch it either. They cannot show that email arrives; check that by hand.
 
+CI (GitHub Actions, [`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs all three on every push and pull
+request, with the deploy dry run, a check that `npm run vendor` changes nothing, and `npm audit`. Dependabot opens
+grouped dependency updates each week.
+
 ## The database
 
 Schema changes are new numbered files in `supabase/migrations/`, never edits to an applied one.
@@ -183,6 +187,7 @@ with the database for that old code too, or players must reload.
 | `tests/unit/` | Unit tests |
 | `tests/e2e/` | Browser tests (Playwright) and the fake Supabase they use |
 | `docs/adr/` | Why the design is the way it is |
+| `.github/` | The CI workflow and the Dependabot settings |
 
 ## Security notes
 

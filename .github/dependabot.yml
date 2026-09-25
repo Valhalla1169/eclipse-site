@@ -1,0 +1,29 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # Keeps each version in package.json exact.
+    versioning-strategy: increase
+    groups:
+      # These are copied into public/: run `npm run vendor` on the pull request and commit the result.
+      vendored:
+        patterns:
+          - "@supabase/supabase-js"
+          - "@fontsource/*"
+      tooling:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - "*"
