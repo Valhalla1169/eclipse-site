@@ -15,8 +15,8 @@ record on a topic first. The current state is in [`CLAUDE.md`](../../CLAUDE.md).
 | [0008](0008-player-sheet.md) | The player sheet: load, save, conflicts, `.eclipse` files, theme, fonts | Accepted, built, amended by 0013 |
 | [0009](0009-dm-roster.md) | The DM roster: cards, live updates, read-only sheets, backup download | Accepted, built |
 | [0010](0010-version-history.md) | Version history: look at an earlier copy of your sheet and put it back | Accepted, built |
-| [0012](0012-invite-management.md) | Invites and members: join confirmation, which invite was used, remove and leave, replace a lost link | Accepted, built |
 | [0011](0011-characters-belong-to-people.md) | Characters belong to people: up to 10 each, one active per campaign, a copy kept when a player leaves | Accepted, built |
+| [0012](0012-invite-management.md) | Invites and members: join confirmation, which invite was used, remove and leave, replace a lost link | Accepted, built |
 | [0013](0013-rule-change-process.md) | A checklist for changing the game's rules: additive is free, a shape change is versioned, a named entry is retired not deleted | Accepted, built |
 
 Add a record for any decision that would be hard to guess from the code, and update this table.

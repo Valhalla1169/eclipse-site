@@ -70,7 +70,7 @@ npx wrangler deploy --dry-run      # must exit 0; only public/ is uploaded
 npm run deploy
 ```
 
-Only `public/` is published. Anything outside it (docs, migrations, scripts, `legacy/`) is never served.
+Only `public/` is published. Anything outside it (docs, migrations, scripts) is never served.
 
 ## Layout
 
@@ -83,9 +83,14 @@ Only `public/` is published. Anything outside it (docs, migrations, scripts, `le
 | `tests/unit/` | Unit tests |
 | `tests/e2e/` | Browser tests (Playwright) and the fake Supabase they use |
 | `docs/adr/` | Why the design is the way it is |
-| `legacy/` | The original single-file sheets the player sheet was ported from, and V4's own theme (not published) |
 
 ## Security notes
 
 The Supabase URL and anon key in `public/js/config.js` are public by design; access is decided by
 grants and Row Level Security. Never commit a `service_role`/secret key or the database password.
+
+## License
+
+This code and the game text have no license (`UNLICENSED` in `package.json`). All rights are
+reserved. A license can be added later, but one cannot be taken back once code is published under
+it, so none is granted for now.

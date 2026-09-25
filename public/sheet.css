@@ -1,5 +1,5 @@
 /* ==========================================================================
-   The character sheet (/campaign/:id/play).
+   The character sheet (/characters/:id).
    Colours come from the site theme (style.css): the sheet's own names below are
    aliases onto the Catppuccin tokens, so the four site palettes restyle it.
    Two kinds of accent token:
