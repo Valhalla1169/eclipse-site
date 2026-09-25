@@ -95,6 +95,24 @@ npm run deploy
 
 Only `public/` is published. Anything outside it (docs, migrations, scripts) is never served.
 
+## Releasing a change
+
+1. All tests pass: `npm test`, `npm run test:db`, `npm run test:e2e`, and the dry run
+   (`npx wrangler deploy --dry-run`) reads the right file count. CI runs these on every
+   pull request; the pull request's checks must be green.
+2. For a change with a migration, back up first: `npm run backup`.
+3. Merge the pull request into `main`.
+4. Database first: `npx supabase db push --dry-run`, then `npx supabase db push`. The
+   new code may call a function that the old database does not have yet.
+5. Settings, only if `supabase/config.toml` changed: `npx supabase config diff`, then
+   `npx supabase config push`.
+6. Deploy from `main`: `npm run deploy`.
+7. Check the live site: sign in, open a sheet, edit it, look at the Keeper page, and
+   (for an admin) the Admin page.
+
+A tab already open keeps the old code until it reloads. A change must keep working
+with the database for that old code too, or players must reload.
+
 ## Layout
 
 | Path | What it is |
