@@ -43,7 +43,7 @@ character is active in which campaign). The DM has no sheet (ADR 0001).
   continuous typing), retries a network failure after 5, 15, 30 and 60 seconds, and stops on a
   conflict or a refusal until the player acts. The state is shown in the sheet's header and, for
   problems, in an alert. The page saves when it is hidden and asks before it is closed with unsaved
-  changes.
+  changes. Before the app shows another page, it saves, and asks only if that save fails.
 - **The `.eclipse` file** is the sheet's inputs (the shape V4 and V5 wrote) plus `schemaVersion`. It
   works with no network. On import the version is read, the file is migrated like a stored row and
   the key is not stored. A file larger than the database's 512 KiB sheet limit is refused.

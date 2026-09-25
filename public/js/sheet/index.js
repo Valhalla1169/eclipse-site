@@ -74,14 +74,7 @@ export function createSheetView({ opened, row, persist, readOnlyNotice = null, o
   const saveNow = button("Save now", () => autosave.flush(), { primary: true, attrs: { hidden: viewOnly } });
   const copyButton = button("Save a copy", () => saveCopy(store.sheet));
   const loadButton = button("Load file", () => fileInput.click(), { attrs: { hidden: viewOnly } });
-  const historyButton = button("History", openHistory, { attrs: { hidden: viewOnly || !onOpenHistory } });
-
-  // The history page reads the saved sheet, so save what is waiting first.
-  async function openHistory() {
-    await autosave.flush();
-    if (autosave.hasUnsavedChanges() && !window.confirm("Your latest changes are not saved yet. Open the history anyway?")) return;
-    onOpenHistory();
-  }
+  const historyButton = button("History", () => onOpenHistory(), { attrs: { hidden: viewOnly || !onOpenHistory } });
 
   function saveCopy(sheet) {
     downloadText(fileNameFor(sheet), serializeSheet(sheet));
