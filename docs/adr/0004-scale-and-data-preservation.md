@@ -82,7 +82,9 @@ switcher until someone actually has more than one.
 
 - Whether this Supabase plan takes automatic backups (Dashboard, Database,
   Backups). The free tier may not, which is why the snapshot history and the
-  download-all button matter.
+  download-all button matter. Answered: the project is on the free plan, which keeps
+  no backup the owner can download. The owner runs `npm run backup` after each game
+  session and before a migration (README, Backups).
 - Whether the plan pauses inactive projects. A weekly game keeps one active, but
   a long break could pause it.
 
