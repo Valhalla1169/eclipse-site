@@ -32,7 +32,7 @@
     "@fontsource/ibm-plex-mono": "5.3.0",
     "@fontsource/ibm-plex-sans-condensed": "5.3.0",
     "@playwright/test": "1.63.0",
-    "@supabase/supabase-js": "2.116.0",
+    "@supabase/supabase-js": "2.117.0",
     "supabase": "2.117.0",
     "vitest": "5.0.1",
     "wrangler": "4.135.0"
