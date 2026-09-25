@@ -1,8 +1,9 @@
 // The characters page as plain data. No DOM and no Supabase, so it is unit-testable in Node.
 
-// The database enforces both limits (migration 0009). They are here so the page can
-// show them and turn a button off before the database has to refuse.
-export const MAX_CHARACTERS = 10;
+// The database enforces the limit (migration 0011). It is here so the page can show it
+// and turn a button off before the database has to refuse.
+export const MAX_CHARACTERS = 5;
+export const FULL_NOTE = `You have ${MAX_CHARACTERS} characters, the most one person can have. To make room, open one, press Save a copy to keep it on your computer, then delete it on the Characters page. Later you can make it again with New character from a file.`;
 export const UNNAMED = "Unnamed survivor";
 
 export const displayName = (row) => String(row.character_name || "").trim() || UNNAMED;

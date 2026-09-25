@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { FULL_NOTE, MAX_CHARACTERS } from "../../public/js/character-list.js";
 import {
   PASSWORD_MAX_BYTES,
   PASSWORD_MIN_LENGTH,
@@ -6,6 +7,7 @@ import {
   cleanDisplayName,
   friendlyError,
   inviteStatus,
+  isUnapprovedEmail,
   isUuid,
   normalizeCode,
   normalizeEmail,
@@ -175,6 +177,40 @@ describe("friendlyError for accounts", () => {
 
   it("does not let a database error code hide the message", () => {
     expect(friendlyError({ code: "P0001", message: "invalid invite code" })).toMatch(/not valid/);
+  });
+});
+
+describe("an email no site admin approved", () => {
+  // What Supabase Auth answers when the sign-up hook refuses (migration 0011).
+  const refused = Object.assign(new Error("this email is not approved to make an account"), { status: 403, code: "unknown" });
+
+  it("is recognised by its message, whatever code Auth gives it", () => {
+    expect(isUnapprovedEmail(refused)).toBe(true);
+    expect(isUnapprovedEmail({ message: "this email is not approved to make an account" })).toBe(true);
+    expect(isUnapprovedEmail(new Error("that email is not approved"))).toBe(false);
+    expect(isUnapprovedEmail(null)).toBe(false);
+  });
+
+  it("never reaches a person as the raw message", () => {
+    expect(friendlyError(refused)).toBe("Only an email a site admin has approved can make an account.");
+  });
+});
+
+describe("friendlyError for the site admin", () => {
+  it("maps the admin functions' refusals to plain words", () => {
+    expect(friendlyError(new Error("only a site admin can approve an email"))).toBe("Only a site admin can do that.");
+    expect(friendlyError(new Error("that is not an email address"))).toBe("That is not an email address.");
+    expect(friendlyError(new Error("there are already 20 approved emails with no account. Revoke one first"))).toMatch(/^20 approved emails are already waiting/);
+    expect(friendlyError(new Error("that email already has an account, so its approval cannot be revoked"))).toMatch(/already has an account/);
+    expect(friendlyError(new Error("that email is not approved"))).toMatch(/nothing to revoke/);
+  });
+});
+
+describe("friendlyError for the character limits", () => {
+  it("tells a person at the limit how to make room", () => {
+    expect(friendlyError(new Error(`you already have ${MAX_CHARACTERS} characters, the most one person can have`))).toBe(FULL_NOTE);
+    expect(FULL_NOTE).toMatch(/Save a copy .* then delete it/);
+    expect(friendlyError(new Error("you have made 30 characters, the most one person can keep, including deleted ones"))).toMatch(/30 characters/);
   });
 });
 

@@ -9,6 +9,7 @@ import {
   inviteStatus,
   normalizeCode,
   normalizeEmail,
+  timeAgo,
   validatePassword,
 } from "./util.js";
 
@@ -174,6 +175,7 @@ export function signupView({ next, intro, onSubmit }) {
     { class: "card stack" },
     h("h1", {}, "Create an account"),
     intro ? h("p", { class: "muted" }, intro) : null,
+    h("p", {}, "Only an email that a site admin has approved can make an account here. If yours is not approved yet, ask the site owner."),
     form({
       fields: [
         field({ id: "displayName", label: "Display name", hint: "Your DM and the players in your campaigns see this name.", maxlength: 40, autocomplete: "nickname", required: true }),
@@ -188,7 +190,7 @@ export function signupView({ next, intro, onSubmit }) {
         const problem = validatePassword(values.password, { email, displayName });
         if (problem) throw invalid(problem);
         const { signedIn } = await onSubmit({ displayName, email, password: values.password });
-        if (!signedIn) return `Check your email. If we can create an account for ${email}, we sent a link to confirm it.`;
+        if (!signedIn) return `Check your email. If ${email} is approved and has no account yet, we sent a link to confirm it.`;
       },
     }),
     h("p", {}, "Already have an account? ", h("a", { href: `/login${query}` }, "Sign in")),
@@ -396,9 +398,9 @@ const charactersCard = () =>
     h("p", {}, h("a", { class: "btn btn-quiet", href: "/characters" }, "Open my characters")),
   );
 
-// Eclipse hosts one campaign (docs/adr/0004), so this is a single-campaign-first
-// page: with a campaign you just see it. Without one you can join with an invite
-// and, only if you are on the creator allowlist (ADR 0005), create one.
+// Eclipse hosts at most 4 campaigns (docs/adr/0014), so this page shows every campaign
+// a person is in. Without one you can join with an invite and, only if you are on the
+// creator allowlist (ADR 0005), create one.
 // activeByCampaign: { campaignId: { id, name } } for the characters this player has chosen.
 export function homeView({ profile, campaigns, activeByCampaign = {}, canCreate, onCreate, onJoin, onLeave }) {
   if (campaigns.length) {
@@ -473,6 +475,26 @@ export function joinView({ preview, onJoin }) {
       },
     }),
     h("p", {}, h("a", { class: "btn btn-quiet", href: "/" }, "Not now")),
+  );
+}
+
+// A link to send to someone, with a Copy link button.
+function linkNotice({ heading, text, link, onCopy }) {
+  const status = h("span", { class: "status", "aria-live": "polite" });
+  const copy = async () => {
+    try {
+      await onCopy(link);
+      status.textContent = "Copied.";
+    } catch {
+      status.textContent = "Could not copy. Select the link and copy it by hand.";
+    }
+  };
+  return h(
+    "div",
+    { class: "notice notice-success stack", role: "status" },
+    h("p", {}, h("strong", {}, heading), text),
+    h("p", {}, h("code", { class: "code linkbox" }, link)),
+    h("div", { class: "actions" }, h("button", { class: "btn btn-primary", type: "button", onclick: copy }, "Copy link"), status),
   );
 }
 
@@ -563,24 +585,7 @@ export function dmView({ campaign, roster, loadInvites, createInvite, replaceInv
 
   function showNewLink(created, heading = "Invite created. ") {
     const link = `${location.origin}/join/${encodeURIComponent(created.code)}`;
-    const status = h("span", { class: "status", "aria-live": "polite" });
-    const copy = async () => {
-      try {
-        await onCopy(link);
-        status.textContent = "Copied.";
-      } catch {
-        status.textContent = "Could not copy. Select the link and copy it by hand.";
-      }
-    };
-    fresh.replaceChildren(
-      h(
-        "div",
-        { class: "notice notice-success stack", role: "status" },
-        h("p", {}, h("strong", {}, heading), "This link is shown only once, so copy it now."),
-        h("p", {}, h("code", { class: "code linkbox" }, link)),
-        h("div", { class: "actions" }, h("button", { class: "btn btn-primary", type: "button", onclick: copy }, "Copy link"), status),
-      ),
-    );
+    fresh.replaceChildren(linkNotice({ heading, text: "This link is shown only once, so copy it now.", link, onCopy }));
   }
 
   const labelField = field({ id: "label", label: "Who is it for? (optional)", maxlength: 60, autocomplete: "off", hint: "Only you see this. For example, the player's name." });
@@ -630,6 +635,100 @@ export function dmView({ campaign, roster, loadInvites, createInvite, replaceInv
     h("div", { class: "card-head" }, h("h1", {}, campaign.name), h("span", { class: "badge" }, "DM view")),
     roster,
     h("div", { class: "two-up" }, createSection, h("section", { class: "card stack" }, h("h2", {}, "Invites"), problem, list)),
+  );
+}
+
+// The site admin page (docs/adr/0014): approve an email so that its owner can make an
+// account, revoke an approval that no account uses yet, and see every account.
+export function adminView({ loadAccounts, loadPending, approveEmail, revokeApproval, onCopy }) {
+  const fresh = h("div", { class: "stack" });
+  const problem = h("div", { class: "stack" });
+  const pending = h("div", { class: "stack" });
+  const accounts = h("div", { class: "stack" });
+  const pendingTitle = h("h2", {}, "Waiting for an account");
+
+  async function refresh() {
+    try {
+      const [waiting, people] = await Promise.all([loadPending(), loadAccounts()]);
+      pendingTitle.textContent = `Waiting for an account (${waiting.length})`;
+      pending.replaceChildren(waiting.length ? h("ul", { class: "invites" }, ...waiting.map(approvalRow)) : h("p", { class: "muted" }, "No approved email is waiting for an account."));
+      accounts.replaceChildren(h("ul", { class: "invites" }, ...people.map(accountRow)));
+    } catch (err) {
+      console.error(err);
+      pending.replaceChildren(notice("error", friendlyError(err)));
+    }
+  }
+
+  async function revoke(event, approval) {
+    event.currentTarget.disabled = true;
+    problem.replaceChildren();
+    try {
+      await revokeApproval(approval.email);
+    } catch (err) {
+      console.error(err);
+      problem.replaceChildren(notice("error", friendlyError(err)));
+    }
+    await refresh();
+  }
+
+  const approvalRow = (approval) =>
+    h(
+      "li",
+      { class: "invite" },
+      h(
+        "div",
+        { class: "invite-main" },
+        h("strong", {}, approval.email),
+        h("span", { class: "muted" }, `approved ${new Date(approval.approved_at).toLocaleDateString()}${approval.approved_by_name ? ` by ${approval.approved_by_name}` : ""}`),
+      ),
+      h("div", { class: "actions" }, h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: (event) => revoke(event, approval) }, "Revoke")),
+    );
+
+  const accountRow = (account) =>
+    h(
+      "li",
+      { class: "invite" },
+      h(
+        "div",
+        { class: "invite-main" },
+        h("strong", {}, account.display_name || account.email),
+        account.is_admin ? h("span", { class: "badge" }, "Admin") : null,
+        h("span", {}, account.email),
+        h("span", { class: "muted" }, `joined ${new Date(account.created_at).toLocaleDateString()}`),
+        h("span", { class: "muted" }, account.last_sign_in_at ? `last signed in ${timeAgo(account.last_sign_in_at)}` : "never signed in"),
+      ),
+    );
+
+  const approveForm = form({
+    fields: [emailField("approveEmail", "Email address")],
+    submitLabel: "Approve email",
+    onSubmit: async (values) => {
+      const email = await approveEmail(await requireEmail(values.approveEmail));
+      fresh.replaceChildren(
+        linkNotice({ heading: "Approved. ", text: `Send this link to ${email}. They make their account there, with exactly this email.`, link: `${location.origin}/signup`, onCopy }),
+      );
+      approveForm.reset();
+      await refresh();
+    },
+  });
+
+  refresh();
+
+  return h(
+    "div",
+    { class: "stack" },
+    h("h1", {}, "Site admin"),
+    h("p", { class: "muted" }, "Only an email approved here can make an account. A site admin approves people for the site. A Keeper runs a campaign and invites players to it."),
+    h(
+      "section",
+      { class: "card stack" },
+      h("h2", {}, "Approve an email"),
+      h("p", { class: "muted" }, "At most 20 approved emails can wait for an account at one time. An approval stays after its account is made."),
+      approveForm,
+      fresh,
+    ),
+    h("section", { class: "card stack" }, pendingTitle, problem, pending),
+    h("section", { class: "card stack" }, h("h2", {}, "Accounts"), accounts),
   );
 }
 

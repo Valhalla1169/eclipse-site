@@ -1,12 +1,15 @@
 // The pages about a person's characters: the list of them, and choosing which one is
 // active in a campaign (docs/adr/0011). Text only ever goes in as text nodes (dom.js).
-import { MAX_CHARACTERS } from "./character-list.js";
+import { FULL_NOTE, MAX_CHARACTERS } from "./character-list.js";
 import { h } from "./dom.js";
 import { SheetFormatError } from "./eclipse-rules.js";
 import { FILE_EXTENSION } from "./sheet/files.js";
 import { friendlyError, timeAgo } from "./util.js";
 
-const FULL_NOTE = `You have ${MAX_CHARACTERS} characters, the most one person can have. Delete one to make room.`;
+// At the limit the "new character" buttons are off, and this note says why and what to do.
+const FULL_NOTE_ID = "characters-full";
+const fullNote = (list) => (list.full ? h("p", { class: "muted", id: FULL_NOTE_ID }, FULL_NOTE) : null);
+const describedIfFull = (list) => (list.full ? FULL_NOTE_ID : null);
 
 // Thrown by an action the person backed out of: nothing to report.
 class CancelledError extends Error {}
@@ -40,7 +43,7 @@ export function charactersView({ list, onCreate, onCreateFromFile, onCopy, onDel
     fileInput.value = "";
     if (file) guarded(status, () => onCreateFromFile(file))({ currentTarget: fromFile });
   });
-  const fromFile = h("button", { class: "btn btn-quiet", type: "button", disabled: list.full, onclick: () => fileInput.click() }, "New character from a file");
+  const fromFile = h("button", { class: "btn btn-quiet", type: "button", disabled: list.full, "aria-describedby": describedIfFull(list), onclick: () => fileInput.click() }, "New character from a file");
 
   const card = (entry) =>
     h(
@@ -88,8 +91,8 @@ export function charactersView({ list, onCreate, onCreateFromFile, onCopy, onDel
     { class: "stack" },
     h("div", { class: "card-head" }, h("h1", {}, "Your characters"), h("span", { class: "badge" }, `${list.live.length} of ${MAX_CHARACTERS}`)),
     h("p", { class: "muted" }, "These characters are yours. You choose which one you play in each campaign. Nothing you delete is removed: you can bring it back."),
-    h("div", { class: "actions" }, h("button", { class: "btn btn-primary", type: "button", disabled: list.full, onclick: guarded(status, onCreate) }, "New character"), fromFile, fileInput),
-    list.full ? h("p", { class: "muted" }, FULL_NOTE) : null,
+    h("div", { class: "actions" }, h("button", { class: "btn btn-primary", type: "button", disabled: list.full, "aria-describedby": describedIfFull(list), onclick: guarded(status, onCreate) }, "New character"), fromFile, fileInput),
+    fullNote(list),
     status,
     list.live.length ? h("ul", { class: "characters" }, ...list.live.map(card)) : h("p", { class: "muted" }, "You have no characters yet. Make your first one."),
     list.deleted.length
@@ -127,8 +130,8 @@ export function chooseCharacterView({ campaign, list, onChoose, onCreate }) {
     h("div", { class: "card-head" }, h("h1", {}, campaign.name), h("span", { class: "badge" }, "Player")),
     h("p", {}, "Choose the character you play in this campaign. Your DM can see this character's sheet. You can choose a different one later."),
     list.live.length ? h("ul", { class: "characters" }, ...list.live.map(row)) : h("p", { class: "muted" }, "You have no characters yet."),
-    h("div", { class: "actions" }, h("button", { class: "btn btn-primary", type: "button", disabled: list.full, onclick: guarded(status, onCreate) }, "Make a new character for this campaign"), h("a", { class: "btn btn-quiet", href: "/characters" }, "All my characters")),
-    list.full ? h("p", { class: "muted" }, FULL_NOTE) : null,
+    h("div", { class: "actions" }, h("button", { class: "btn btn-primary", type: "button", disabled: list.full, "aria-describedby": describedIfFull(list), onclick: guarded(status, onCreate) }, "Make a new character for this campaign"), h("a", { class: "btn btn-quiet", href: "/characters" }, "All my characters")),
+    fullNote(list),
     status,
   );
 }

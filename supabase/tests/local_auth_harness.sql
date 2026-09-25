@@ -2,8 +2,10 @@ create schema if not exists auth;
 
 create table auth.users (
   id uuid primary key default gen_random_uuid(),
-  email text,
-  raw_user_meta_data jsonb not null default '{}'::jsonb
+  email character varying(255),
+  raw_user_meta_data jsonb not null default '{}'::jsonb,
+  created_at timestamptz default now(),
+  last_sign_in_at timestamptz
 );
 
 create or replace function auth.uid() returns uuid
@@ -19,6 +21,11 @@ begin
   end if;
   if not exists (select 1 from pg_roles where rolname = 'authenticated') then
     create role authenticated nologin;
+  end if;
+  -- Supabase Auth runs the auth hooks as this role. It gets nothing in public unless
+  -- a migration grants it.
+  if not exists (select 1 from pg_roles where rolname = 'supabase_auth_admin') then
+    create role supabase_auth_admin nologin noinherit;
   end if;
 end
 $$;

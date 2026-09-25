@@ -1,5 +1,6 @@
 // Eclipse SPA entry point: session, routes, and which view to show.
 // Loaded as <script type="module"> after /vendor/supabase.js (see index.html).
+import * as admin from "./admin.js";
 import * as auth from "./auth.js";
 import * as characters from "./characters.js";
 import { activeByCampaign, copyOfRow, describeCharacters, displayName } from "./character-list.js";
@@ -22,6 +23,7 @@ const ROUTES = [
   { name: "forgot", pattern: "/forgot-password" },
   { name: "reset", pattern: "/reset-password" },
   { name: "account", pattern: "/account" },
+  { name: "admin", pattern: "/admin" },
   { name: "join", pattern: "/join/:code" },
   { name: "characters", pattern: "/characters" },
   { name: "character", pattern: "/characters/:characterId" },
@@ -38,12 +40,14 @@ const ROUTES = [
 const main = document.getElementById("main");
 const accountBox = document.getElementById("account");
 const accountLink = document.getElementById("account-name");
+const adminLink = document.getElementById("admin-link");
 const signOutButton = document.getElementById("sign-out");
 
 const state = {
   session: null,
   profile: null, // the signed-in user's profile row
-  profileChecked: false, // true once the database has been asked, so a null profile means "not loaded yet"
+  isAdmin: false, // a site admin (docs/adr/0014), for the Admin link and page
+  accountChecked: false, // true once the database has been asked, so a null profile means "not loaded yet"
   authNotice: null, // one-shot message from a failed or expired emailed link
 };
 
@@ -76,23 +80,25 @@ function show(node, title, announce = true, { wide = false, roomy = false, dispo
 function updateAccount() {
   const user = state.session && state.session.user;
   accountBox.hidden = !user;
+  adminLink.hidden = !state.isAdmin;
   if (user) accountLink.textContent = (state.profile && state.profile.display_name) || user.email || "Account";
 }
 
 const loginPath = (path) => (path === "/" ? "/login" : `/login?next=${encodeURIComponent(path)}`);
 const nextFrom = (search) => safeNextPath(new URLSearchParams(search).get("next"));
 
-// The database creates the profile when the account is made. This covers the rare
-// account that has none.
-async function ensureProfile(user) {
-  if (state.profileChecked) return;
-  const existing = await auth.getProfile(user.id);
+// Once per sign-in: the profile, and whether the person is a site admin. The database
+// creates the profile when the account is made; this also covers the rare account that has none.
+async function ensureAccount(user) {
+  if (state.accountChecked) return;
+  const [existing, isAdmin] = await Promise.all([auth.getProfile(user.id), admin.isSiteAdmin()]);
   const name =
     cleanDisplayName(user.user_metadata && user.user_metadata.display_name) ||
     cleanDisplayName(String(user.email || "").split("@")[0]) ||
     "Player";
   state.profile = existing || (await auth.createProfile(user.id, name));
-  state.profileChecked = true;
+  state.isAdmin = isAdmin;
+  state.accountChecked = true;
   updateAccount();
 }
 
@@ -104,7 +110,7 @@ async function ensureReady({ path, initial }) {
     router.go(loginPath(path), { replace: true, initial });
     return false;
   }
-  await ensureProfile(user);
+  await ensureAccount(user);
   return true;
 }
 
@@ -157,7 +163,7 @@ async function onRoute({ path, search, match, initial }) {
     if (match.name === "reset") {
       // The emailed link signs the person in. No session means the link was bad.
       if (!user) return showHere(views.linkExpiredView(), "Link expired");
-      await ensureProfile(user);
+      await ensureAccount(user);
       return showHere(
         views.resetPasswordView({
           email: user.email,
@@ -193,6 +199,22 @@ async function onRoute({ path, search, match, initial }) {
           },
         }),
         "Your account",
+      );
+    }
+
+    // To anyone else the page does not exist. The database refuses them anyway.
+    if (match.name === "admin") {
+      if (!(await ensureReady({ path, initial }))) return;
+      if (!state.isAdmin) return showHere(views.notFoundView(), "Not found");
+      return showHere(
+        views.adminView({
+          loadAccounts: admin.listAccounts,
+          loadPending: admin.listPendingApprovals,
+          approveEmail: admin.approveEmail,
+          revokeApproval: admin.revokeApproval,
+          onCopy: (text) => navigator.clipboard.writeText(text),
+        }),
+        "Site admin",
       );
     }
 
@@ -616,7 +638,8 @@ async function boot() {
       state.session = sessionNow;
       if (before === after) return;
       state.profile = null;
-      state.profileChecked = false;
+      state.isAdmin = false;
+      state.accountChecked = false;
       updateAccount();
       onRoute(router.current());
     }, 0);

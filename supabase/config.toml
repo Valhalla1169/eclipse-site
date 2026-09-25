@@ -42,6 +42,13 @@ pass = "env(RESEND_API_KEY)"
 admin_email = "no-reply@mail.deyderae.dev"
 sender_name = "Eclipse"
 
+# Sign-up stays enabled: this database function (migration 0011) refuses every new
+# account whose email a site admin has not approved, for a password sign-up and for a
+# magic link to a new email alike. The function must exist before this is pushed.
+[auth.hook.before_user_created]
+enabled = true
+uri = "pg-functions://postgres/public/hook_require_approved_email"
+
 # ── mirrored from the live project; not used by the app ──────────────────────
 [auth.mfa.totp]
 enroll_enabled = true

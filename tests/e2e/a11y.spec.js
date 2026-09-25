@@ -37,12 +37,20 @@ for (const theme of ["latte", "mocha"]) {
         await open(page, path);
         await expectClean(page, path);
       }
-      await seed(page, { mock: { profile: players.dana.profile, campaigns: [campaign], character: row, assignments: [assignmentRow()] }, user: players.dana });
+      const accounts = [
+        { user_id: PLAYER_ID, email: "dana@example.com", display_name: "Dana Voss", created_at: "2026-09-01T10:00:00.000Z", last_sign_in_at: "2026-09-19T10:00:00.000Z", is_admin: true },
+        { user_id: "00000000-0000-4000-8000-0000000000b4", email: "zed@example.com", display_name: "Zed", created_at: "2026-09-02T10:00:00.000Z", last_sign_in_at: null, is_admin: false },
+      ];
+      const approvals = [{ email: "sam@example.com", approved_at: "2026-09-20T10:00:00.000Z", approved_by_name: "Dana Voss" }];
+      await seed(page, { mock: { profile: players.dana.profile, admin: true, accounts, approvals, campaigns: [campaign], character: row, assignments: [assignmentRow()] }, user: players.dana });
       await setTheme(page);
       for (const path of ["/", "/account", "/characters", `/campaign/${ids.campaign}/character`]) {
         await open(page, path);
         await expectClean(page, path);
       }
+      await open(page, "/admin");
+      await expect(page.locator("li.invite")).toHaveCount(accounts.length + approvals.length);
+      await expectClean(page, "/admin");
     });
 
     test("the join confirmation", async ({ page }) => {

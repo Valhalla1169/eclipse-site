@@ -36,13 +36,14 @@
   // The characters table, the way the real one behaves for a row's owner: writes go
   // through only for the columns a client may write (ADR 0006), an update matches only
   // while updated_at is still what the client saw (and never for a deleted character),
-  // every accepted update gets a new updated_at, and a person can have 10 characters
-  // that are not deleted (ADR 0011). `c.characters` holds the rows. `c.characterBlocked`
+  // every accepted update gets a new updated_at, and a person can have 5 characters
+  // that are not deleted (ADR 0014). `c.characters` holds the rows. `c.characterBlocked`
   // makes updates match nothing, `c.failPatches` fails that many updates with a network
   // error first, and `c.failCharacters` fails every call.
   var WRITABLE = ["owner_id", "character_name", "data", "schema_version"];
   var UPDATABLE = ["character_name", "data", "schema_version"];
-  var MAX_LIVE = 10;
+  var MAX_LIVE = 5;
+  var FULL = "you already have 5 characters, the most one person can have";
   var MAX_DATA_BYTES = 524288;
   function stamp(c) {
     c.clock = (c.clock || 0) + 1;
@@ -79,7 +80,7 @@
       var bad = Object.keys(body).filter(function (k) { return WRITABLE.indexOf(k) === -1; });
       if (bad.length) return pgError("permission denied for column " + bad[0], "42501");
       var live = all.filter(function (r) { return r.owner_id === body.owner_id && !r.deleted_at; }).length;
-      if (live >= MAX_LIVE) return pgError("you already have 10 characters, the most one person can have");
+      if (live >= MAX_LIVE) return pgError(FULL);
       c.made = (c.made || 0) + 1;
       var row = { id: "40000000-0000-4000-8000-" + String(900000 + c.made).padStart(12, "0"), owner_id: body.owner_id, schema_version: body.schema_version, character_name: body.character_name, data: body.data, updated_at: stamp(c), deleted_at: null };
       all.push(row);
@@ -138,7 +139,7 @@
     var row = characterById(c, body.p_character_id);
     if (!row) return pgError("that character was not found");
     var live = (c.characters || []).filter(function (r) { return r.owner_id === row.owner_id && !r.deleted_at; }).length;
-    if (live >= MAX_LIVE) return pgError("you already have 10 characters, the most one person can have");
+    if (live >= MAX_LIVE) return pgError(FULL);
     row.deleted_at = null; row.updated_at = stamp(c); save(c);
     return new Response(null, { status: 204 });
   }
@@ -221,6 +222,40 @@
     return json(200, row.updated_at);
   }
 
+  // Who may make an account, and the site admin's functions (migration 0011).
+  // `c.admin` makes the signed-in person a site admin. `c.accounts` holds
+  // { user_id, email, display_name, created_at, last_sign_in_at, is_admin }, and
+  // `c.approvals` holds { email, approved_at, approved_by_name }. Supabase Auth's hook
+  // refuses a new account for an email with no approval.
+  var NOT_APPROVED = "this email is not approved to make an account";
+  var MAX_WAITING = 20;
+  function hasAccount(c, email) { return (c.accounts || []).some(function (a) { return a.email === email; }); }
+  function waiting(c) { return (c.approvals || []).filter(function (a) { return !hasAccount(c, a.email); }); }
+  function mayMakeAccount(c, email) {
+    var wanted = String(email || "").toLowerCase();
+    return hasAccount(c, wanted) || (c.approvals || []).some(function (a) { return a.email === wanted; });
+  }
+  function adminOnly(c, action) { return c.admin ? null : pgError("only a site admin can " + action); }
+  function approveEmail(c, body) {
+    var email = String(body.p_email || "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return pgError("that is not an email address");
+    var list = c.approvals || [];
+    if (!list.some(function (a) { return a.email === email; })) {
+      if (waiting(c).length >= MAX_WAITING && !hasAccount(c, email)) return pgError("there are already 20 approved emails with no account. Revoke one first");
+      list.push({ email: email, approved_at: new Date().toISOString(), approved_by_name: (c.profile || {}).display_name || null });
+      c.approvals = list; save(c);
+    }
+    return json(200, email);
+  }
+  function revokeApproval(c, body) {
+    var email = String(body.p_email || "").trim().toLowerCase();
+    if (hasAccount(c, email)) return pgError("that email already has an account, so its approval cannot be revoked");
+    var list = c.approvals || [];
+    if (!list.some(function (a) { return a.email === email; })) return pgError("that email is not approved");
+    c.approvals = list.filter(function (a) { return a.email !== email; }); save(c);
+    return new Response(null, { status: 204 });
+  }
+
   document.addEventListener("securitypolicyviolation", function (e) {
     var v = JSON.parse(localStorage.getItem("__viol") || "[]");
     v.push({ directive: e.violatedDirective, blocked: e.blockedURI, file: e.sourceFile || "", line: e.lineNumber });
@@ -246,12 +281,15 @@
       var who = c.loginUser || { id: PLAYER, email: body.email };
       return json(200, sessionObject(who.id, who.email));
     }
+    // Auth answers a refusal from the sign-up hook with the hook's status and message.
     if (path === "/auth/v1/signup") {
       if (c.signupError) return authError(422, c.signupError, "signup refused");
+      if (!mayMakeAccount(c, body.email)) return json(403, { code: "unknown", message: NOT_APPROVED });
       return json(200, userObject("00000000-0000-4000-8000-0000000000f9", body.email));
     }
     if (path === "/auth/v1/otp") {
       if (c.otpError) return authError(c.otpError.status, c.otpError.error_code, c.otpError.msg);
+      if (!mayMakeAccount(c, body.email)) return json(403, { code: "unknown", message: NOT_APPROVED });
       return json(200, {});
     }
     if (path === "/auth/v1/recover") return c.recoverError ? authError(429, "over_email_send_rate_limit", "rate limit") : json(200, {});
@@ -325,6 +363,12 @@
         return json(201, [{ id: made.id, name: made.name, dm_id: made.dm_id }]);
       }
     }
+
+    if (path === "/rest/v1/rpc/is_site_admin" && method === "GET") return json(200, !!c.admin);
+    if (path === "/rest/v1/rpc/list_accounts" && method === "GET") return adminOnly(c, "list the accounts") || json(200, c.accounts || []);
+    if (path === "/rest/v1/rpc/list_pending_approvals" && method === "GET") return adminOnly(c, "list the approvals") || json(200, waiting(c));
+    if (path === "/rest/v1/rpc/approve_email" && method === "POST") return adminOnly(c, "approve an email") || approveEmail(c, body);
+    if (path === "/rest/v1/rpc/revoke_approval" && method === "POST") return adminOnly(c, "revoke an approval") || revokeApproval(c, body);
 
     if (path === "/rest/v1/characters") return characters(c, u, method, body);
     if (path === "/rest/v1/campaign_characters" && method === "GET") return assignments(c, u);
