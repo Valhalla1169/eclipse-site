@@ -39,8 +39,7 @@
   // every accepted update gets a new updated_at, and a person can have 10 characters
   // that are not deleted (ADR 0011). `c.characters` holds the rows. `c.characterBlocked`
   // makes updates match nothing, `c.failPatches` fails that many updates with a network
-  // error first, `c.saveDelay` makes each update wait that many milliseconds, and
-  // `c.failCharacters` fails every call.
+  // error first, and `c.failCharacters` fails every call.
   var WRITABLE = ["owner_id", "character_name", "data", "schema_version"];
   var UPDATABLE = ["character_name", "data", "schema_version"];
   var MAX_LIVE = 10;
@@ -237,6 +236,11 @@
     try { body = init && init.body ? JSON.parse(init.body) : null; } catch (e) { body = String(init.body); }
     record({ method: method, path: u.pathname, query: u.search, body: body });
 
+    // `c.hold` lists requests, such as "PATCH /rest/v1/characters", that wait until the
+    // test takes them off the list.
+    var held = method + " " + u.pathname;
+    while ((config().hold || []).indexOf(held) !== -1) await new Promise(function (resolve) { setTimeout(resolve, 20); });
+
     var c = config();
     var select = u.searchParams.get("select") || "";
     var path = u.pathname;
@@ -327,13 +331,7 @@
       }
     }
 
-    if (path === "/rest/v1/characters") {
-      if (method === "PATCH" && c.saveDelay) {
-        await new Promise(function (resolve) { setTimeout(resolve, c.saveDelay); });
-        c = config();
-      }
-      return characters(c, u, method, body);
-    }
+    if (path === "/rest/v1/characters") return characters(c, u, method, body);
     if (path === "/rest/v1/campaign_characters" && method === "GET") return assignments(c, u);
     if (path === "/rest/v1/departed_sheets" && method === "GET") return departed(c, u);
     if (path === "/rest/v1/rpc/choose_character" && method === "POST") return chooseCharacter(c, body);
