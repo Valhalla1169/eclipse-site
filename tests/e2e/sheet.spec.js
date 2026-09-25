@@ -250,6 +250,11 @@ test.describe("leaving the sheet", () => {
     await expect(page.locator("#f_name")).toBeVisible();
   }
 
+  // A held request waits until release().
+  const SAVE = "PATCH /rest/v1/characters";
+  const hold = (page, request) => patchMock(page, { hold: [request] });
+  const release = (page) => patchMock(page, { hold: [] });
+
   // Types a name, and waits for the save to go wrong.
   async function typeUntilAlert(page, alert) {
     await page.locator("#f_name").fill("Marlo");
@@ -310,14 +315,53 @@ test.describe("leaving the sheet", () => {
   }
 
   for (const { way, leave } of waysOut) {
-    test(`${way}: saves what is waiting, then leaves with no question`, async ({ page }) => {
-      await openFromHome(page);
+    test(`${way}: the save ends before the next page is shown, and nothing is asked`, async ({ page }) => {
+      await openFromHome(page, { hold: [SAVE] });
       const questions = recordQuestions(page);
       await page.locator("#f_name").fill("Marlo");
       await leave(page);
+      await expect.poll(() => callsTo(page, CHARACTERS, "PATCH")).toHaveLength(1);
+      await expect(page.locator("#f_name")).toHaveValue("Marlo");
+      await expect(charactersPage(page)).toHaveCount(0);
+      await release(page);
       await expect(charactersPage(page)).toBeFocused();
       expect(questions).toEqual([]);
       expect((await storedCharacter(page)).character_name).toBe("Marlo");
+    });
+  }
+
+  const endings = [
+    { ending: "the next page is shown", end: release, shown: charactersPage },
+    {
+      ending: "the next page fails to load",
+      end: (page) => patchMock(page, { hold: [], failCharacters: true }),
+      shown: (page) => page.getByRole("heading", { name: "Something went wrong" }),
+    },
+    {
+      ending: "a newer page replaces it",
+      end: async (page) => {
+        await headerLink(page).click();
+        await release(page);
+      },
+      shown: charactersPage,
+    },
+  ];
+  for (const { ending, end, shown } of endings) {
+    test(`after OK the sheet takes no more typing, until ${ending}`, async ({ page }) => {
+      test.setTimeout(30_000);
+      await openFromHome(page, { failPatches: 99 });
+      await typeUntilAlert(page, "could not be saved");
+      await hold(page, "GET /rest/v1/characters");
+      const accepted = answerNext(page, true);
+      await backLink(page).click();
+      await accepted;
+      await expect(page.locator("#main")).toHaveJSProperty("inert", true);
+      await page.locator("#f_name").click({ force: true });
+      await page.keyboard.type(" Vance");
+      await expect(page.locator("#f_name")).toHaveValue("Marlo");
+      await end(page);
+      await expect(shown(page)).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator("#main")).toHaveJSProperty("inert", false);
     });
   }
 
@@ -346,12 +390,14 @@ test.describe("leaving the sheet", () => {
   });
 
   test("a double click asks once and moves once", async ({ page }) => {
-    await openFromHome(page, { failPatches: 99, saveDelay: 500 });
+    await openFromHome(page, { failPatches: 99 });
     await typeUntilAlert(page, "could not be saved");
+    await hold(page, SAVE);
     const questions = recordQuestions(page);
     await backLink(page).dblclick();
+    await release(page);
     await expect(charactersPage(page)).toBeVisible();
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(500);
     expect(questions).toEqual([LEAVE]);
     await page.goBack();
     await expect(page).toHaveURL(onSheet);
@@ -359,23 +405,42 @@ test.describe("leaving the sheet", () => {
 
   for (const accept of [false, true]) {
     test(`Back pressed twice asks once, and ${accept ? "OK shows the page Back reached" : "Cancel puts the sheet's address back"}`, async ({ page }) => {
-      await openFromHome(page, { failPatches: 99, saveDelay: 500 });
+      await openFromHome(page, { failPatches: 99 });
       await typeUntilAlert(page, "could not be saved");
+      await hold(page, SAVE);
       const questions = recordQuestions(page, accept);
       await page.goBack();
       await page.goBack();
+      await expect(page).toHaveURL(/:\d+\/$/);
+      await release(page);
       await expect.poll(() => questions).toEqual([LEAVE]);
-      await page.waitForTimeout(1000);
-      expect(questions).toEqual([LEAVE]);
       if (accept) {
-        await expect(page).toHaveURL(/:\d+\/$/);
-        await expect(page.locator("#f_name")).toHaveCount(0);
+        await expect(page.getByRole("heading", { name: "Welcome, Dana Voss." })).toBeVisible();
       } else {
         await expect(page).toHaveURL(onSheet);
         await expect(page.locator("#f_name")).toHaveValue("Marlo");
       }
+      await page.waitForTimeout(500);
+      expect(questions).toEqual([LEAVE]);
     });
   }
+
+  test("Back, then Forward, while the check waits keeps the sheet and what was typed", async ({ page }) => {
+    await openFromHome(page, { failPatches: 99 });
+    await typeUntilAlert(page, "could not be saved");
+    await hold(page, SAVE);
+    const questions = recordQuestions(page);
+    await page.goBack();
+    await page.goForward();
+    await expect(page).toHaveURL(onSheet);
+    await release(page);
+    await expect.poll(() => questions).toEqual([LEAVE]);
+    await expect(page.locator("#f_name")).toHaveValue("Marlo");
+    // Still unsaved, so leaving asks again.
+    await backLink(page).click();
+    await expect.poll(() => questions).toEqual([LEAVE, LEAVE]);
+    await expect(charactersPage(page)).toBeVisible();
+  });
 
   test("the skip link, and Back after it, neither ask nor draw the sheet again", async ({ page }) => {
     await openFromHome(page, { characterBlocked: true });

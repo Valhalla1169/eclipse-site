@@ -59,6 +59,7 @@ function show(node, title, announce = true, { wide = false, roomy = false, dispo
   if (disposeView) disposeView();
   disposeView = dispose;
   flushView = flush;
+  main.inert = false;
   main.className = wide ? "page page-wide" : roomy ? "page page-roomy" : "page";
   main.replaceChildren(node);
   document.title = title ? `${title} - Eclipse` : "Eclipse";
@@ -73,13 +74,16 @@ function show(node, title, announce = true, { wide = false, roomy = false, dispo
   }
 }
 
-// The router asks this before the view on screen is replaced. Resolves to true when the
-// view saved everything, or when the person chose to lose what it could not save.
 async function mayLeave(question = "Your latest changes are not saved yet. Leave this page and lose them?") {
-  if (!flushView) return true;
-  if (!(await flushView()) && !window.confirm(question)) return false;
-  flushView = null; // the view is on its way out: a redirect on the way does not ask again
-  return true;
+  return !flushView || (await flushView()) || window.confirm(question);
+}
+
+// The view stays on screen until the next show(). Until then nothing can be typed into
+// it, and a redirect on the way does not ask again.
+function releaseView() {
+  if (!flushView) return;
+  flushView = null;
+  main.inert = true;
 }
 
 function updateAccount() {
@@ -118,6 +122,7 @@ async function ensureReady({ path, initial }) {
 }
 
 async function onRoute({ path, search, match, initial }) {
+  releaseView();
   const token = ++renderToken;
   const alive = () => token === renderToken;
   const announce = !initial;
@@ -632,6 +637,7 @@ async function boot() {
   });
 
   const signOut = async () => {
+    releaseView();
     try {
       await auth.signOut("local");
     } catch (err) {

@@ -31,8 +31,6 @@ export function matchRoute(pathname, table) {
   return null;
 }
 
-// Pure, so it is unit-testable in Node. Returns leave(move, ...args), which asks
-// check(...args) and then runs move() if the answer is true, or stay() if it is false.
 // One check at a time: a leave() that starts while a check waits does nothing, so a
 // double click or a second Back press neither asks twice nor moves twice.
 export function createLeaveGate({ check, stay }) {
@@ -93,9 +91,13 @@ export function createRouter({ table, onRoute, beforeLeave = () => true }) {
     go(url.pathname + url.search);
   });
 
-  // Moving between anchors on one page (the skip link, then Back) keeps the view.
+  // Moving between anchors on one page (the skip link, then Back) keeps the view. So
+  // does Back, then Forward, while the check waits.
+  const renderIfMoved = () => {
+    if (address() !== shown) render(false);
+  };
   window.addEventListener("popstate", () => {
-    if (address() !== shown) leave(() => render(false));
+    if (address() !== shown) leave(renderIfMoved);
   });
 
   return {
@@ -104,9 +106,7 @@ export function createRouter({ table, onRoute, beforeLeave = () => true }) {
     // move focus to the new heading only on later navigations.
     start: () => render(true),
     go,
-    // Draws the view for the current address again, once beforeLeave(...args) allows it.
     refresh: (...args) => leave(() => render(false), ...args),
-    // Runs move() once beforeLeave(...args) allows it.
     leave,
   };
 }
