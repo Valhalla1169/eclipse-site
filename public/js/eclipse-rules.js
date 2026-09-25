@@ -4,7 +4,9 @@
 // A sheet stores INPUTS only. Totals, penalties, pools and tiers are computed
 // here every time they are shown, so a rules change never needs a data change
 // (docs/adr/0004). A change that renames, removes or retypes a stored field is
-// a new SCHEMA_VERSION with a step in MIGRATIONS.
+// a new SCHEMA_VERSION with a step in MIGRATIONS. A named row in a table below
+// (a race, a profession, a skill, a spell school) is retired, not deleted, once
+// a sheet can point at it — see docs/adr/0013 for the checklist.
 
 export const SCHEMA_VERSION = 1;
 
@@ -287,8 +289,13 @@ export function normalize(data) {
 }
 
 // Steps that bring older stored data up to the next version. MIGRATIONS[n] takes
-// version n data and returns version n + 1 data. Empty while every sheet is version 1.
-const MIGRATIONS = {};
+// version n data and returns version n + 1 data. Every version below SCHEMA_VERSION
+// needs one (tests/unit/eclipse-rules.test.js checks none is missing); a rules change
+// that only adds a field or a table row needs no step at all (docs/adr/0013).
+//
+// Changelog — one line per bump, so the whole history is in this one file:
+//   (none yet: every sheet has been version 1)
+export const MIGRATIONS = {};
 
 export function migrate(data, from, { to = SCHEMA_VERSION, steps = MIGRATIONS } = {}) {
   let current = data;

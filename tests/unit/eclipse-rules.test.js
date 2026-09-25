@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  MIGRATIONS,
   MONITOR_BOXES,
   PROFS,
   RACES,
@@ -172,6 +173,14 @@ describe("migrate and openSheet", () => {
 
   it("treats a missing version as 1", () => {
     expect(openSheet({ data: {} }).readOnly).toBe(false);
+  });
+
+  // A bumped SCHEMA_VERSION with no matching step would strand every sheet at
+  // the old version, silently, the next time someone opened one (docs/adr/0013).
+  it("has a migration step for every version below SCHEMA_VERSION", () => {
+    for (let version = 1; version < SCHEMA_VERSION; version += 1) {
+      expect(MIGRATIONS[version], `MIGRATIONS[${version}]`).toBeTypeOf("function");
+    }
   });
 });
 
