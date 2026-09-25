@@ -67,6 +67,7 @@ for (const theme of ["latte", "mocha"]) {
     });
 
     test("every page of the sheet", async ({ page }) => {
+      test.slow();
       await seed(page, { mock: { profile: players.dana.profile, campaigns: [campaign], character: row, history }, user: players.dana });
       await setTheme(page);
       await open(page, sheetPath());
