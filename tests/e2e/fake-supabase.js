@@ -293,6 +293,11 @@
     try { body = init && init.body ? JSON.parse(init.body) : null; } catch (e) { body = String(init.body); }
     record({ method: method, path: u.pathname, query: u.search, body: body });
 
+    // `c.hold` lists requests, such as "PATCH /rest/v1/characters", that wait until the
+    // test takes them off the list.
+    var held = method + " " + u.pathname;
+    while ((config().hold || []).indexOf(held) !== -1) await new Promise(function (resolve) { setTimeout(resolve, 20); });
+
     var c = config();
     var select = u.searchParams.get("select") || "";
     var path = u.pathname;

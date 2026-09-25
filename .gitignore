@@ -31,3 +31,6 @@ playwright-report/
 
 # Local notes, not committed
 TODO.md
+
+# Agent worktrees (Claude Code)
+.claude/worktrees/

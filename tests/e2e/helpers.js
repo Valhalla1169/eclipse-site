@@ -70,6 +70,13 @@ export const patchMock = (page, patch) =>
     localStorage.setItem("__mock", JSON.stringify({ ...mock, ...patch }));
   }, patch);
 
+// Another tab in the same browser: it shares the session and the fake database.
+export async function anotherTab(page) {
+  const tab = await page.context().newPage();
+  await tab.addInitScript({ path: path.join(here, "fake-supabase.js") });
+  return tab;
+}
+
 export async function open(page, url) {
   await page.goto(url);
   await expect(page.locator("#main h1, #main .notice, #main article, #main form").first()).toBeVisible();

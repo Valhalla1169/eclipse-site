@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { blank } from "../../public/js/eclipse-rules.js";
-import { callsTo, campaign, characterRow, expect, ids, open, otherDeviceSaves, patchMock, players, seed, sheetPath, storedCharacter, test } from "./helpers.js";
+import { anotherTab, callsTo, campaign, characterRow, expect, ids, open, otherDeviceSaves, patchMock, players, seed, sheetPath, storedCharacter, test } from "./helpers.js";
 
 const { dana, dm } = players;
 const play = sheetPath();
@@ -230,6 +230,248 @@ test.describe("two devices", () => {
     await page.getByRole("button", { name: "Save copies of both" }).click();
     await expect.poll(() => downloads.length).toBe(2);
     expect(downloads.sort()).toEqual(["Marlo-other-version.eclipse", "Marlo.eclipse"]);
+  });
+});
+
+test.describe("leaving the sheet", () => {
+  const LEAVE = "Your latest changes are not saved yet. Leave this page and lose them?";
+  const onSheet = new RegExp(`${play}$`);
+  const charactersPage = (page) => page.getByRole("heading", { name: "Your characters" });
+  const backLink = (page) => page.getByRole("link", { name: "Back to my characters" });
+  const headerLink = (page) => page.locator("#account").getByRole("link", { name: "Characters", exact: true });
+
+  // The way a player gets there: home, then Characters, then Open. So Back has two
+  // pages in the app to go to.
+  async function openFromHome(page, mock = {}) {
+    await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], character: characterRow(named("")), ...mock }, user: dana });
+    await open(page, "/");
+    await headerLink(page).click();
+    await page.getByRole("link", { name: "Open", exact: true }).click();
+    await expect(page.locator("#f_name")).toBeVisible();
+  }
+
+  // A held request waits until release().
+  const SAVE = "PATCH /rest/v1/characters";
+  const hold = (page, request) => patchMock(page, { hold: [request] });
+  const release = (page) => patchMock(page, { hold: [] });
+
+  // Types a name, and waits for the save to go wrong.
+  async function typeUntilAlert(page, alert) {
+    await page.locator("#f_name").fill("Marlo");
+    await expect(page.getByRole("alert")).toContainText(alert, { timeout: 8000 });
+  }
+
+  // Answers the next question, and resolves to what it asked.
+  const answerNext = (page, accept) =>
+    new Promise((resolve) =>
+      page.once("dialog", async (dialog) => {
+        await (accept ? dialog.accept() : dialog.dismiss());
+        resolve(dialog.message());
+      }),
+    );
+
+  // Answers every question the same way, and returns the list of what they asked.
+  const recordQuestions = (page, accept = true) => {
+    const questions = [];
+    page.on("dialog", (dialog) => {
+      questions.push(dialog.message());
+      return accept ? dialog.accept() : dialog.dismiss();
+    });
+    return questions;
+  };
+
+  const waysOut = [
+    { way: "the link on the page", leave: (page) => backLink(page).click() },
+    { way: "the header link", leave: (page) => headerLink(page).click() },
+    { way: "Back", leave: (page) => page.goBack() },
+  ];
+  const badSaves = [
+    { state: "was refused", mock: { characterBlocked: true }, alert: "refused to save" },
+    { state: "failed", mock: { failPatches: 99 }, alert: "could not be saved" },
+    { state: "met a save from elsewhere", elsewhere: true, alert: "saved somewhere else" },
+  ];
+
+  for (const { state, mock = {}, elsewhere = false, alert } of badSaves) {
+    for (const { way, leave } of waysOut) {
+      test(`${way}, after a save that ${state}: asks, Cancel stays, OK leaves`, async ({ page }) => {
+        await openFromHome(page, mock);
+        if (elsewhere) await otherDeviceSaves(page, named("Saved on the phone"));
+        await typeUntilAlert(page, alert);
+
+        const cancelled = answerNext(page, false);
+        await leave(page);
+        expect(await cancelled).toBe(LEAVE);
+        await expect(page).toHaveURL(onSheet);
+        await expect(page.locator("#f_name")).toHaveValue("Marlo");
+        await expect(page.getByRole("alert")).toContainText(alert);
+
+        const accepted = answerNext(page, true);
+        await leave(page);
+        expect(await accepted).toBe(LEAVE);
+        await expect(charactersPage(page)).toBeVisible();
+        await expect(page).toHaveURL(/\/characters$/);
+      });
+    }
+  }
+
+  for (const { way, leave } of waysOut) {
+    test(`${way}: the save ends before the next page is shown, and nothing is asked`, async ({ page }) => {
+      await openFromHome(page, { hold: [SAVE] });
+      const questions = recordQuestions(page);
+      await page.locator("#f_name").fill("Marlo");
+      await leave(page);
+      await expect.poll(() => callsTo(page, CHARACTERS, "PATCH")).toHaveLength(1);
+      await expect(page.locator("#f_name")).toHaveValue("Marlo");
+      await expect(charactersPage(page)).toHaveCount(0);
+      await release(page);
+      await expect(charactersPage(page)).toBeFocused();
+      expect(questions).toEqual([]);
+      expect((await storedCharacter(page)).character_name).toBe("Marlo");
+    });
+  }
+
+  const endings = [
+    { ending: "the next page is shown", end: release, shown: charactersPage },
+    {
+      ending: "the next page fails to load",
+      end: (page) => patchMock(page, { hold: [], failCharacters: true }),
+      shown: (page) => page.getByRole("heading", { name: "Something went wrong" }),
+    },
+    {
+      ending: "a newer page replaces it",
+      end: async (page) => {
+        await headerLink(page).click();
+        await release(page);
+      },
+      shown: charactersPage,
+    },
+  ];
+  for (const { ending, end, shown } of endings) {
+    test(`after OK the sheet takes no more typing, until ${ending}`, async ({ page }) => {
+      test.setTimeout(30_000);
+      await openFromHome(page, { failPatches: 99 });
+      await typeUntilAlert(page, "could not be saved");
+      await hold(page, "GET /rest/v1/characters");
+      const accepted = answerNext(page, true);
+      await backLink(page).click();
+      await accepted;
+      await expect(page.locator("#main")).toHaveJSProperty("inert", true);
+      await page.locator("#f_name").click({ force: true });
+      await page.keyboard.type(" Vance");
+      await expect(page.locator("#f_name")).toHaveValue("Marlo");
+      await end(page);
+      await expect(shown(page)).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator("#main")).toHaveJSProperty("inert", false);
+    });
+  }
+
+  test("the History button asks the same question, once", async ({ page }) => {
+    await openFromHome(page, { failPatches: 99 });
+    await typeUntilAlert(page, "could not be saved");
+    const cancelled = answerNext(page, false);
+    await page.getByRole("button", { name: "History" }).click();
+    expect(await cancelled).toBe(LEAVE);
+    await expect(page.locator("#f_name")).toHaveValue("Marlo");
+    const questions = recordQuestions(page);
+    await page.getByRole("button", { name: "History" }).click();
+    await expect(page.getByRole("heading", { name: "Version history" })).toBeVisible();
+    expect(questions).toEqual([LEAVE]);
+  });
+
+  test("after Cancel the sheet keeps saving", async ({ page }) => {
+    await openFromHome(page, { failPatches: 2 });
+    await typeUntilAlert(page, "could not be saved");
+    const cancelled = answerNext(page, false);
+    await backLink(page).click();
+    await cancelled;
+    await page.locator("#f_bg").fill("Farm");
+    await saved(page);
+    expect((await storedCharacter(page)).data.id).toMatchObject({ name: "Marlo", bg: "Farm" });
+  });
+
+  test("a double click asks once and moves once", async ({ page }) => {
+    await openFromHome(page, { failPatches: 99 });
+    await typeUntilAlert(page, "could not be saved");
+    await hold(page, SAVE);
+    const questions = recordQuestions(page);
+    await backLink(page).dblclick();
+    await release(page);
+    await expect(charactersPage(page)).toBeVisible();
+    await page.waitForTimeout(500);
+    expect(questions).toEqual([LEAVE]);
+    await page.goBack();
+    await expect(page).toHaveURL(onSheet);
+  });
+
+  for (const accept of [false, true]) {
+    test(`Back pressed twice asks once, and ${accept ? "OK shows the page Back reached" : "Cancel puts the sheet's address back"}`, async ({ page }) => {
+      await openFromHome(page, { failPatches: 99 });
+      await typeUntilAlert(page, "could not be saved");
+      await hold(page, SAVE);
+      const questions = recordQuestions(page, accept);
+      await page.goBack();
+      await page.goBack();
+      await expect(page).toHaveURL(/:\d+\/$/);
+      await release(page);
+      await expect.poll(() => questions).toEqual([LEAVE]);
+      if (accept) {
+        await expect(page.getByRole("heading", { name: "Welcome, Dana Voss." })).toBeVisible();
+      } else {
+        await expect(page).toHaveURL(onSheet);
+        await expect(page.locator("#f_name")).toHaveValue("Marlo");
+      }
+      await page.waitForTimeout(500);
+      expect(questions).toEqual([LEAVE]);
+    });
+  }
+
+  test("Back, then Forward, while the check waits keeps the sheet and what was typed", async ({ page }) => {
+    await openFromHome(page, { failPatches: 99 });
+    await typeUntilAlert(page, "could not be saved");
+    await hold(page, SAVE);
+    const questions = recordQuestions(page);
+    await page.goBack();
+    await page.goForward();
+    await expect(page).toHaveURL(onSheet);
+    await release(page);
+    await expect.poll(() => questions).toEqual([LEAVE]);
+    await expect(page.locator("#f_name")).toHaveValue("Marlo");
+    // Still unsaved, so leaving asks again.
+    await backLink(page).click();
+    await expect.poll(() => questions).toEqual([LEAVE, LEAVE]);
+    await expect(charactersPage(page)).toBeVisible();
+  });
+
+  test("the skip link, and Back after it, neither ask nor draw the sheet again", async ({ page }) => {
+    await openFromHome(page, { characterBlocked: true });
+    await typeUntilAlert(page, "refused to save");
+    const questions = recordQuestions(page);
+    await page.getByRole("link", { name: "Skip to content" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/#main$/);
+    await page.goBack();
+    await expect(page).toHaveURL(onSheet);
+    await page.waitForTimeout(500);
+    expect(questions).toEqual([]);
+    await expect(page.locator("#f_name")).toHaveValue("Marlo");
+  });
+
+  test("a sign-out in another tab asks before it leaves, and Cancel keeps the sheet", async ({ page }) => {
+    await openFromHome(page, { characterBlocked: true });
+    await typeUntilAlert(page, "refused to save");
+
+    const cancelled = answerNext(page, false);
+    const other = await anotherTab(page);
+    await open(other, "/characters");
+    await other.getByRole("button", { name: "Sign out" }).click();
+    expect(await cancelled).toBe("Your sign-in changed, and your latest changes are not saved yet. Leave this page and lose them?");
+    await expect(page).toHaveURL(onSheet);
+    await expect(page.locator("#f_name")).toHaveValue("Marlo");
+
+    const accepted = answerNext(page, true);
+    await backLink(page).click();
+    expect(await accepted).toBe(LEAVE);
+    await expect(page).toHaveURL(/\/login\?next=%2Fcharacters$/);
   });
 });
 
