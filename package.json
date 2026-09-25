@@ -21,6 +21,8 @@
     "creators": "node scripts/creators.mjs",
     "admins": "node scripts/admins.mjs",
     "test:db": "node scripts/test-db.mjs",
+    "backup": "node scripts/backup.mjs",
+    "backup:check": "node scripts/backup-check.mjs",
     "test:e2e": "playwright test"
   },
   "devDependencies": {

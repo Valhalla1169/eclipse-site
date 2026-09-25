@@ -50,6 +50,40 @@ npx supabase config diff           # what `config push` would change in the proj
 Run `npm run test:db` first. Every new table needs its RLS policy **and** its grants in the same
 migration. The reasoning is in [`docs/adr/`](docs/adr/).
 
+## Backups
+
+The free Supabase plan keeps no backup that you can download, so make one on this computer after
+each game session, and before a `db push` or other risky work:
+
+```
+npm run backup                   # to Documents\Eclipse backups
+npm run backup D:\Somewhere      # another folder, never one inside this repo
+```
+
+`pg_dump` (PostgreSQL 17 or newer, found in `C:\Program Files\PostgreSQL`, or set `PG_DUMP`) asks
+for the database password. If you do not have it, reset it in the dashboard (Project Settings,
+Database); nothing else uses it. The script prints the file, its size and the rows in each table.
+
+The file holds all the site's data and every account (`auth.users` and `auth.identities`), with
+emails and password hashes. **Keep it secret**: never put it in the repo, a chat or a shared folder.
+It has no schema; that comes from `supabase/migrations/`.
+
+Check a file. This loads it into a throwaway database, with the same Postgres and `PG*` variables as
+`npm run test:db`, and compares the rows in each table:
+
+```
+npm run backup:check "C:\Users\you\Documents\Eclipse backups\eclipse-backup-2026-09-25-134512Z.sql"
+```
+
+To restore onto a new Supabase project:
+
+1. `npx supabase link --project-ref <new ref>`, then `npx supabase db push` (the schema).
+2. `npx supabase config diff`, then `npx supabase config push` (Auth settings and the sign-up hook).
+3. Load the file through the new project's session pooler (dashboard, Connect):
+   `psql --single-transaction -v ON_ERROR_STOP=1 -f <file> "postgresql://postgres.<new ref>@<pooler host>:5432/postgres?sslmode=require"`
+4. Put the new URL and anon key in `public/js/config.js`, and the new origin in `connect-src` in
+   `public/_headers`, then deploy. People sign in again with their old passwords.
+
 ## Who can make an account
 
 Only someone whose email a site admin has approved. A site admin approves emails on the Admin page
@@ -102,7 +136,7 @@ Only `public/` is published. Anything outside it (docs, migrations, scripts) is 
 | `public/` | The site: `index.html`, `style.css`, `sheet.css`, `script.js` (theme), `js/` (the app; `js/sheet/` is the character sheet), `vendor/` (the pinned Supabase client), `fonts/` (self-hosted sheet fonts), `_headers` (CSP and security headers) |
 | `supabase/migrations/` | The schema, policies and grants |
 | `supabase/tests/` | The database test suites and their harness |
-| `scripts/` | `test-db`, `creators` and `admins` (with `account-lists`, what they share), `vendor` (copies the Supabase client and the fonts into `public/`) |
+| `scripts/` | `test-db` and `backup-check` (with `local-db`, what they share), `backup`, `creators` and `admins` (with `account-lists`, what they share), `vendor` (copies the Supabase client and the fonts into `public/`) |
 | `tests/unit/` | Unit tests |
 | `tests/e2e/` | Browser tests (Playwright) and the fake Supabase they use |
 | `docs/adr/` | Why the design is the way it is |
