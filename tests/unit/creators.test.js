@@ -8,8 +8,6 @@ describe("parseRows", () => {
     expect(parseRows(json)).toEqual([{ email: "a@b.co" }]);
   });
 
-  // Regression: the first version parsed stdout and stderr glued together, so the
-  // CLI's progress line made JSON.parse throw and the command failed for everyone.
   it("ignores progress text before and after the JSON", () => {
     expect(parseRows("Initialising login role...\n" + json)).toEqual([{ email: "a@b.co" }]);
     expect(parseRows(json + "\nsome trailing status line\n")).toEqual([{ email: "a@b.co" }]);
