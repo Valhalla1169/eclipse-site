@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { matchRoute } from "../../public/js/router.js";
+import { describe, expect, it, vi } from "vitest";
+import { createLeaveGate, matchRoute } from "../../public/js/router.js";
 
 const table = [
   { name: "home", pattern: "/" },
@@ -49,5 +49,78 @@ describe("the DM's sheet route", () => {
   it("is told apart from the DM page", () => {
     expect(matchRoute("/campaign/c1/dm", withSheet).name).toBe("dm");
     expect(matchRoute("/campaign/c1/dm/ch9", withSheet)).toEqual({ name: "dmsheet", params: { id: "c1", characterId: "ch9" } });
+  });
+});
+
+describe("createLeaveGate", () => {
+  const gate = (check) => {
+    const stay = vi.fn();
+    return { leave: createLeaveGate({ check, stay }), stay };
+  };
+
+  it("moves when the check allows it", async () => {
+    const { leave, stay } = gate(async () => true);
+    const move = vi.fn();
+    await leave(move);
+    expect(move).toHaveBeenCalledTimes(1);
+    expect(stay).not.toHaveBeenCalled();
+  });
+
+  it("stays when the check refuses", async () => {
+    const { leave, stay } = gate(async () => false);
+    const move = vi.fn();
+    await leave(move);
+    expect(move).not.toHaveBeenCalled();
+    expect(stay).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives its other arguments to the check", async () => {
+    const check = vi.fn(async () => true);
+    const { leave } = gate(check);
+    await leave(() => {}, "Sign out and lose them?");
+    expect(check).toHaveBeenCalledWith("Sign out and lose them?");
+  });
+
+  it("does nothing for a leave that starts while a check waits: one question, one move", async () => {
+    let answer;
+    const check = vi.fn(() => new Promise((resolve) => (answer = resolve)));
+    const { leave, stay } = gate(check);
+    const first = vi.fn();
+    const second = vi.fn();
+    const waiting = leave(first);
+    await leave(second);
+    answer(true);
+    await waiting;
+    expect(check).toHaveBeenCalledTimes(1);
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).not.toHaveBeenCalled();
+    expect(stay).not.toHaveBeenCalled();
+  });
+
+  it("checks again once the last check has ended", async () => {
+    const check = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const { leave, stay } = gate(check);
+    const move = vi.fn();
+    await leave(move);
+    await leave(move);
+    expect(check).toHaveBeenCalledTimes(2);
+    expect(stay).toHaveBeenCalledTimes(1);
+    expect(move).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets a move leave again, as a redirect does", async () => {
+    const { leave } = gate(async () => true);
+    const redirect = vi.fn();
+    await leave(() => leave(redirect));
+    expect(redirect).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens again after a check that throws", async () => {
+    const check = vi.fn().mockRejectedValueOnce(new Error("no answer")).mockResolvedValueOnce(true);
+    const { leave } = gate(check);
+    const move = vi.fn();
+    await expect(leave(move)).rejects.toThrow("no answer");
+    await leave(move);
+    expect(move).toHaveBeenCalledTimes(1);
   });
 });

@@ -39,7 +39,8 @@
   // every accepted update gets a new updated_at, and a person can have 10 characters
   // that are not deleted (ADR 0011). `c.characters` holds the rows. `c.characterBlocked`
   // makes updates match nothing, `c.failPatches` fails that many updates with a network
-  // error first, and `c.failCharacters` fails every call.
+  // error first, `c.saveDelay` makes each update wait that many milliseconds, and
+  // `c.failCharacters` fails every call.
   var WRITABLE = ["owner_id", "character_name", "data", "schema_version"];
   var UPDATABLE = ["character_name", "data", "schema_version"];
   var MAX_LIVE = 10;
@@ -326,7 +327,13 @@
       }
     }
 
-    if (path === "/rest/v1/characters") return characters(c, u, method, body);
+    if (path === "/rest/v1/characters") {
+      if (method === "PATCH" && c.saveDelay) {
+        await new Promise(function (resolve) { setTimeout(resolve, c.saveDelay); });
+        c = config();
+      }
+      return characters(c, u, method, body);
+    }
     if (path === "/rest/v1/campaign_characters" && method === "GET") return assignments(c, u);
     if (path === "/rest/v1/departed_sheets" && method === "GET") return departed(c, u);
     if (path === "/rest/v1/rpc/choose_character" && method === "POST") return chooseCharacter(c, body);

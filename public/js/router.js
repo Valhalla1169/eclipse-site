@@ -31,18 +31,52 @@ export function matchRoute(pathname, table) {
   return null;
 }
 
-export function createRouter({ table, onRoute }) {
-  const current = () => ({
-    path: location.pathname,
-    search: location.search,
-    match: matchRoute(location.pathname, table),
+// Pure, so it is unit-testable in Node. Returns leave(move, ...args), which asks
+// check(...args) and then runs move() if the answer is true, or stay() if it is false.
+// One check at a time: a leave() that starts while a check waits does nothing, so a
+// double click or a second Back press neither asks twice nor moves twice.
+export function createLeaveGate({ check, stay }) {
+  let waiting = false;
+  return async function leave(move, ...args) {
+    if (waiting) return;
+    waiting = true;
+    let allowed;
+    try {
+      allowed = await check(...args);
+    } finally {
+      waiting = false;
+    }
+    if (allowed) await move();
+    else stay();
+  };
+}
+
+// beforeLeave(...args) runs before the view on screen is replaced, and resolves to
+// false to keep it. Link clicks, go(), Back and Forward, and refresh() all ask it.
+export function createRouter({ table, onRoute, beforeLeave = () => true }) {
+  const address = () => location.pathname + location.search;
+  let shown = null; // the address of the view on screen
+
+  function render(initial) {
+    shown = address();
+    onRoute({ path: location.pathname, search: location.search, match: matchRoute(location.pathname, table), initial });
+  }
+
+  // Back and Forward change the address before they are checked, so a view that
+  // stays puts its own address back.
+  const leave = createLeaveGate({
+    check: beforeLeave,
+    stay: () => {
+      if (address() !== shown) history.pushState({}, "", shown);
+    },
   });
 
-  function go(path, { replace = false, initial = false } = {}) {
-    if (replace) history.replaceState({}, "", path);
-    else history.pushState({}, "", path);
-    onRoute({ ...current(), initial });
-  }
+  const go = (path, { replace = false, initial = false } = {}) =>
+    leave(() => {
+      if (replace) history.replaceState({}, "", path);
+      else history.pushState({}, "", path);
+      render(initial);
+    });
 
   // Take over ordinary same-origin link clicks. Leave everything else to the
   // browser: modified clicks, new-tab links, downloads, other origins, and
@@ -59,10 +93,20 @@ export function createRouter({ table, onRoute }) {
     go(url.pathname + url.search);
   });
 
-  window.addEventListener("popstate", () => onRoute({ ...current(), initial: false }));
+  // Moving between anchors on one page (the skip link, then Back) keeps the view.
+  window.addEventListener("popstate", () => {
+    if (address() !== shown) leave(() => render(false));
+  });
 
-  // `initial` marks the render for the page the browser just loaded. The app uses it
-  // to leave focus alone on first load (so Tab still starts at the skip link) and to
-  // move focus to the new heading only on later navigations.
-  return { start: () => onRoute({ ...current(), initial: true }), go, current };
+  return {
+    // `initial` marks the render for the page the browser just loaded. The app uses it
+    // to leave focus alone on first load (so Tab still starts at the skip link) and to
+    // move focus to the new heading only on later navigations.
+    start: () => render(true),
+    go,
+    // Draws the view for the current address again, once beforeLeave(...args) allows it.
+    refresh: (...args) => leave(() => render(false), ...args),
+    // Runs move() once beforeLeave(...args) allows it.
+    leave,
+  };
 }

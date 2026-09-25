@@ -54,7 +54,7 @@ let flushView = null; // set by a view that may hold unsaved changes
 
 // options.wide: the sheet needs more room than the account pages. options.roomy: a grid
 // of cards uses the full page width. options.dispose: runs when the view is replaced. options.flush: saves what is waiting and resolves
-// to false if something could not be saved.
+// to false if something could not be saved; mayLeave() calls it before the view is left.
 function show(node, title, announce = true, { wide = false, roomy = false, dispose = null, flush = null } = {}) {
   if (disposeView) disposeView();
   disposeView = dispose;
@@ -71,6 +71,15 @@ function show(node, title, announce = true, { wide = false, roomy = false, dispo
     heading.setAttribute("tabindex", "-1");
     heading.focus({ preventScroll: true });
   }
+}
+
+// The router asks this before the view on screen is replaced. Resolves to true when the
+// view saved everything, or when the person chose to lose what it could not save.
+async function mayLeave(question = "Your latest changes are not saved yet. Leave this page and lose them?") {
+  if (!flushView) return true;
+  if (!(await flushView()) && !window.confirm(question)) return false;
+  flushView = null; // the view is on its way out: a redirect on the way does not ask again
+  return true;
 }
 
 function updateAccount() {
@@ -313,7 +322,7 @@ async function onRoute({ path, search, match, initial }) {
   } catch (err) {
     if (!alive()) return;
     console.error(err);
-    showHere(views.errorView(friendlyError(err), () => onRoute(router.current())), "Error");
+    showHere(views.errorView(friendlyError(err), () => router.refresh()), "Error");
   }
 }
 
@@ -618,29 +627,33 @@ async function boot() {
       state.profile = null;
       state.profileChecked = false;
       updateAccount();
-      onRoute(router.current());
+      router.refresh("Your sign-in changed, and your latest changes are not saved yet. Leave this page and lose them?");
     }, 0);
   });
 
-  signOutButton.addEventListener("click", async () => {
-    signOutButton.disabled = true;
+  const signOut = async () => {
     try {
-      // Signing out ends the session that saves use, so save first.
-      if (flushView && !(await flushView()) && !window.confirm("Your latest changes are not saved yet. Sign out and lose them?")) return;
       await auth.signOut("local");
     } catch (err) {
       console.error(err);
+    }
+    router.go("/login", { replace: true });
+  };
+  signOutButton.addEventListener("click", async () => {
+    signOutButton.disabled = true;
+    try {
+      // Signing out ends the session that saves use, so the leave check saves first.
+      await router.leave(signOut, "Your latest changes are not saved yet. Sign out and lose them?");
     } finally {
       signOutButton.disabled = false;
     }
-    router.go("/login", { replace: true });
   });
 
   // The sheet's sticky Reference bar sits just under the sticky header.
   const header = document.querySelector(".site-header");
   new ResizeObserver(() => document.documentElement.style.setProperty("--header-h", `${header.offsetHeight}px`)).observe(header);
 
-  router = createRouter({ table: ROUTES, onRoute });
+  router = createRouter({ table: ROUTES, onRoute, beforeLeave: mayLeave });
   router.start();
 }
 
