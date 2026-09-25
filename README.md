@@ -151,30 +151,33 @@ Players join only through an invite link the Keeper creates on the Keeper page.
 
 ## Deploying
 
+Cloudflare Workers Builds is connected to this repo: every merge into `main` deploys the site. A push to another branch builds it but does not deploy it. `npm run deploy` deploys from this machine, for when that fails.
+
 ```
 npx wrangler deploy --dry-run      # must exit 0; only public/ is uploaded
-npm run deploy
 ```
 
 Only `public/` is published. Anything outside it (docs, migrations, scripts) is never served.
 
 ## Releasing a change
 
-1. All tests pass: `npm test`, `npm run test:db`, `npm run test:e2e`, and the dry run
-   (`npx wrangler deploy --dry-run`) reads the right file count. CI runs these on every
-   pull request; the pull request's checks must be green.
+A merge into `main` deploys the site at once, so the database and settings change first.
+
+1. The pull request's checks are green. CI runs `npm test`, `npm run test:db`,
+   `npm run test:e2e` and the dry run on every pull request.
 2. For a change with a migration, back up first: `npm run backup`.
-3. Merge the pull request into `main`.
-4. Database first: `npx supabase db push --dry-run`, then `npx supabase db push`. The
-   new code may call a function that the old database does not have yet.
-5. Settings, only if `supabase/config.toml` changed: `npx supabase config diff`, then
+3. With the pull request's branch checked out, push the database: staging first
+   (`npm run staging push`), then live (`npx supabase db push --dry-run`, then
+   `npx supabase db push`). A migration must work with the pages that are live now too,
+   so add, then remove in a later release, never rename in one step.
+4. Settings, only if `supabase/config.toml` changed: `npx supabase config diff`, then
    `npx supabase config push`.
-6. Deploy from `main`: `npm run deploy`.
-7. Check the live site: sign in, open a sheet, edit it, look at the Keeper page, and
+5. Merge the pull request into `main`. Cloudflare deploys it.
+6. Check the live site: sign in, open a sheet, edit it, look at the Keeper page, and
    (for an admin) the Admin page.
 
-A tab already open keeps the old code until it reloads. A change must keep working
-with the database for that old code too, or players must reload.
+A tab already open keeps the old pages until it reloads, so they must keep working with
+the new database for a while.
 
 ## Layout
 
