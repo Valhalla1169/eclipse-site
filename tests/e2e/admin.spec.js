@@ -47,6 +47,8 @@ test.describe("a site admin", () => {
     await expect(accountRows(page).nth(1)).toContainText("never signed in");
     await expect(page.getByRole("heading", { name: "Waiting for an account (1)" })).toBeVisible();
     await expect(pendingRows(page)).toHaveText([/sam@example\.com.*by Ada Admin.*ends/]);
+    const pendingBox = pendingRows(page).first().locator("xpath=../..");
+    expect(await pendingBox.evaluate((box) => [...box.childNodes].map((node) => node.nodeName))).toEqual(["UL"]);
     await expect(page.getByText("A Keeper runs a campaign")).toBeVisible();
   });
 
