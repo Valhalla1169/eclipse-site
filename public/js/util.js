@@ -1,4 +1,5 @@
 // Pure helpers: no DOM and no Supabase, so they can be unit-tested in Node.
+import { FULL_NOTE } from "./character-list.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CODE = /^[A-Z0-9]{6,32}$/;
@@ -69,6 +70,14 @@ const MESSAGE_BY_CODE = {
   over_email_send_rate_limit: "Too many emails were sent. Wait a while and try again.",
 };
 
+// Supabase Auth's answer when the sign-up hook refuses an email no site admin approved
+// (migration 0011). Sign-up and email links show it the same text as any other address,
+// so the page's own words do not tell whether an email is approved or has an account.
+// The HTTP status (403) and Auth's rate-limit answers still can.
+export function isUnapprovedEmail(err) {
+  return /not approved to make an account/i.test(String((err && err.message) || ""));
+}
+
 // Turn an error from the network, Supabase Auth or Postgres into something a
 // player can act on. The raw message is never shown: it can name tables and
 // policies.
@@ -76,20 +85,26 @@ export function friendlyError(err) {
   const known = err && MESSAGE_BY_CODE[err.code];
   if (known) return known;
   const msg = String((err && err.message) || err || "");
-  if (/invalid invite code/i.test(msg)) return "That invite code is not valid. Check it with your DM.";
-  if (/you run this campaign/i.test(msg)) return "You are the DM of this campaign, so you cannot join it as a player.";
-  if (/only the dm/i.test(msg)) return "Only the DM of this campaign can do that.";
+  if (/invalid invite code/i.test(msg)) return "That invite code is not valid. Check it with your Keeper.";
+  if (/you run this campaign/i.test(msg)) return "You are the Keeper of this campaign, so you cannot join it as a player.";
+  if (/only the dm/i.test(msg)) return "Only the Keeper of this campaign can do that.";
   if (/50 active invites/i.test(msg)) return "This campaign already has 50 active invites. Revoke one first.";
   if (/500 invites/i.test(msg)) return "This campaign has made 500 invites, the most it can keep.";
   if (/not active, or is not yours/i.test(msg)) return "That invite is no longer active.";
   if (/already revoked|not found, already/i.test(msg)) return "That invite could not be revoked. It may already be revoked.";
   if ((err && err.status === 429) || /rate limit|too many/i.test(msg)) return "Too many attempts. Wait a minute and try again.";
-  if (/signups? (not allowed|are disabled)|not allowed for otp/i.test(msg)) return "New accounts are closed. Ask your DM to invite you.";
+  if (/signups? (not allowed|are disabled)|not allowed for otp/i.test(msg)) return "New accounts are closed. Ask the site owner.";
+  if (isUnapprovedEmail(err)) return "Only an email a site admin has approved can make an account.";
+  if (/only a site admin/i.test(msg)) return "Only a site admin can do that.";
+  if (/not an email address/i.test(msg)) return "That is not an email address.";
+  if (/already 20 approved emails/i.test(msg)) return "20 approved emails are already waiting for an account. Revoke one first.";
+  if (/already has an account, so its approval/i.test(msg)) return "That email already has an account, so its approval cannot be revoked.";
+  if (/that email is not approved/i.test(msg)) return "That email is not approved, so there is nothing to revoke.";
   if (/failed to fetch|networkerror|load failed|network request failed/i.test(msg)) return "Could not reach the server. Check your connection and try again.";
   if (/changed since you opened it/i.test(msg)) return "Your sheet was changed somewhere else since you opened this page. Reload the page and try again.";
   if (/version was not found|no longer exists/i.test(msg)) return "That version could not be found, so it cannot be restored.";
   if (/not a member of this campaign/i.test(msg)) return "You are not in this campaign.";
-  if (/already have 10 characters/i.test(msg)) return "You already have 10 characters, the most one person can have. Delete one to make room.";
+  if (/characters, the most one person can have/i.test(msg)) return FULL_NOTE;
   if (/most one person can keep/i.test(msg)) return "You have made 30 characters, counting deleted ones. That is the most one person can keep. Ask the site owner if you need more.";
   if (/already active in another campaign/i.test(msg)) return "That character is active in another campaign. Choose a different character there first, or make a copy of this one.";
   if (/active in a campaign/i.test(msg)) return "That character is active in a campaign. Choose a different character there first.";

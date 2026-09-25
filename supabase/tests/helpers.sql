@@ -9,7 +9,7 @@
 --   t.expect_affects(sql, n, msg)        must succeed and touch exactly n rows
 --   t.expect_count(query, n, msg)        the query must return exactly n rows
 create schema t;
-grant usage on schema t to anon, authenticated;
+grant usage on schema t to anon, authenticated, supabase_auth_admin;
 
 create function t.act_as(p_uid uuid) returns void language plpgsql as $$
 begin

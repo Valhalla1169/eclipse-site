@@ -130,7 +130,7 @@ export const REFERENCE = [
 
 {c:'Damage',t:'Sanity',k:'sanity madness insanity narrative rating',html:`
 <p>Sanity is a <b>1 to 10 rating, not a monitor</b>. It never subtracts dice.</p>
-<p>Below 5 the GM rolls forced roleplay. At 0 the character is permanently mad and becomes an NPC.</p>
+<p>Below 5 the Keeper rolls forced roleplay. At 0 the character is permanently mad and becomes an NPC.</p>
 <p>It cannot be raised with Grit. It takes safe havens, professional help, or Emily.</p>`},
 
 {c:'Recovery',t:'How healing works',k:'heal recovery rest medicine natural rate',html:`

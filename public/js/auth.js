@@ -2,6 +2,7 @@
 // Passwords are only ever sent to Supabase Auth over TLS. Nothing here stores, hashes
 // or logs one.
 import { sb } from "./supabase-client.js";
+import { isUnapprovedEmail } from "./util.js";
 
 const absolute = (path) => location.origin + path;
 
@@ -33,13 +34,14 @@ export function onAuthChange(callback) {
 }
 
 // With email confirmation on, no session comes back until the emailed link is used.
+// An email no site admin approved gets the same text as any other: see isUnapprovedEmail.
 export async function signUp({ email, password, displayName, next }) {
   const { data, error } = await sb.auth.signUp({
     email,
     password,
     options: { data: { display_name: displayName }, emailRedirectTo: absolute(next) },
   });
-  if (error) throw error;
+  if (error && !isUnapprovedEmail(error)) throw error;
   return { signedIn: Boolean(data.session) };
 }
 
@@ -48,9 +50,11 @@ export async function signInWithPassword(email, password) {
   if (error) throw error;
 }
 
+// A link for a new email makes its account, so an email no site admin approved is refused,
+// and gets the same text as any other.
 export async function sendMagicLink(email, returnPath) {
   const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: absolute(returnPath) } });
-  if (error) throw error;
+  if (error && !isUnapprovedEmail(error)) throw error;
 }
 
 export async function sendPasswordReset(email) {

@@ -15,7 +15,7 @@ export async function listCharacters(ownerId) {
   return data;
 }
 
-// Makes a new character. The database refuses an eleventh one that is not deleted.
+// Makes a new character. The database refuses a sixth one that is not deleted.
 export async function createCharacter(ownerId, { name = "", data = blank(), schemaVersion = SCHEMA_VERSION } = {}) {
   const { data: rows, error } = await sb
     .from("characters")

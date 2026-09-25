@@ -12,7 +12,7 @@ export const ids = {
 };
 export const players = {
   dana: { id: ids.player, email: "dana@example.com", profile: { id: ids.player, display_name: "Dana Voss" } },
-  dm: { id: ids.dm, email: "dm@example.com", profile: { id: ids.dm, display_name: "The DM" } },
+  dm: { id: ids.dm, email: "dm@example.com", profile: { id: ids.dm, display_name: "The Keeper" } },
 };
 export const campaign = { id: ids.campaign, name: "Age of Eclipse", dm_id: ids.dm, created_at: "2026-09-01T00:00:00Z" };
 export const GOOD_PASSWORD = "correct horse battery staple";
@@ -69,6 +69,13 @@ export const patchMock = (page, patch) =>
     const mock = JSON.parse(localStorage.getItem("__mock") || "{}");
     localStorage.setItem("__mock", JSON.stringify({ ...mock, ...patch }));
   }, patch);
+
+// Another tab in the same browser: it shares the session and the fake database.
+export async function anotherTab(page) {
+  const tab = await page.context().newPage();
+  await tab.addInitScript({ path: path.join(here, "fake-supabase.js") });
+  return tab;
+}
 
 export async function open(page, url) {
   await page.goto(url);

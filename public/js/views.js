@@ -9,6 +9,7 @@ import {
   inviteStatus,
   normalizeCode,
   normalizeEmail,
+  timeAgo,
   validatePassword,
 } from "./util.js";
 
@@ -174,9 +175,10 @@ export function signupView({ next, intro, onSubmit }) {
     { class: "card stack" },
     h("h1", {}, "Create an account"),
     intro ? h("p", { class: "muted" }, intro) : null,
+    h("p", {}, "Only an email that a site admin has approved can make an account here. If yours is not approved yet, ask the site owner."),
     form({
       fields: [
-        field({ id: "displayName", label: "Display name", hint: "Your DM and the players in your campaigns see this name.", maxlength: 40, autocomplete: "nickname", required: true }),
+        field({ id: "displayName", label: "Display name", hint: "Your Keeper and the players in your campaigns see this name.", maxlength: 40, autocomplete: "nickname", required: true }),
         emailField("email"),
         passwordField({ id: "password", label: "Password", hint: `At least ${PASSWORD_MIN_LENGTH} characters. A phrase of several words works well.`, autocomplete: "new-password" }),
       ],
@@ -188,7 +190,7 @@ export function signupView({ next, intro, onSubmit }) {
         const problem = validatePassword(values.password, { email, displayName });
         if (problem) throw invalid(problem);
         const { signedIn } = await onSubmit({ displayName, email, password: values.password });
-        if (!signedIn) return `Check your email. If we can create an account for ${email}, we sent a link to confirm it.`;
+        if (!signedIn) return `Check your email. If ${email} is approved and has no account yet, we sent a link to confirm it.`;
       },
     }),
     h("p", {}, "Already have an account? ", h("a", { href: `/login${query}` }, "Sign in")),
@@ -351,7 +353,7 @@ function campaignCard(campaign, active, onLeave) {
   const status = h("div", { class: "stack" });
   const leave = h("button", { class: "btn btn-quiet", type: "button" }, "Leave campaign");
   leave.addEventListener("click", async () => {
-    const message = `Leave ${campaign.name}? Your DM keeps a copy of your active character's sheet as it is now. Your characters stay yours. You need a new invite to come back.`;
+    const message = `Leave ${campaign.name}? Your Keeper keeps a copy of your active character's sheet as it is now. Your characters stay yours. You need a new invite to come back.`;
     if (!window.confirm(message)) return;
     leave.disabled = true;
     status.replaceChildren();
@@ -366,9 +368,9 @@ function campaignCard(campaign, active, onLeave) {
   return h(
     "article",
     { class: "card stack" },
-    h("div", { class: "card-head" }, h("h3", {}, campaign.name), h("span", { class: "badge" }, campaign.isDm ? "DM" : "Player")),
+    h("div", { class: "card-head" }, h("h3", {}, campaign.name), h("span", { class: "badge" }, campaign.isDm ? "Keeper" : "Player")),
     campaign.isDm
-      ? h("p", {}, h("a", { class: "btn btn-primary", href: `/campaign/${id}/dm` }, "Open DM view, players and invites"))
+      ? h("p", {}, h("a", { class: "btn btn-primary", href: `/campaign/${id}/keeper` }, "Open Keeper view, players and invites"))
       : active
         ? [
             h("p", {}, "Your character: ", h("strong", {}, active.name)),
@@ -396,9 +398,9 @@ const charactersCard = () =>
     h("p", {}, h("a", { class: "btn btn-quiet", href: "/characters" }, "Open my characters")),
   );
 
-// Eclipse hosts one campaign (docs/adr/0004), so this is a single-campaign-first
-// page: with a campaign you just see it. Without one you can join with an invite
-// and, only if you are on the creator allowlist (ADR 0005), create one.
+// Eclipse hosts at most 4 campaigns (docs/adr/0014), so this page shows every campaign
+// a person is in. Without one you can join with an invite and, only if you are on the
+// creator allowlist (ADR 0005), create one.
 // activeByCampaign: { campaignId: { id, name } } for the characters this player has chosen.
 export function homeView({ profile, campaigns, activeByCampaign = {}, canCreate, onCreate, onJoin, onLeave }) {
   if (campaigns.length) {
@@ -420,8 +422,8 @@ export function homeView({ profile, campaigns, activeByCampaign = {}, canCreate,
       "p",
       { class: "muted" },
       canCreate
-        ? "You are not in a campaign yet. Join one with an invite, or create one as the DM."
-        : "You are not in a campaign yet. Open the invite link your DM sent you, or paste its code below.",
+        ? "You are not in a campaign yet. Join one with an invite, or create one as the Keeper."
+        : "You are not in a campaign yet. Open the invite link your Keeper sent you, or paste its code below.",
     ),
     h(
       "section",
@@ -432,7 +434,7 @@ export function homeView({ profile, campaigns, activeByCampaign = {}, canCreate,
         submitLabel: "Join campaign",
         onSubmit: async (values) => {
           const code = normalizeCode(values.code);
-          if (!code) throw invalid("That does not look like an invite code. Paste the whole code from your DM.");
+          if (!code) throw invalid("That does not look like an invite code. Paste the whole code from your Keeper.");
           await onJoin(code);
         },
       }),
@@ -442,7 +444,7 @@ export function homeView({ profile, campaigns, activeByCampaign = {}, canCreate,
           "section",
           { class: "card stack" },
           h("h2", {}, "Create a campaign"),
-          h("p", { class: "muted" }, "You become the DM. You then create invite links for your players."),
+          h("p", { class: "muted" }, "You become the Keeper. You then create invite links for your players."),
           form({
             fields: [field({ id: "campaignName", label: "Campaign name", maxlength: 80, required: true })],
             submitLabel: "Create campaign",
@@ -464,7 +466,7 @@ export function joinView({ preview, onJoin }) {
     "section",
     { class: "card stack" },
     h("h1", {}, `Join ${preview.campaign_name}?`),
-    h("p", {}, h("strong", {}, preview.dm_name), " runs this campaign. If you join, you become a player. Your DM can see the character you choose for it, and you can leave later."),
+    h("p", {}, h("strong", {}, preview.dm_name), " runs this campaign. If you join, you become a player. Your Keeper can see the character you choose for it, and you can leave later."),
     form({
       fields: [],
       submitLabel: "Yes, join this campaign",
@@ -473,6 +475,26 @@ export function joinView({ preview, onJoin }) {
       },
     }),
     h("p", {}, h("a", { class: "btn btn-quiet", href: "/" }, "Not now")),
+  );
+}
+
+// A link to send to someone, with a Copy link button.
+function linkNotice({ heading, text, link, onCopy }) {
+  const status = h("span", { class: "status", "aria-live": "polite" });
+  const copy = async () => {
+    try {
+      await onCopy(link);
+      status.textContent = "Copied.";
+    } catch {
+      status.textContent = "Could not copy. Select the link and copy it by hand.";
+    }
+  };
+  return h(
+    "div",
+    { class: "notice notice-success stack", role: "status" },
+    h("p", {}, h("strong", {}, heading), text),
+    h("p", {}, h("code", { class: "code linkbox" }, link)),
+    h("div", { class: "actions" }, h("button", { class: "btn btn-primary", type: "button", onclick: copy }, "Copy link"), status),
   );
 }
 
@@ -563,24 +585,7 @@ export function dmView({ campaign, roster, loadInvites, createInvite, replaceInv
 
   function showNewLink(created, heading = "Invite created. ") {
     const link = `${location.origin}/join/${encodeURIComponent(created.code)}`;
-    const status = h("span", { class: "status", "aria-live": "polite" });
-    const copy = async () => {
-      try {
-        await onCopy(link);
-        status.textContent = "Copied.";
-      } catch {
-        status.textContent = "Could not copy. Select the link and copy it by hand.";
-      }
-    };
-    fresh.replaceChildren(
-      h(
-        "div",
-        { class: "notice notice-success stack", role: "status" },
-        h("p", {}, h("strong", {}, heading), "This link is shown only once, so copy it now."),
-        h("p", {}, h("code", { class: "code linkbox" }, link)),
-        h("div", { class: "actions" }, h("button", { class: "btn btn-primary", type: "button", onclick: copy }, "Copy link"), status),
-      ),
-    );
+    fresh.replaceChildren(linkNotice({ heading, text: "This link is shown only once, so copy it now.", link, onCopy }));
   }
 
   const labelField = field({ id: "label", label: "Who is it for? (optional)", maxlength: 60, autocomplete: "off", hint: "Only you see this. For example, the player's name." });
@@ -627,9 +632,144 @@ export function dmView({ campaign, roster, loadInvites, createInvite, replaceInv
   return h(
     "div",
     { class: "stack" },
-    h("div", { class: "card-head" }, h("h1", {}, campaign.name), h("span", { class: "badge" }, "DM view")),
+    h("div", { class: "card-head" }, h("h1", {}, campaign.name), h("span", { class: "badge" }, "Keeper view")),
     roster,
     h("div", { class: "two-up" }, createSection, h("section", { class: "card stack" }, h("h2", {}, "Invites"), problem, list)),
+  );
+}
+
+// The site admin page (docs/adr/0014): approve an email so that its owner can make an
+// account, renew or revoke an approval that no confirmed account uses, and see every account.
+export function adminView({ loadAccounts, loadPending, approveEmail, revokeApproval, onCopy }) {
+  const fresh = h("div", { class: "stack" });
+  const problem = h("div", { class: "stack" });
+  const pending = h("div", { class: "stack" });
+  const accounts = h("div", { class: "stack" });
+  const pendingTitle = h("h2", {}, "Waiting for an account");
+  const expired = (approval) => new Date(approval.expires_at).getTime() <= Date.now();
+  const day = (iso) => new Date(iso).toLocaleDateString();
+
+  async function refresh() {
+    try {
+      const [waiting, people] = await Promise.all([loadPending(), loadAccounts()]);
+      const current = waiting.filter((approval) => !expired(approval));
+      const old = waiting.filter(expired);
+      pendingTitle.textContent = `Waiting for an account (${current.length})`;
+      pending.replaceChildren(
+        current.length ? h("ul", { class: "invites" }, ...current.map(approvalRow)) : h("p", { class: "muted" }, "No approved email is waiting for an account."),
+        old.length ? h("details", {}, h("summary", {}, `Expired approvals (${old.length})`), h("ul", { class: "invites" }, ...old.map(approvalRow))) : null,
+      );
+      accounts.replaceChildren(h("ul", { class: "invites" }, ...people.map(accountRow)));
+    } catch (err) {
+      console.error(err);
+      pending.replaceChildren(notice("error", friendlyError(err)));
+    }
+  }
+
+  // Throws what approveEmail throws. Shows the link to send, or says that none is needed.
+  async function approve(email) {
+    const approved = await approveEmail(email);
+    fresh.replaceChildren(
+      approved.has_account
+        ? notice("info", `${approved.email} already has an account, so it needs no approval.`)
+        : linkNotice({
+            heading: "Approved. ",
+            text: `Send this link to ${approved.email} and ask them to make their account now, with exactly this email. The approval ends on ${day(approved.expires_at)}.`,
+            link: `${location.origin}/signup`,
+            onCopy,
+          }),
+    );
+    await refresh();
+  }
+
+  const act = (action) => async (event) => {
+    event.currentTarget.disabled = true;
+    problem.replaceChildren();
+    try {
+      await action();
+    } catch (err) {
+      console.error(err);
+      problem.replaceChildren(notice("error", friendlyError(err)));
+    }
+    await refresh();
+  };
+
+  const approvalRow = (approval) =>
+    h(
+      "li",
+      { class: "invite" },
+      h(
+        "div",
+        { class: "invite-main" },
+        h("strong", {}, approval.email),
+        expired(approval) ? h("span", { class: "badge" }, "expired") : null,
+        h("span", { class: "muted" }, `approved ${day(approval.approved_at)}${approval.approved_by_name ? ` by ${approval.approved_by_name}` : ""}`),
+        expired(approval) ? null : h("span", { class: "muted" }, `ends ${day(approval.expires_at)}`),
+      ),
+      h(
+        "div",
+        { class: "actions" },
+        expired(approval) ? h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: act(() => approve(approval.email)) }, "Approve again") : null,
+        h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: act(() => revokeApproval(approval.email)) }, "Revoke"),
+      ),
+    );
+
+  const accountRow = (account) =>
+    h(
+      "li",
+      { class: "invite" },
+      h(
+        "div",
+        { class: "invite-main" },
+        h("strong", {}, account.display_name || account.email),
+        account.is_admin ? h("span", { class: "badge" }, "Admin") : null,
+        account.email_confirmed_at ? null : h("span", { class: "badge badge-alert" }, "Not confirmed"),
+        h("span", {}, account.email),
+        h("span", { class: "muted" }, `joined ${day(account.created_at)}`),
+        h("span", { class: "muted" }, account.last_sign_in_at ? `last signed in ${timeAgo(account.last_sign_in_at)}` : "never signed in"),
+      ),
+    );
+
+  const approveForm = form({
+    fields: [emailField("approveEmail", "Email address")],
+    submitLabel: "Approve email",
+    onSubmit: async (values) => {
+      await approve(await requireEmail(values.approveEmail));
+      approveForm.reset();
+    },
+  });
+
+  refresh();
+
+  return h(
+    "div",
+    { class: "stack" },
+    h("h1", {}, "Site admin"),
+    h("p", { class: "muted" }, "Only an email approved here can make an account. A site admin approves people for the site. A Keeper runs a campaign and invites players to it."),
+    h(
+      "section",
+      { class: "card stack" },
+      h("h2", {}, "Approve an email"),
+      h(
+        "p",
+        { class: "muted" },
+        "An approval lasts 7 days, and at most 20 can wait for an account at one time. Until the person makes their account, anyone who knows the email could make it first, so ask them to sign up right away.",
+      ),
+      approveForm,
+      fresh,
+    ),
+    h("section", { class: "card stack" }, pendingTitle, problem, pending),
+    h(
+      "section",
+      { class: "card stack" },
+      h("h2", {}, "Accounts"),
+      h(
+        "p",
+        { class: "muted" },
+        "Not confirmed means the account's email is not confirmed yet. If the person did not make that account, someone else did: the site owner deletes it in the Supabase dashboard (Authentication, Users), then approve the email again.",
+      ),
+      accounts,
+    ),
   );
 }
 
@@ -638,9 +778,9 @@ export function dmHasNoSheetView({ campaign }) {
   return h(
     "section",
     { class: "card stack" },
-    h("div", { class: "card-head" }, h("h1", {}, campaign.name), h("span", { class: "badge" }, "DM")),
-    h("p", {}, "You are the DM of this campaign. A DM does not have a character sheet."),
-    h("p", {}, h("a", { class: "btn btn-primary", href: `/campaign/${campaign.id}/dm` }, "Open the DM page"), " ", h("a", { class: "btn btn-quiet", href: "/" }, "Back to home")),
+    h("div", { class: "card-head" }, h("h1", {}, campaign.name), h("span", { class: "badge" }, "Keeper")),
+    h("p", {}, "You are the Keeper of this campaign. A Keeper does not have a character sheet."),
+    h("p", {}, h("a", { class: "btn btn-primary", href: `/campaign/${campaign.id}/keeper` }, "Open the Keeper page"), " ", h("a", { class: "btn btn-quiet", href: "/" }, "Back to home")),
   );
 }
 

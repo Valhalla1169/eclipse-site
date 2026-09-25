@@ -111,7 +111,8 @@ original one.
 not in current `campaign_players` membership — so the DM can *still* read
 (and later restore) a removed player's last character. This is required by
 the original roster spec's Restore flow, and was confirmed by direct
-testing (see `supabase/tests/rls_policies.test.sql`, TEST 11/12/12b). The
+testing (see `supabase/tests/rls_core.test.sql` and
+`supabase/tests/rls_hardening.test.sql`). The
 client's "active roster" list must therefore be built by querying
 `campaign_players` (the actual source of "who's currently active") joined
 against `characters`, not by relying on RLS to hide archived rows from

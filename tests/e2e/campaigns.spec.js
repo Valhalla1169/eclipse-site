@@ -12,20 +12,20 @@ test.describe("home", () => {
     await expect(page.getByRole("heading", { name: "Welcome, Dana Voss" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Join with an invite" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Create a campaign" })).toHaveCount(0);
-    await expect(page.getByText("Open the invite link your DM sent you")).toBeVisible();
+    await expect(page.getByText("Open the invite link your Keeper sent you")).toBeVisible();
   });
 
-  test("a creator can create a campaign and then sees it as DM", async ({ page }) => {
+  test("a creator can create a campaign and then sees it as Keeper", async ({ page }) => {
     await seed(page, { mock: { profile: dm.profile, creator: true }, user: dm });
     await open(page, "/");
     await page.locator("#campaignName").fill("  Age   of Eclipse ");
     await submit(page, "Create campaign");
     await expect(page.getByRole("heading", { name: "Your campaign" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Age of Eclipse" })).toBeVisible();
-    await expect(page.locator(".badge")).toHaveText("DM");
+    await expect(page.locator(".badge")).toHaveText("Keeper");
     const [post] = await callsTo(page, "/rest/v1/campaigns", "POST");
     expect(post.body).toEqual({ dm_id: ids.dm, name: "Age of Eclipse" });
-    await expect(page.getByRole("link", { name: "Open DM view, players and invites" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Open Keeper view, players and invites" })).toBeVisible();
   });
 
   test("refuses a blank campaign name", async ({ page }) => {
@@ -60,7 +60,7 @@ test.describe("home", () => {
 });
 
 test.describe("joining", () => {
-  const joinable = { ABCDEF0123: { id: ids.campaign, name: "Age of Eclipse", dmName: "Ravi the DM" } };
+  const joinable = { ABCDEF0123: { id: ids.campaign, name: "Age of Eclipse", dmName: "Ravi the Keeper" } };
   const confirmJoin = (page) => page.getByRole("button", { name: "Yes, join this campaign" }).click();
 
   test("a pasted code is cleaned up, shows what it is for, and joins only when confirmed", async ({ page }) => {
@@ -69,7 +69,7 @@ test.describe("joining", () => {
     await page.locator("#code").fill("  abcdef0123 ");
     await submit(page, "Join campaign");
     await expect(page.getByRole("heading", { name: "Join Age of Eclipse?" })).toBeVisible();
-    await expect(page.getByText("Ravi the DM runs this campaign.")).toBeVisible();
+    await expect(page.getByText("Ravi the Keeper runs this campaign.")).toBeVisible();
     const [preview] = await callsTo(page, "/rest/v1/rpc/preview_invite");
     expect(preview.body).toEqual({ p_invite_code: "ABCDEF0123" });
     expect(await callsTo(page, "/rest/v1/rpc/join_campaign")).toHaveLength(0);
@@ -116,7 +116,7 @@ test.describe("joining", () => {
   test("a wrong code shows a plain message", async ({ page }) => {
     await seed(page, { mock: { profile: dana.profile }, user: dana });
     await open(page, "/join/ZZZZZZZZ");
-    await expect(page.getByRole("alert")).toContainText("That invite code is not valid. Check it with your DM.");
+    await expect(page.getByRole("alert")).toContainText("That invite code is not valid. Check it with your Keeper.");
   });
 
   test("a badly formed invite link is refused without a request", async ({ page }) => {
@@ -139,17 +139,17 @@ test.describe("joining", () => {
     await expect(page.getByRole("heading", { name: "Age of Eclipse" })).toBeVisible();
   });
 
-  test("the DM of a campaign cannot join it as a player", async ({ page }) => {
+  test("the Keeper of a campaign cannot join it as a player", async ({ page }) => {
     await seed(page, { mock: { profile: dm.profile, joinError: "you run this campaign" }, user: dm });
     await open(page, "/join/ABCDEF0123");
-    await expect(page.getByRole("alert")).toContainText("You are the DM of this campaign");
+    await expect(page.getByRole("alert")).toContainText("You are the Keeper of this campaign");
   });
 });
 
 test.describe("campaign pages", () => {
   test("an id that is not a UUID is not found", async ({ page }) => {
     await seed(page, { mock: { profile: dana.profile }, user: dana });
-    await open(page, "/campaign/not-a-uuid/dm");
+    await open(page, "/campaign/not-a-uuid/keeper");
     await expect(page.getByText("We could not find that campaign.")).toBeVisible();
     expect(await callsTo(page, "/rest/v1/campaigns")).toHaveLength(0);
   });
@@ -160,10 +160,10 @@ test.describe("campaign pages", () => {
     await expect(page.getByText("or you are not a member of it")).toBeVisible();
   });
 
-  test("a player cannot open the DM page", async ({ page }) => {
+  test("a player cannot open the Keeper page", async ({ page }) => {
     await seed(page, { mock: { profile: dana.profile, campaigns: [campaign] }, user: dana });
-    await open(page, `/campaign/${ids.campaign}/dm`);
-    await expect(page.getByText("Only the DM of this campaign can open this page.")).toBeVisible();
+    await open(page, `/campaign/${ids.campaign}/keeper`);
+    await expect(page.getByText("Only the Keeper of this campaign can open this page.")).toBeVisible();
     expect(await callsTo(page, "/rest/v1/campaign_invites")).toHaveLength(0);
   });
 
@@ -178,10 +178,10 @@ test.describe("campaign pages", () => {
   });
 });
 
-test.describe("DM page and invites", () => {
+test.describe("Keeper page and invites", () => {
   test.beforeEach(async ({ page }) => {
     await seed(page, { mock: { profile: dm.profile, creator: true, campaigns: [campaign] }, user: dm });
-    await open(page, `/campaign/${ids.campaign}/dm`);
+    await open(page, `/campaign/${ids.campaign}/keeper`);
   });
 
   test("shows an empty invite list", async ({ page }) => {

@@ -141,8 +141,8 @@ select t.expect_count(
   'PH16: history has no foreign key, so it outlives the row it describes');
 
 -- ═══ 8. schema_change snapshots are bounded too (0006) ══════════════════
--- A member flipping the version in a loop used to store an unbounded number of
--- snapshots. Versions may only go up now, so climb from 2 to 42 as the owner.
+-- Every version bump makes a snapshot. Versions may only go up, so the owner
+-- climbs from 2 to 42, and only the newest 10 snapshots may stay.
 do $$
 begin
   perform t.act_as('e0000000-0000-0000-0000-000000000002');

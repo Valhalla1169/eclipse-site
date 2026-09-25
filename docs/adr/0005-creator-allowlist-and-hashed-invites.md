@@ -3,7 +3,8 @@
 Status: Accepted
 Date: 2026-09-19
 Amended by: ADR 0012 (a preview before joining, the invite recorded on the membership, replacing
-a link, limits on how many invites a campaign has).
+a link, limits on how many invites a campaign has) and ADR 0014 (sign-up is closed to every email a
+site admin has not approved).
 Amends: ADR 0001 (campaign creation, the invite mechanism, profile visibility),
 ADR 0002 (the "rejoin with the code" restore flow)
 Migration: `supabase/migrations/0005_creator_allowlist_and_hashed_invites.sql`

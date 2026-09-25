@@ -2,6 +2,8 @@
 
 Status: **Accepted.** Built.
 Date: 2026-09-20
+Amended by: ADR 0014 (5 characters that are not deleted, not 10, and only an approved email makes an
+account).
 Amends: ADR 0001 (what a DM can read), ADR 0002 (who can write a sheet), ADR 0004 (one sheet per
 campaign, cascading deletes), ADR 0006 (grants), ADR 0007 (what a new account can do), ADR 0008
 (where the sheet lives), ADR 0009 (how the roster reads) and ADR 0010 (restore, and who reads history).

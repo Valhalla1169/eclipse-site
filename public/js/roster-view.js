@@ -84,8 +84,8 @@ export function createRosterPanel({ campaign, api, download, actions = {} }) {
       h(
         "div",
         { class: "actions" },
-        character ? h("a", { class: "btn btn-primary btn-small", href: character.copyId ? `${campaignPath}/left/${encodeURIComponent(character.copyId)}` : `${campaignPath}/dm/${encodeURIComponent(character.id)}` }, "Open sheet") : null,
-        character && !character.copyId ? h("a", { class: "btn btn-quiet btn-small", href: `${campaignPath}/dm/${encodeURIComponent(character.id)}/history` }, "History") : null,
+        character ? h("a", { class: "btn btn-primary btn-small", href: character.copyId ? `${campaignPath}/left/${encodeURIComponent(character.copyId)}` : `${campaignPath}/keeper/${encodeURIComponent(character.id)}` }, "Open sheet") : null,
+        character && !character.copyId ? h("a", { class: "btn btn-quiet btn-small", href: `${campaignPath}/keeper/${encodeURIComponent(character.id)}/history` }, "History") : null,
         character ? h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: () => download(fileNameForName(character.name || entry.playerName), serializeStored(character.row)) }, "Save a copy") : null,
         entry.member && actions.onRemove ? h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: (event) => removePlayer(event, entry) }, "Remove from campaign") : null,
         !entry.member && actions.onInviteAgain ? h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: () => actions.onInviteAgain(entry.playerName) }, "Invite again") : null,

@@ -42,8 +42,9 @@ The DM page (`/campaign/:id/dm`) has a **Players** section above the invites:
    back. A badge says Live or Not live. The subscription follows the same RLS policy as a read.
 3. **No write of any kind from the DM's pages.** No insert, update, delete or RPC is called.
    `tests/e2e/roster.spec.js` fails if one is.
-4. **Not built: removing or restoring a player.** `remove_player` exists in the database, but the
-   page has no button for it. A removed player's sheet already shows under Former players.
+4. **Removing a player, built in ADR 0012.** The card's **Remove from campaign** button calls
+   `remove_player`. A removed player's sheet still shows under Former players, and **Invite again**
+   brings them back with a new invite.
 
 ## Known gaps
 

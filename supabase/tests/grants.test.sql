@@ -1,4 +1,4 @@
--- Self-asserting privilege tests (ADR 0003, extended by 0004 and 0005).
+-- Self-asserting privilege tests (ADR 0003, extended by 0004, 0005, 0011 and 0014).
 --
 -- rls_policies / rls_hardening / access_model / history prove what RLS allows
 -- GIVEN a role may touch a table at all. This file proves the GRANT layer
@@ -96,13 +96,47 @@ select pg_temp.expect(
   and not has_column_privilege('authenticated', 'public.campaign_invites', 'created_by', 'select'),
   'G9: authenticated cannot read code_hash or created_by');
 
+-- site_admins and approved_emails: no client role touches them (0011). Supabase Auth
+-- reads one column of approved_emails for the sign-up hook, and nothing else.
+select pg_temp.expect(
+  not exists (
+    select 1 from unnest(array['public.site_admins','public.approved_emails']) as t(tbl)
+    where pg_temp.cols('authenticated', t.tbl, 'select') <> '{}'
+       or pg_temp.cols('authenticated', t.tbl, 'insert') <> '{}'
+       or pg_temp.cols('authenticated', t.tbl, 'update') <> '{}'
+       or has_table_privilege('authenticated', t.tbl, 'delete')),
+  'G5b: authenticated cannot read or write site_admins or approved_emails, not even one column');
+select pg_temp.expect(
+  pg_temp.cols('supabase_auth_admin', 'public.approved_emails', 'select') = array['email','expires_at']
+  and pg_temp.cols('supabase_auth_admin', 'public.approved_emails', 'insert') = '{}'
+  and pg_temp.cols('supabase_auth_admin', 'public.approved_emails', 'update') = '{}'
+  and not exists (
+    select 1 from unnest(array['delete','truncate','references','trigger']) as p(priv)
+    where has_table_privilege('supabase_auth_admin', 'public.approved_emails', p.priv)),
+  'G5c: supabase_auth_admin reads only approved_emails.email and expires_at, and holds no other right on it');
+select pg_temp.expect(
+  pg_temp.cols('supabase_auth_admin', 'public.site_admins', 'select') = '{}'
+  and pg_temp.cols('supabase_auth_admin', 'public.site_admins', 'insert') = '{}'
+  and pg_temp.cols('supabase_auth_admin', 'public.site_admins', 'update') = '{}'
+  and pg_temp.cols('supabase_auth_admin', 'public.site_admins', 'references') = '{}'
+  and not exists (
+    select 1 from unnest(array['delete','truncate','references','trigger']) as p(priv)
+    where has_table_privilege('supabase_auth_admin', 'public.site_admins', p.priv)),
+  'G5e: supabase_auth_admin holds no right at all on site_admins');
+select pg_temp.expect(
+  (select relrowsecurity from pg_class where oid = 'public.site_admins'::regclass)
+  and (select relrowsecurity from pg_class where oid = 'public.approved_emails'::regclass)
+  and not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'site_admins')
+  and (select array_agg(roles::text) from pg_policies where schemaname = 'public' and tablename = 'approved_emails') = array['{supabase_auth_admin}'],
+  'G5d: RLS is on for both; site_admins has no policy, and approved_emails has one, for supabase_auth_admin only');
+
 -- ── no client role holds the dangerous or unused privileges ──────────────
 select pg_temp.expect(
   not exists (
     select 1
     from unnest(array['public.profiles','public.campaigns','public.campaign_players','public.characters',
                       'public.campaign_creators','public.campaign_invites','public.character_history',
-                      'public.campaign_characters','public.departed_sheets']) as t(tbl),
+                      'public.campaign_characters','public.departed_sheets','public.site_admins','public.approved_emails']) as t(tbl),
          unnest(array['anon','authenticated']) as r(role),
          unnest(array['truncate','references','trigger']) as p(priv)
     where has_table_privilege(r.role, t.tbl, p.priv)),
@@ -114,7 +148,7 @@ select pg_temp.expect(
     select 1
     from unnest(array['public.profiles','public.campaigns','public.campaign_players','public.characters',
                       'public.campaign_creators','public.campaign_invites','public.character_history',
-                      'public.campaign_characters','public.departed_sheets']) as t(tbl),
+                      'public.campaign_characters','public.departed_sheets','public.site_admins','public.approved_emails']) as t(tbl),
          unnest(array['select','insert','update','delete']) as p(priv)
     where has_table_privilege('anon', t.tbl, p.priv)),
   'G11: anon has no select/insert/update/delete on any table');
@@ -142,7 +176,12 @@ select pg_temp.expect(
   and has_function_privilege('authenticated', 'public.undelete_character(uuid)', 'execute')
   and has_function_privilege('authenticated', 'public.dm_sees_character(uuid,timestamptz)', 'execute')
   and has_function_privilege('authenticated', 'public.preview_invite(text)', 'execute')
-  and has_function_privilege('authenticated', 'public.replace_invite(uuid)', 'execute'),
+  and has_function_privilege('authenticated', 'public.replace_invite(uuid)', 'execute')
+  and has_function_privilege('authenticated', 'public.is_site_admin()', 'execute')
+  and has_function_privilege('authenticated', 'public.approve_email(text)', 'execute')
+  and has_function_privilege('authenticated', 'public.revoke_approval(text)', 'execute')
+  and has_function_privilege('authenticated', 'public.list_accounts()', 'execute')
+  and has_function_privilege('authenticated', 'public.list_pending_approvals()', 'execute'),
   'G13: authenticated can execute the RPCs and the RLS helper functions');
 select pg_temp.expect(
   not has_function_privilege('authenticated', 'public.set_updated_at()', 'execute')
@@ -153,11 +192,27 @@ select pg_temp.expect(
   and not has_function_privilege('authenticated', 'public.assert_invite_room(uuid)', 'execute')
   and not has_function_privilege('authenticated', 'public.handle_new_user()', 'execute')
   and not has_function_privilege('authenticated', 'public.derive_display_name(jsonb,text)', 'execute')
-  and not has_function_privilege('authenticated', 'public.generate_invite_code()', 'execute'),
+  and not has_function_privilege('authenticated', 'public.generate_invite_code()', 'execute')
+  and not has_function_privilege('authenticated', 'public.email_has_account(text)', 'execute'),
   'G14: trigger functions and the invite-code generator are not executable by clients');
 select pg_temp.expect(
   not has_function_privilege('authenticated', 'public.characters_guard_schema_version()', 'execute'),
   'G15: the schema_version guard trigger function is not executable by clients (0006)');
+
+select pg_temp.expect(
+  has_function_privilege('supabase_auth_admin', 'public.hook_require_approved_email(jsonb)', 'execute')
+  and not has_function_privilege('authenticated', 'public.hook_require_approved_email(jsonb)', 'execute')
+  and not has_function_privilege('anon', 'public.hook_require_approved_email(jsonb)', 'execute')
+  and not exists (
+    select 1 from pg_proc p
+    where p.pronamespace = 'public'::regnamespace
+      and p.proname <> 'hook_require_approved_email'
+      and has_function_privilege('supabase_auth_admin', p.oid, 'execute')),
+  'G16: only Supabase Auth can execute the sign-up hook, and it can execute nothing else in public (0011)');
+select pg_temp.expect(
+  not (select prosecdef from pg_proc where oid = 'public.hook_require_approved_email(jsonb)'::regprocedure)
+  and (select proconfig from pg_proc where oid = 'public.hook_require_approved_email(jsonb)'::regprocedure) = array['search_path=""'],
+  'G17: the sign-up hook runs with the rights of Supabase Auth, not its owner, and with an empty search_path');
 
 \echo ALL GRANT TESTS PASSED
 rollback;

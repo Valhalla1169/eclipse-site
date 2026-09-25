@@ -1,5 +1,6 @@
 // Eclipse SPA entry point: session, routes, and which view to show.
 // Loaded as <script type="module"> after /vendor/supabase.js (see index.html).
+import * as admin from "./admin.js";
 import * as auth from "./auth.js";
 import * as characters from "./characters.js";
 import { activeByCampaign, copyOfRow, describeCharacters, displayName } from "./character-list.js";
@@ -22,28 +23,31 @@ const ROUTES = [
   { name: "forgot", pattern: "/forgot-password" },
   { name: "reset", pattern: "/reset-password" },
   { name: "account", pattern: "/account" },
+  { name: "admin", pattern: "/admin" },
   { name: "join", pattern: "/join/:code" },
   { name: "characters", pattern: "/characters" },
   { name: "character", pattern: "/characters/:characterId" },
   { name: "history", pattern: "/characters/:characterId/history" },
   { name: "snapshot", pattern: "/characters/:characterId/history/:historyId" },
   { name: "choose", pattern: "/campaign/:id/character" },
-  { name: "dm", pattern: "/campaign/:id/dm" },
-  { name: "dmsheet", pattern: "/campaign/:id/dm/:characterId" },
-  { name: "dmhistory", pattern: "/campaign/:id/dm/:characterId/history" },
-  { name: "dmsnapshot", pattern: "/campaign/:id/dm/:characterId/history/:historyId" },
+  { name: "dm", pattern: "/campaign/:id/keeper" },
+  { name: "dmsheet", pattern: "/campaign/:id/keeper/:characterId" },
+  { name: "dmhistory", pattern: "/campaign/:id/keeper/:characterId/history" },
+  { name: "dmsnapshot", pattern: "/campaign/:id/keeper/:characterId/history/:historyId" },
   { name: "departed", pattern: "/campaign/:id/left/:copyId" },
 ];
 
 const main = document.getElementById("main");
 const accountBox = document.getElementById("account");
 const accountLink = document.getElementById("account-name");
+const adminLink = document.getElementById("admin-link");
 const signOutButton = document.getElementById("sign-out");
 
 const state = {
   session: null,
   profile: null, // the signed-in user's profile row
-  profileChecked: false, // true once the database has been asked, so a null profile means "not loaded yet"
+  isAdmin: false, // a site admin (docs/adr/0014), for the Admin link and page
+  accountChecked: false, // true once the database has been asked, so a null profile means "not loaded yet"
   authNotice: null, // one-shot message from a failed or expired emailed link
 };
 
@@ -54,11 +58,12 @@ let flushView = null; // set by a view that may hold unsaved changes
 
 // options.wide: the sheet needs more room than the account pages. options.roomy: a grid
 // of cards uses the full page width. options.dispose: runs when the view is replaced. options.flush: saves what is waiting and resolves
-// to false if something could not be saved.
+// to false if something could not be saved; mayLeave() calls it before the view is left.
 function show(node, title, announce = true, { wide = false, roomy = false, dispose = null, flush = null } = {}) {
   if (disposeView) disposeView();
   disposeView = dispose;
   flushView = flush;
+  main.inert = false;
   main.className = wide ? "page page-wide" : roomy ? "page page-roomy" : "page";
   main.replaceChildren(node);
   document.title = title ? `${title} - Eclipse` : "Eclipse";
@@ -73,26 +78,40 @@ function show(node, title, announce = true, { wide = false, roomy = false, dispo
   }
 }
 
+async function mayLeave(question = "Your latest changes are not saved yet. Leave this page and lose them?") {
+  return !flushView || (await flushView()) || window.confirm(question);
+}
+
+// The view stays on screen until the next show(). Until then nothing can be typed into
+// it, and a redirect on the way does not ask again.
+function releaseView() {
+  if (!flushView) return;
+  flushView = null;
+  main.inert = true;
+}
+
 function updateAccount() {
   const user = state.session && state.session.user;
   accountBox.hidden = !user;
+  adminLink.hidden = !state.isAdmin;
   if (user) accountLink.textContent = (state.profile && state.profile.display_name) || user.email || "Account";
 }
 
 const loginPath = (path) => (path === "/" ? "/login" : `/login?next=${encodeURIComponent(path)}`);
 const nextFrom = (search) => safeNextPath(new URLSearchParams(search).get("next"));
 
-// The database creates the profile when the account is made. This covers the rare
-// account that has none.
-async function ensureProfile(user) {
-  if (state.profileChecked) return;
-  const existing = await auth.getProfile(user.id);
+// Once per sign-in: the profile, and whether the person is a site admin. The database
+// creates the profile when the account is made; this also covers the rare account that has none.
+async function ensureAccount(user) {
+  if (state.accountChecked) return;
+  const [existing, isAdmin] = await Promise.all([auth.getProfile(user.id), admin.isSiteAdmin()]);
   const name =
     cleanDisplayName(user.user_metadata && user.user_metadata.display_name) ||
     cleanDisplayName(String(user.email || "").split("@")[0]) ||
     "Player";
   state.profile = existing || (await auth.createProfile(user.id, name));
-  state.profileChecked = true;
+  state.isAdmin = isAdmin;
+  state.accountChecked = true;
   updateAccount();
 }
 
@@ -104,11 +123,12 @@ async function ensureReady({ path, initial }) {
     router.go(loginPath(path), { replace: true, initial });
     return false;
   }
-  await ensureProfile(user);
+  await ensureAccount(user);
   return true;
 }
 
 async function onRoute({ path, search, match, initial }) {
+  releaseView();
   const token = ++renderToken;
   const alive = () => token === renderToken;
   const announce = !initial;
@@ -157,7 +177,7 @@ async function onRoute({ path, search, match, initial }) {
     if (match.name === "reset") {
       // The emailed link signs the person in. No session means the link was bad.
       if (!user) return showHere(views.linkExpiredView(), "Link expired");
-      await ensureProfile(user);
+      await ensureAccount(user);
       return showHere(
         views.resetPasswordView({
           email: user.email,
@@ -196,6 +216,22 @@ async function onRoute({ path, search, match, initial }) {
       );
     }
 
+    // To anyone else the page does not exist. The database refuses them anyway.
+    if (match.name === "admin") {
+      if (!(await ensureReady({ path, initial }))) return;
+      if (!state.isAdmin) return showHere(views.notFoundView(), "Not found");
+      return showHere(
+        views.adminView({
+          loadAccounts: admin.listAccounts,
+          loadPending: admin.listPendingApprovals,
+          approveEmail: admin.approveEmail,
+          revokeApproval: admin.revokeApproval,
+          onCopy: (text) => navigator.clipboard.writeText(text),
+        }),
+        "Site admin",
+      );
+    }
+
     if (match.name === "home") {
       if (!(await ensureReady({ path, initial }))) return;
       showHere(views.loadingView("Loading your campaign..."));
@@ -228,7 +264,7 @@ async function onRoute({ path, search, match, initial }) {
 
     if (match.name === "join") {
       const code = normalizeCode(match.params.code);
-      if (!code) return showHere(views.notFoundView("That invite link does not look right. Ask your DM to send it again."), "Invalid invite");
+      if (!code) return showHere(views.notFoundView("That invite link does not look right. Ask your Keeper to send it again."), "Invalid invite");
       if (!(await ensureReady({ path: `/join/${code}`, initial }))) return;
       showHere(views.loadingView("Checking the invite..."));
       const preview = await data.previewInvite(code);
@@ -276,7 +312,7 @@ async function onRoute({ path, search, match, initial }) {
 
     // Everything else here is the DM's, and read only.
     if (campaign.dm_id !== user.id) {
-      return showHere(views.notFoundView("Only the DM of this campaign can open this page."), "Not allowed");
+      return showHere(views.notFoundView("Only the Keeper of this campaign can open this page."), "Not allowed");
     }
     const inCampaign = { campaign, alive, announce };
     if (match.name === "dmsheet") return await showPlayersSheet({ ...inCampaign, characterId: match.params.characterId });
@@ -313,7 +349,7 @@ async function onRoute({ path, search, match, initial }) {
   } catch (err) {
     if (!alive()) return;
     console.error(err);
-    showHere(views.errorView(friendlyError(err), () => onRoute(router.current())), "Error");
+    showHere(views.errorView(friendlyError(err), () => router.refresh()), "Error");
   }
 }
 
@@ -495,7 +531,7 @@ async function showPlayersSheet({ campaign, characterId, alive, announce }) {
   const view = createSheetView({
     opened,
     row,
-    readOnlyNotice: `You are viewing ${playerName}'s sheet as the DM. It is read only, and it updates when they make changes.`,
+    readOnlyNotice: `You are viewing ${playerName}'s sheet as the Keeper. It is read only, and it updates when they make changes.`,
   });
   const status = h("p", { class: "muted", role: "status" });
 
@@ -523,7 +559,7 @@ async function showPlayersSheet({ campaign, characterId, alive, announce }) {
   };
   unsubscribe = data.subscribeToRoster(campaign.id, catchUp, () => {});
   poll = setInterval(catchUp, FALLBACK_REFRESH_MS);
-  const bar = backBar(`${campaignPath(campaign)}/dm`, "Back to the DM page", " ", h("a", { class: "btn btn-quiet btn-small", href: `${campaignPath(campaign)}/dm/${encodeURIComponent(characterId)}/history` }, "History"));
+  const bar = backBar(`${campaignPath(campaign)}/keeper`, "Back to the Keeper page", " ", h("a", { class: "btn btn-quiet btn-small", href: `${campaignPath(campaign)}/keeper/${encodeURIComponent(characterId)}/history` }, "History"));
   return show(h("div", {}, bar, status, view.element), campaign.name, announce, {
     wide: true,
     dispose() {
@@ -540,12 +576,12 @@ async function showPlayersHistory({ campaign, characterId, alive, announce }) {
   if (!assignment) return show(views.notFoundView("We could not find that sheet in this campaign."), "Not found", announce);
   const [entries, names] = await Promise.all([characters.listHistory(characterId), data.readProfileNames([assignment.player_id])]);
   if (!alive()) return;
-  const sheetPath = `${campaignPath(campaign)}/dm/${encodeURIComponent(characterId)}`;
+  const sheetPath = `${campaignPath(campaign)}/keeper/${encodeURIComponent(characterId)}`;
   return show(
     historyView({
       badge: `${names[assignment.player_id] || "A player"}'s sheet`,
       intro:
-        "The site keeps a copy of a sheet before each edit (at most one every 10 minutes) and before each rules update. You see the copies kept since this character became active in your campaign. Each is the sheet as it was just before the time shown. You can only look: a DM never changes a sheet.",
+        "The site keeps a copy of a sheet before each edit (at most one every 10 minutes) and before each rules update. You see the copies kept since this character became active in your campaign. Each is the sheet as it was just before the time shown. You can only look: a Keeper never changes a sheet.",
       back: { href: sheetPath, label: "Back to the sheet" },
       snapshotPath: (entry) => `${sheetPath}/history/${encodeURIComponent(entry.id)}`,
       entries,
@@ -572,7 +608,7 @@ async function showPlayersSnapshot({ campaign, characterId, historyId, alive, an
     row: { id: snapshot.id, updated_at: snapshot.saved_at },
     readOnlyNotice: `This is ${names[assignment.player_id] || "a player"}'s sheet as it was just before ${when}. It is read only.`,
   });
-  const bar = backBar(`${campaignPath(campaign)}/dm/${encodeURIComponent(characterId)}/history`, "Back to the history");
+  const bar = backBar(`${campaignPath(campaign)}/keeper/${encodeURIComponent(characterId)}/history`, "Back to the history");
   return show(h("div", {}, bar, view.element), campaign.name, announce, { wide: true, dispose: view.dispose });
 }
 
@@ -592,7 +628,7 @@ async function showDepartedSheet({ campaign, copyId, alive, announce }) {
     row: { id: copy.id, updated_at: copy.kept_at },
     readOnlyNotice: `This is ${names[copy.player_id] || "a player"}'s sheet as it was when ${copy.reason === "removed" ? "you removed them" : "they left"}, on ${when}. It is read only and it does not change.`,
   });
-  return show(h("div", {}, backBar(`${campaignPath(campaign)}/dm`, "Back to the DM page"), view.element), campaign.name, announce, { wide: true, dispose: view.dispose });
+  return show(h("div", {}, backBar(`${campaignPath(campaign)}/keeper`, "Back to the Keeper page"), view.element), campaign.name, announce, { wide: true, dispose: view.dispose });
 }
 
 async function boot() {
@@ -616,31 +652,37 @@ async function boot() {
       state.session = sessionNow;
       if (before === after) return;
       state.profile = null;
-      state.profileChecked = false;
+      state.isAdmin = false;
+      state.accountChecked = false;
       updateAccount();
-      onRoute(router.current());
+      router.refresh("Your sign-in changed, and your latest changes are not saved yet. Leave this page and lose them?");
     }, 0);
   });
 
-  signOutButton.addEventListener("click", async () => {
-    signOutButton.disabled = true;
+  const signOut = async () => {
+    releaseView();
     try {
-      // Signing out ends the session that saves use, so save first.
-      if (flushView && !(await flushView()) && !window.confirm("Your latest changes are not saved yet. Sign out and lose them?")) return;
       await auth.signOut("local");
     } catch (err) {
       console.error(err);
+    }
+    router.go("/login", { replace: true });
+  };
+  signOutButton.addEventListener("click", async () => {
+    signOutButton.disabled = true;
+    try {
+      // Signing out ends the session that saves use, so the leave check saves first.
+      await router.leave(signOut, "Your latest changes are not saved yet. Sign out and lose them?");
     } finally {
       signOutButton.disabled = false;
     }
-    router.go("/login", { replace: true });
   });
 
   // The sheet's sticky Reference bar sits just under the sticky header.
   const header = document.querySelector(".site-header");
   new ResizeObserver(() => document.documentElement.style.setProperty("--header-h", `${header.offsetHeight}px`)).observe(header);
 
-  router = createRouter({ table: ROUTES, onRoute });
+  router = createRouter({ table: ROUTES, onRoute, beforeLeave: mayLeave });
   router.start();
 }
 

@@ -30,9 +30,9 @@ const card = (page, name) => cards(page).filter({ has: page.getByRole("heading",
 const rpc = (page, name) => callsTo(page, `/rest/v1/rpc/${name}`, "POST");
 
 test.describe("the list of characters", () => {
-  test("shows every character, how many of ten, and where each is active", async ({ page }) => {
+  test("shows every character, how many of five, and where each is active", async ({ page }) => {
     await openList(page);
-    await expect(page.locator(".card-head .badge").first()).toHaveText("2 of 10");
+    await expect(page.locator(".card-head .badge").first()).toHaveText("2 of 5");
     await expect(cards(page)).toHaveCount(2);
     await expect(card(page, "Marlo Vance")).toContainText("In Age of Eclipse");
     await expect(card(page, "Vex")).not.toContainText("In Age of Eclipse");
@@ -93,7 +93,7 @@ test.describe("the list of characters", () => {
     expect(messages[0]).toContain("It is hidden, not removed");
     const [call] = await rpc(page, "delete_character");
     expect(call.body).toEqual({ p_character_id: VEX_ID });
-    await expect(page.locator(".card-head .badge").first()).toHaveText("1 of 10");
+    await expect(page.locator(".card-head .badge").first()).toHaveText("1 of 5");
 
     const deleted = page.getByText("Deleted characters (1)");
     await deleted.click();
@@ -103,21 +103,37 @@ test.describe("the list of characters", () => {
     expect((await storedMock(page)).characters.find((r) => r.id === VEX_ID).deleted_at).toBeNull();
   });
 
-  test("at ten characters New character, Make a copy and Bring back are off, and the reason is shown", async ({ page }) => {
-    const ten = filler(9);
-    await openList(page, { characters: [MARLO, ...ten], assignments: [assignmentRow()] });
-    await expect(page.getByRole("button", { name: "New character", exact: true })).toBeDisabled();
-    await expect(page.getByText("the most one person can have. Delete one to make room.")).toBeVisible();
+  test("at five characters the new-character buttons are off and say how to make room", async ({ page }) => {
+    const gone = characterRow(sheetOf("Gone"), { id: "40000000-0000-4000-8000-0000000002ff", deleted_at: "2026-09-02T00:00:00.000000+00:00" });
+    await openList(page, { characters: [MARLO, ...filler(4), gone], assignments: [assignmentRow()] });
+    await expect(page.locator(".card-head .badge").first()).toHaveText("5 of 5");
+    const howToMakeRoom = /You have 5 characters, the most one person can have\. To make room, open one, press Save a copy to keep it on your computer, then delete it/;
+    for (const name of ["New character", "New character from a file"]) {
+      await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
+      await expect(page.getByRole("button", { name, exact: true })).toHaveAccessibleDescription(howToMakeRoom);
+    }
+    await expect(page.getByText(howToMakeRoom)).toBeVisible();
     await expect(card(page, "Marlo Vance").getByRole("button", { name: "Make a copy" })).toBeDisabled();
+    await page.getByText("Deleted characters (1)").click();
+    await expect(page.getByRole("button", { name: "Bring back" })).toBeDisabled();
+    expect(await callsTo(page, CHARACTERS, "POST")).toHaveLength(0);
   });
 
-  test("when the database refuses an eleventh character, the person is told and nothing is made", async ({ page }) => {
-    await openList(page, { characters: [MARLO, VEX, ...filler(7)] });
-    await patchMock(page, { characters: [MARLO, VEX, ...filler(8)] });
+  test("the chooser says the same at five characters", async ({ page }) => {
+    await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], characters: [MARLO, ...filler(4)], assignments: [] }, user: dana });
+    await open(page, CHOOSER);
+    const button = page.getByRole("button", { name: "Make a new character for this campaign" });
+    await expect(button).toBeDisabled();
+    await expect(button).toHaveAccessibleDescription(/To make room, open one, press Save a copy/);
+  });
+
+  test("when the database refuses a sixth character, the person is told how to make room and nothing is made", async ({ page }) => {
+    await openList(page, { characters: [MARLO, VEX, ...filler(2)] });
+    await patchMock(page, { characters: [MARLO, VEX, ...filler(3)] });
     await page.getByRole("button", { name: "New character", exact: true }).click();
-    await expect(page.getByRole("alert")).toContainText("You already have 10 characters");
+    await expect(page.getByRole("alert")).toContainText("You have 5 characters, the most one person can have. To make room");
     await expect(page.getByRole("button", { name: "New character", exact: true })).toBeEnabled();
-    expect((await storedMock(page)).characters).toHaveLength(10);
+    expect((await storedMock(page)).characters).toHaveLength(5);
   });
 
   test("a character can be made from an .eclipse file, and a bad file is refused", async ({ page }) => {
@@ -164,7 +180,7 @@ test.describe("choosing a character for a campaign", () => {
 
   test("lists the characters, chooses one, and opens its sheet", async ({ page }) => {
     await openChooser(page);
-    await expect(page.getByText("Your DM can see this character's sheet.")).toBeVisible();
+    await expect(page.getByText("Your Keeper can see this character's sheet.")).toBeVisible();
     await card(page, "Vex").getByRole("button", { name: "Use this character" }).click();
     await expect(page).toHaveURL(new RegExp(`/characters/${VEX_ID}$`));
     await expect(page.locator("#f_name")).toHaveValue("Vex");
@@ -201,10 +217,10 @@ test.describe("choosing a character for a campaign", () => {
     await expect(page.getByRole("alert")).toContainText("That character is active in another campaign");
   });
 
-  test("a DM has no character to choose", async ({ page }) => {
+  test("a Keeper has no character to choose", async ({ page }) => {
     await seed(page, { mock: { profile: dm.profile, campaigns: [campaign] }, user: dm });
     await open(page, CHOOSER);
-    await expect(page.getByText("A DM does not have a character sheet.")).toBeVisible();
+    await expect(page.getByText("A Keeper does not have a character sheet.")).toBeVisible();
   });
 });
 

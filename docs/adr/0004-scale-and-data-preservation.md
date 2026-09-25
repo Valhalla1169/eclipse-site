@@ -3,7 +3,8 @@
 Status: Accepted. The database protections below are implemented by migration
 `0004_protect_characters_from_deletion.sql`. Amended by ADR 0010 (a player can restore) and ADR 0011
 (a campaign no longer holds characters, so deleting one no longer cascades to them; a player's
-"delete" hides a character).
+"delete" hides a character). Amended by ADR 0014 (about 10 people and up to 4 campaigns, and sign-up
+is closed to every email a site admin has not approved).
 Date: 2026-09-19
 
 ## Context

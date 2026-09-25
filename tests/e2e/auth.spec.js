@@ -121,6 +121,22 @@ test.describe("sign in", () => {
     expect(call.body.code_challenge).toBeTruthy();
   });
 
+  test("an email link for an email nobody approved gets the same answer as for an account", async ({ page }) => {
+    const answer = async (email, mock) => {
+      await seed(page, { mock });
+      await open(page, "/login");
+      await page.locator("#linkEmail").fill(email);
+      await submit(page, "Email me a sign-in link");
+      const status = page.getByRole("status").filter({ hasText: "we sent a link" });
+      await expect(status).toBeVisible();
+      return (await status.textContent()).replace(email, "EMAIL");
+    };
+    const forAccount = await answer("dana@example.com", { accounts: [{ user_id: dana.id, email: "dana@example.com" }] });
+    const forStranger = await answer("stranger@example.com", {});
+    expect(forStranger).toBe(forAccount);
+    await expect(page.getByRole("alert")).toHaveCount(0);
+  });
+
   test("the email link form reports a rate limit in plain words", async ({ page }) => {
     await seed(page, { mock: { otpError: { status: 429, error_code: "over_email_send_rate_limit", msg: "rate" } } });
     await open(page, "/login");
@@ -144,8 +160,16 @@ test.describe("sign up", () => {
     await submit(page, "Create account");
   };
 
-  test("creates an account and asks for email confirmation", async ({ page }) => {
+  const approved = (email) => ({ approvals: [{ email, approved_at: new Date().toISOString(), expires_at: new Date(Date.now() + 86400 * 1000).toISOString(), approved_by_name: "Ada" }] });
+
+  test("says that only an approved email can make an account", async ({ page }) => {
     await seed(page);
+    await open(page, "/signup");
+    await expect(page.getByText("Only an email that a site admin has approved can make an account here.")).toBeVisible();
+  });
+
+  test("creates an account and asks for email confirmation", async ({ page }) => {
+    await seed(page, { mock: approved("dana@example.com") });
     await open(page, "/signup");
     await fill(page, { name: "  Dana   Voss ", email: "Dana@Example.com" });
     await expect(page.getByRole("status").filter({ hasText: "Check your email." })).toContainText("dana@example.com");
@@ -172,6 +196,24 @@ test.describe("sign up", () => {
       expect(await callsTo(page, "/auth/v1/signup")).toHaveLength(0);
     });
   }
+
+  // The sign-up hook refuses the email, and the page answers as it does for an approved one.
+  test("an email nobody approved gets the same answer as an approved one", async ({ page }) => {
+    const answer = async (email, mock) => {
+      await seed(page, { mock });
+      await open(page, "/signup");
+      await fill(page, { email });
+      const status = page.getByRole("status").filter({ hasText: "Check your email." });
+      await expect(status).toBeVisible();
+      return (await status.textContent()).replace(email, "EMAIL");
+    };
+    const forApproved = await answer("dana@example.com", approved("dana@example.com"));
+    const forStranger = await answer("stranger@example.com", {});
+    expect(forStranger).toBe(forApproved);
+    expect(forStranger).toBe("Done: Check your email. If EMAIL is approved and has no account yet, we sent a link to confirm it.");
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    expect(await callsTo(page, "/auth/v1/signup")).toHaveLength(1);
+  });
 
   test("a server refusal is shown in plain words", async ({ page }) => {
     await seed(page, { mock: { signupError: "user_already_exists" } });

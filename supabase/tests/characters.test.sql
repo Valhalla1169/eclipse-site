@@ -28,28 +28,28 @@ insert into public.campaign_players (campaign_id, player_id) values
   ('b2000000-0000-0000-0000-0000000000a1', 'b1000000-0000-0000-0000-000000000005'),
   ('b2000000-0000-0000-0000-0000000000b1', 'b1000000-0000-0000-0000-000000000004');
 
--- ═══ 1. Ten characters, thirty in all ═══════════════════════════════════
+-- ═══ 1. Five characters, thirty in all (0011) ═══════════════════════════
 select t.act_as('b1000000-0000-0000-0000-000000000006');
 do $$
 begin
-  for i in 1..10 loop
+  for i in 1..5 loop
     insert into public.characters (owner_id, character_name) values ('b1000000-0000-0000-0000-000000000006', 'C' || lpad(i::text, 2, '0'));
   end loop;
 end $$;
-select t.expect_count($q$select 1 from public.characters$q$, 10, 'CH1: a person in no campaign can make ten characters');
-select t.expect_denied_with($q$insert into public.characters (owner_id, character_name) values ('b1000000-0000-0000-0000-000000000006', 'Eleven')$q$,
-  'already have 10', 'CH2: an eleventh is refused');
+select t.expect_count($q$select 1 from public.characters$q$, 5, 'CH1: a person in no campaign can make five characters');
+select t.expect_denied_with($q$insert into public.characters (owner_id, character_name) values ('b1000000-0000-0000-0000-000000000006', 'Six')$q$,
+  'already have 5', 'CH2: a sixth is refused');
 select t.expect_count($q$select 1 from (select public.delete_character((select id from public.characters where character_name = 'C01'))) x$q$, 1,
   'CH3: a character can be deleted');
-select t.expect_affects($q$insert into public.characters (owner_id, character_name) values ('b1000000-0000-0000-0000-000000000006', 'C11')$q$, 1,
-  'CH3b: a deleted character does not count toward the ten');
+select t.expect_affects($q$insert into public.characters (owner_id, character_name) values ('b1000000-0000-0000-0000-000000000006', 'C06')$q$, 1,
+  'CH3b: a deleted character does not count toward the five');
 
--- 19 more delete-and-make cycles bring the total to 30.
+-- 24 more delete-and-make cycles bring the total to 30.
 do $$
 declare
   v uuid;
 begin
-  for i in 1..19 loop
+  for i in 1..24 loop
     select id into v from public.characters where owner_id = 'b1000000-0000-0000-0000-000000000006' and deleted_at is null order by character_name limit 1;
     perform public.delete_character(v);
     insert into public.characters (owner_id, character_name) values ('b1000000-0000-0000-0000-000000000006', 'R' || lpad(i::text, 2, '0'));
@@ -63,7 +63,7 @@ select t.expect_denied_with($q$insert into public.characters (owner_id, characte
 select t.expect_count($q$select 1 from (select public.undelete_character((select id from public.characters where deleted_at is not null order by character_name limit 1))) x$q$, 1,
   'CH5: a deleted character can be brought back');
 select t.expect_denied_with($q$select public.undelete_character((select id from public.characters where deleted_at is not null order by character_name limit 1))$q$,
-  'already have 10', 'CH5b: ...unless the person already has ten that are not deleted');
+  'already have 5', 'CH5b: ...unless the person already has five that are not deleted');
 
 -- ═══ 2. Deleting hides, it does not remove ═════════════════════════════
 select t.act_as('b1000000-0000-0000-0000-000000000003');
@@ -201,7 +201,7 @@ select t.expect_denied_with(
   'foreign key', 'CH22: a link cannot name a character its player does not own');
 select t.expect_denied_with(
   $q$insert into public.campaign_characters (campaign_id, player_id, character_id)
-     select 'b2000000-0000-0000-0000-0000000000a1', 'b1000000-0000-0000-0000-000000000006', id from public.characters where character_name = 'C11'$q$,
+     select 'b2000000-0000-0000-0000-0000000000a1', 'b1000000-0000-0000-0000-000000000006', id from public.characters where character_name = 'C06'$q$,
   'foreign key', 'CH22b: ...or belong to someone who is not a member');
 
 select t.expect_count($q$select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'campaign_characters'$q$, 1,

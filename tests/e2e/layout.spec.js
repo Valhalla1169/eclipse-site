@@ -127,10 +127,10 @@ test.describe("width", () => {
     }
   });
 
-  test("the DM's invite cards line up with the roster panel above them", async ({ page }) => {
+  test("the Keeper's invite cards line up with the roster panel above them", async ({ page }) => {
     await page.setViewportSize({ width: 1800, height: 900 });
     await seed(page, { mock: { profile: players.dm.profile, campaigns: [campaign], members: [], profiles: [] }, user: players.dm });
-    await open(page, `/campaign/${campaign.id}/dm`);
+    await open(page, `/campaign/${campaign.id}/keeper`);
     const panel = await box(page.locator("section[aria-labelledby='roster-title']"));
     const first = await box(page.locator(".two-up > section").first());
     const last = await box(page.locator(".two-up > section").last());
