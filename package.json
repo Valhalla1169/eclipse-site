@@ -15,12 +15,15 @@
   "homepage": "https://github.com/Valhalla1169/eclipse-site#readme",
   "scripts": {
     "test": "vitest run",
-    "dev": "wrangler dev",
+    "dev": "node scripts/dev.mjs",
     "deploy": "wrangler deploy",
     "vendor": "node scripts/vendor.mjs",
     "creators": "node scripts/creators.mjs",
     "admins": "node scripts/admins.mjs",
+    "staging": "node scripts/staging.mjs",
     "test:db": "node scripts/test-db.mjs",
+    "backup": "node scripts/backup.mjs",
+    "backup:check": "node scripts/backup-check.mjs",
     "test:e2e": "playwright test"
   },
   "devDependencies": {

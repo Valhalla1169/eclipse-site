@@ -2,20 +2,15 @@
 // public.campaign_creators (`npm run creators`, ADR 0005), and public.site_admins and
 // public.approved_emails (`npm run admins`, ADR 0014).
 //
-// They run SQL against the linked Supabase project through the pinned CLI using YOUR
-// CLI login (`npx supabase login` / `link` first), so only someone with access to the
-// project can use them.
+// They run SQL on the live project, or on the staging project when the last word is
+// `staging` (how: supabase-target.mjs).
 //
 // Arguments are plain words, so the same works in any shell, with or without npm:
-// node scripts/creators.mjs add you@example.com
+// node scripts/creators.mjs add you@example.com staging
 // (In PowerShell the "--" separator that older instructions used gets dropped, so it
 // is not needed here.)
-import { spawnSync } from "node:child_process";
-import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const cli = join(root, "node_modules", "supabase", "dist", "supabase.js");
+import { supabase, target } from "./supabase-target.mjs";
 
 // The email is interpolated into SQL, so accept only plain email characters
 // (no quotes, semicolons, backslashes or whitespace can get through).
@@ -44,19 +39,22 @@ export function listSql(list, command, email) {
   return `delete from ${table} where user_id in (${account}) returning user_id`;
 }
 
-// Pull the JSON object out of the CLI's output. The result is on stdout; stderr
-// carries progress lines ("Initialising login role...") that must not be parsed.
+// Pull the rows out of the CLI's JSON: a list of rows, or { rows } when the CLI sees
+// that an agent runs it. The result is on stdout; stderr carries progress lines
+// ("Initialising login role...") that must not be parsed.
 export function parseRows(stdout) {
-  const start = stdout.indexOf("{");
-  const end = stdout.lastIndexOf("}");
+  const start = stdout.search(/[[{]/);
+  const end = Math.max(stdout.lastIndexOf("]"), stdout.lastIndexOf("}"));
   if (start < 0 || end < start) throw new Error("no JSON in the CLI output");
-  return JSON.parse(stdout.slice(start, end + 1)).rows || [];
+  const data = JSON.parse(stdout.slice(start, end + 1));
+  return (Array.isArray(data) ? data : data.rows) || [];
 }
 
-export function runSql(sql) {
-  const r = spawnSync(process.execPath, [cli, "db", "query", "--linked", sql], { encoding: "utf8", cwd: root });
+// project: "live" or "staging".
+export function runSql(sql, project = "live") {
+  const r = supabase(target(project), ["db", "query", "--linked", "--output-format", "json", sql]);
   if (r.status !== 0) {
-    throw new Error("The Supabase CLI failed. Are you logged in and linked to the project?\n" + ((r.stderr || "") + (r.stdout || "")).trim().slice(-600));
+    throw new Error(`The Supabase CLI failed. Are you logged in (npx supabase login)${project === "live" ? " and linked to the live project" : ""}?\n` + ((r.stderr || "") + (r.stdout || "")).trim().slice(-600));
   }
   try {
     return parseRows(r.stdout || "");
@@ -66,17 +64,21 @@ export function runSql(sql) {
 }
 
 // PowerShell can drop the "--" that separates npm's flags from ours, and npm then
-// swallows a "--print-sql" flag itself, so also accept it as a plain word.
+// swallows a "--print-sql" flag itself, so also accept it as a plain word. The last
+// other word may be `staging`; without it the project is live.
 export function readArgs(argv) {
   const args = argv.slice(2);
   const printSql = args.includes("--print-sql") || args.includes("print-sql");
-  const [command, email] = args.filter((a) => a !== "--print-sql" && a !== "print-sql");
-  return { command, email, printSql };
+  const words = args.filter((a) => a !== "--print-sql" && a !== "print-sql");
+  const project = words.at(-1) === "staging" ? "staging" : "live";
+  if (project === "staging") words.pop();
+  const [command, email] = words;
+  return { command, email, printSql, project };
 }
 
 export const isMain = (moduleUrl) => process.argv[1] === fileURLToPath(moduleUrl);
 
-// The usage line, print-sql and errors. run({ command, email }) does the work.
+// The usage line, print-sql and errors. run({ command, email, project }) does the work.
 export function main({ commands, usage, sqlFor, run }) {
   const args = readArgs(process.argv);
   try {
@@ -84,8 +86,12 @@ export function main({ commands, usage, sqlFor, run }) {
       console.log(usage);
       process.exit(args.command ? 1 : 0);
     }
-    if (args.printSql) console.log(sqlFor(args.command, args.email));
-    else run(args);
+    if (args.printSql) {
+      console.log(sqlFor(args.command, args.email));
+      return;
+    }
+    if (args.project === "staging") console.log(`On the staging project (${target("staging").ref}).`);
+    run(args);
   } catch (err) {
     console.error(err.message);
     process.exit(1);
@@ -93,13 +99,13 @@ export function main({ commands, usage, sqlFor, run }) {
 }
 
 // list, add or remove for one list. `words` says what to print for each outcome.
-export function runListCommand(list, { command, email }, words) {
+export function runListCommand(list, { command, email, project }, words) {
   if (command === "list") {
-    const rows = runSql(listSql(list, "list"));
+    const rows = runSql(listSql(list, "list"), project);
     if (!rows.length) console.log(words.empty);
     for (const r of rows) console.log(`${r.email}   (added ${String(r.added_at).slice(0, 10)}${r.note ? ", " + r.note : ""})`);
   } else if (command === "add") {
-    const found = runSql(listSql(list, "lookup", email));
+    const found = runSql(listSql(list, "lookup", email), project);
     if (!found.length) {
       console.log(words.noAccount(email));
       process.exit(1);
@@ -107,11 +113,11 @@ export function runListCommand(list, { command, email }, words) {
     if (found[0].listed) {
       console.log(words.already(email));
     } else {
-      runSql(listSql(list, "add", email));
+      runSql(listSql(list, "add", email), project);
       console.log(words.added(email));
     }
   } else {
-    const rows = runSql(listSql(list, "remove", email));
+    const rows = runSql(listSql(list, "remove", email), project);
     console.log(rows.length ? words.removed(email) : words.notListed(email));
   }
 }
