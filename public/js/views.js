@@ -657,7 +657,7 @@ export function adminView({ loadAccounts, loadPending, approveEmail, revokeAppro
       pendingTitle.textContent = `Waiting for an account (${current.length})`;
       pending.replaceChildren(
         current.length ? h("ul", { class: "invites" }, ...current.map(approvalRow)) : h("p", { class: "muted" }, "No approved email is waiting for an account."),
-        old.length ? h("details", {}, h("summary", {}, `Expired approvals (${old.length})`), h("ul", { class: "invites" }, ...old.map(approvalRow))) : null,
+        ...(old.length ? [h("details", {}, h("summary", {}, `Expired approvals (${old.length})`), h("ul", { class: "invites" }, ...old.map(approvalRow)))] : []),
       );
       accounts.replaceChildren(h("ul", { class: "invites" }, ...people.map(accountRow)));
     } catch (err) {
