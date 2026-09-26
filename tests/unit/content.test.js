@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DIFFICULTY, MORALITY, SANITY, STARVATION, TRACK_MAX } from "../../public/js/eclipse-content.js";
-import { ATTR_NAMES, blank, dyingState, encPenalty, encTiers, penalties, ritualCost, skillCap, weights } from "../../public/js/eclipse-rules.js";
+import { COMBAT_SKILLS, DIFFICULTY, MORALITY, RETRY, SANITY, SKILLS, SKILL_GRIT_RATE, STARVATION, TRACK_MAX } from "../../public/js/eclipse-content.js";
+import { ALL_SKILLS, ATTR_NAMES, SKILL_ATTR, blank, dyingState, encPenalty, encTiers, penalties, ritualCost, skillCap, weights } from "../../public/js/eclipse-rules.js";
 import { starvationDays } from "../../public/js/sheet/core-page.js";
 import { REFERENCE, REFERENCE_TABLES as T } from "../../public/js/sheet/reference-data.js";
 
@@ -126,6 +126,26 @@ describe("the Reference tables", () => {
       expect(skillCap(sheet, "cla"), `attribute ${attribute}`).toBe(Math.min(Number(max), Number(times) * attribute));
     }
   });
+
+  it("Advancement costs a skill rating of 6 at × 3 and 7, past mastery, at × 4", () => {
+    const bands = Object.fromEntries(rowsOf(T.advancement));
+    expect(bands["Skill, rating 1 to 6"]).toBe("new rating × 3");
+    expect(bands["Skill, rating 7 to 10"]).toBe("new rating × 4");
+    expect(SKILL_GRIT_RATE.map((r) => r.perRating)).toEqual([3, 4]);
+  });
+
+  it("gives Lock Picking and Hacking the book's retry time and failure cost", () => {
+    const retries = Object.fromEntries(rowsOf(T.retries));
+    expect(retries["Lock Picking"]).toBe(`${RETRY.lockPicking.minutes} min an attempt, ${RETRY.lockPicking.failure}`);
+    expect(retries.Hacking).toBe(`${RETRY.hacking.minMinutes} min to ${RETRY.hacking.maxMinutes / 60} hr an attempt, ${RETRY.hacking.failure}`);
+    // The book's own numbers (p173-174), so a change to the content file cannot drift unnoticed.
+    expect(retries["Lock Picking"]).toBe("10 min an attempt, breaks the pick");
+    expect(retries.Hacking).toBe("10 min to 1 hr an attempt, locks you out an hour");
+  });
+
+  it("Sanity gives the book's 0 to 10 range, not 1 to 10", () => {
+    expect(cardText("Sanity")).toMatch(new RegExp(`0 to ${TRACK_MAX} rating`));
+  });
 });
 
 describe("the Core page", () => {
@@ -146,5 +166,34 @@ describe("the content", () => {
   it("has one Sanity and one Morality word for each level", () => {
     expect(SANITY).toHaveLength(TRACK_MAX);
     expect(MORALITY).toHaveLength(TRACK_MAX);
+  });
+});
+
+describe("skill links", () => {
+  it("links each skill the book moved or added to the attribute the book gives it", () => {
+    const linked = {
+      Medicine: "cla",
+      Insight: "pre",
+      Focus: "ste",
+      Drive: "ins",
+      "Lock Picking": "ins",
+      "Sleight of Hand": "ins",
+      "Projectile Weapons": "ins",
+      Etiquette: "pre",
+      Politics: "pre",
+    };
+    for (const [skill, attr] of Object.entries(linked)) expect(SKILL_ATTR[skill], skill).toBe(attr);
+  });
+
+  it("has no skill the book does not have", () => {
+    for (const gone of ["Archery", "Polearms", "Heavy Weapons"]) expect(ALL_SKILLS).not.toContain(gone);
+  });
+
+  it("has one weapon skill option for every combat skill the sheet still has", () => {
+    for (const skill of COMBAT_SKILLS) expect(ALL_SKILLS, skill).toContain(skill);
+  });
+
+  it("has the book's 42 skills, no more and no fewer", () => {
+    expect(SKILLS.flatMap(([, , list]) => list)).toHaveLength(42);
   });
 });

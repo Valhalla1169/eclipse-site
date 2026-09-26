@@ -68,11 +68,11 @@ export const MASTER_BONUS = 2;
 // Stored: sheet.skills, sheet.sother and sheet.id.master use the skill names.
 export const SKILLS = [
   ["Endurance", "end", ["Athletics", "Resilience"]],
-  ["Clarity", "cla", ["Crafting", "Eclipse Knowledge", "Engineering", "History", "Investigation", "Perception", "Scavenge", "Survival", "Tactics", "Tech Use"]],
-  ["Lethality", "let", ["Archery", "Bludgeoning", "Edged Weapons", "Grapple", "Polearms", "Thrown Weapons", "Unarmed Combat"]],
-  ["Instinct", "ins", ["Acrobatics", "Dodge", "Firearms", "Gunnery", "Heavy Weapons", "Stealth"]],
-  ["Presence", "pre", ["Animal Handling", "Bartering", "Deception", "Intimidation", "Leadership", "Persuasion", "Rally"]],
-  ["Steadfast", "ste", ["Composure", "Insight", "Medicine"]],
+  ["Clarity", "cla", ["Crafting", "Eclipse Knowledge", "Engineering", "History", "Investigation", "Medicine", "Perception", "Scavenge", "Survival", "Tactics", "Tech Use"]],
+  ["Lethality", "let", ["Bludgeoning", "Edged Weapons", "Grapple", "Thrown Weapons", "Unarmed Combat"]],
+  ["Instinct", "ins", ["Acrobatics", "Dodge", "Drive", "Firearms", "Gunnery", "Lock Picking", "Projectile Weapons", "Sleight of Hand", "Stealth"]],
+  ["Presence", "pre", ["Animal Handling", "Bartering", "Deception", "Etiquette", "Insight", "Intimidation", "Leadership", "Persuasion", "Politics", "Rally"]],
+  ["Steadfast", "ste", ["Composure", "Focus"]],
   ["Veil", "vei", ["Ritual Casting", "Sorcery"]],
   ["Psyche", "psy", ["Psionics"]],
 ];
@@ -81,6 +81,17 @@ export const UNTRAINED_STAGES = 2;
 // Not stored. During play a skill's rating, with the Master Skill bonus, is at most
 // `perAttribute` times its linked attribute, and never more than `max`.
 export const SKILL_CAP = { perAttribute: 2, max: 10 };
+
+// Not stored. Post-creation Grit costs. The sheet does not spend Grit itself, so
+// these feed the Reference card only. A skill's per-rating rate steps up once the
+// new rating passes 6, the book's "mastery" rating; an attribute's rate does not.
+export const SKILL_GRIT_RATE = [
+  { fromRating: 1, perRating: 3 },
+  { fromRating: 7, perRating: 4 },
+];
+export const ATTRIBUTE_GRIT_PER_RATING = 4;
+export const ADVANTAGE_GRIT = { tier12: 10, tier3: 15 };
+export const TALENT_GRIT = { min: 10, max: 30 };
 
 // Stored: an advantage's or a flaw's `t`.
 export const ADV_TIERS = ["Tier 1 (5 pts)", "Tier 2 (5 pts)", "Tier 3 (8 pts)"];
@@ -132,8 +143,8 @@ export const UNOPPOSED_DIFFICULTY = 3;
 
 // Stored: a weapon's `skill`. The skills you can attack with.
 export const COMBAT_SKILLS = [
-  "Archery", "Bludgeoning", "Edged Weapons", "Firearms", "Grapple", "Gunnery",
-  "Heavy Weapons", "Polearms", "Thrown Weapons", "Unarmed Combat",
+  "Bludgeoning", "Edged Weapons", "Firearms", "Grapple", "Gunnery",
+  "Projectile Weapons", "Thrown Weapons", "Unarmed Combat",
 ];
 // Stored: a weapon's `mode`.
 export const WEAPON_MODES = ["SA", "SA / BF", "SA / BF / FA", "Melee", "Thrown", "none"];
@@ -172,7 +183,8 @@ export const DYING = {
   ],
 };
 
-// Stored: sanity and morality are ratings from 1 to this.
+// Stored: sanity and morality are ratings up to this. Sanity's 0 is a level of its
+// own (permanently mad); morality's 0 means no level has been recorded yet.
 export const TRACK_MAX = 10;
 // Stored: a saved level picks its word by place. One word per level, from 1 up.
 export const SANITY = [
@@ -206,6 +218,14 @@ export const MEDICAL_DIFFICULTY = [
   { fromTrauma: 7, stage: "challenging" },
   { fromTrauma: 10, stage: "difficult" },
 ];
+
+// Not stored. What retrying Lock Picking or Hacking costs on a failed attempt
+// (p173-174); the sheet does not model either skill's checks, so these are
+// Reference-card numbers only.
+export const RETRY = {
+  lockPicking: { minutes: 10, failure: "breaks the pick" },
+  hacking: { minMinutes: 10, maxMinutes: 60, failure: "locks you out an hour" },
+};
 
 /* ── survival ─────────────────────────────────────────────── */
 

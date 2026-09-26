@@ -42,6 +42,19 @@ disagreed. The owner chose the book each time.
    for the sheets that ran that step only.
 6. **A Sanity or Morality level that is not a whole number** (only a hand-edited file makes one)
    shows the nearest level. Before, it stopped the sheet and the Keeper's roster from drawing.
+7. **Other places the sheet and book disagreed are content, not shape, changes.** Medicine and
+   Insight moved off Steadfast (the book links them to Clarity and Presence); Focus, Lock Picking,
+   Sleight of Hand, Projectile Weapons, Drive, Etiquette and Politics were added; the Grit cost of a
+   skill rating above 6 is ×4, not ×3; the lockpicking and hacking retry rows, and the Reference
+   card's Sanity range (0 to 10, not 1 to 10), now match the book. None of these rename, remove or
+   retype a stored field — a sheet stores a skill's name and rating, never which attribute it rolls
+   with — so ADR 0013's first question answers "no": no `SCHEMA_VERSION` bump.
+8. **Archery, Polearms and Heavy Weapons, which the book does not have, are removed, not retired.**
+   ADR 0013's second question calls for retiring a removed row, because resolving a name that is gone
+   is silent. The live database held no character, no departed-player copy and no history row when
+   this shipped, so nothing yet pointed at these three skills to go quiet on. They are removed
+   outright. A skill the book drops after today follows ADR 0013 as written: retire it, never delete
+   it.
 
 ## Consequences
 

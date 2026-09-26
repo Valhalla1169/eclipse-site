@@ -5,7 +5,9 @@
 // uses comes from eclipse-content.js, so the card and the sheet cannot disagree.
 import {
   ACTIONS,
+  ADVANTAGE_GRIT,
   AIM,
+  ATTRIBUTE_GRIT_PER_RATING,
   BURST,
   CASTING,
   DERIVED_DIVISOR,
@@ -22,11 +24,14 @@ import {
   RATION_LB,
   RECOVERY,
   RELOADS,
+  RETRY,
   RITUAL,
   RITUAL_TIERS,
   SHIELD_DEGRADE_STEP,
   SKILL_CAP,
+  SKILL_GRIT_RATE,
   STARVATION,
+  TALENT_GRIT,
   TRACK_MAX,
   UNOPPOSED_DIFFICULTY,
   UNTRAINED_STAGES,
@@ -34,6 +39,7 @@ import {
 import { ATTR_NAMES } from "../eclipse-rules.js";
 
 const MINUS = "−";
+const TIMES = "×";
 const n = (text) => ({ n: String(text) });
 const lost = (dice) => (dice ? `${MINUS}${dice}` : "0");
 const signed = (dice) => (dice < 0 ? `${MINUS}${-dice}` : `+${dice}`);
@@ -41,6 +47,7 @@ const signed = (dice) => (dice < 0 ? `${MINUS}${-dice}` : `+${dice}`);
 const selfStabilize = DIFFICULTY[DYING.selfRoll];
 const encumbranceStep = ENCUMBRANCE.step;
 const traumaBand = (row, next) => (next ? `${row.fromTrauma} to ${next.fromTrauma - 1}` : `${row.fromTrauma}+`);
+const ratingBand = (row, next) => (next ? `${row.fromRating} to ${next.fromRating - 1}` : `${row.fromRating} to ${SKILL_CAP.max}`);
 
 // Two worked examples of rolling untrained, built from the same stage order and
 // step count the sheet applies, so the card cannot name a pair the sheet disagrees with.
@@ -106,11 +113,21 @@ export const REFERENCE_TABLES = {
   toolKits: { rows: KITS.map((kit) => [kit.lb ? `${kit.name}, ${kit.lb} lb` : kit.name, n(signed(kit.dice))]) },
   retries: {
     rows: [
-      ["Lockpicking", "5 to 15 min, breaks a pick, lock jams at +2"],
-      ["Hacking", "10 to 30 min, burns an exploit, alerts at +1"],
+      ["Lock Picking", `${RETRY.lockPicking.minutes} min an attempt, ${RETRY.lockPicking.failure}`],
+      ["Hacking", `${RETRY.hacking.minMinutes} min to ${RETRY.hacking.maxMinutes / 60} hr an attempt, ${RETRY.hacking.failure}`],
       ["Medicine", `${RECOVERY.medicalMinutes} min an attempt, burns supplies, patient takes Shock`],
       ["Scavenge", "1 hour, draws attention"],
       ["Crafting", "1 to 8 hrs, materials lost"],
+    ],
+  },
+  advancement: {
+    head: ["Raise", "Grit cost"],
+    rows: [
+      ...SKILL_GRIT_RATE.map((row, i) => [`Skill, rating ${ratingBand(row, SKILL_GRIT_RATE[i + 1])}`, n(`new rating ${TIMES} ${row.perRating}`)]),
+      ["Attribute", n(`new rating ${TIMES} ${ATTRIBUTE_GRIT_PER_RATING}`)],
+      ["Advantage, tier 1 or 2", n(ADVANTAGE_GRIT.tier12)],
+      ["Advantage, tier 3", n(ADVANTAGE_GRIT.tier3)],
+      ["Talent", n(`${TALENT_GRIT.min} to ${TALENT_GRIT.max}`)],
     ],
   },
 };
@@ -216,7 +233,7 @@ export const REFERENCE = [
 <p>Stabilized means no longer dying. Still unconscious.</p>`]},
 
 {c:'Damage',t:'Sanity',k:'sanity madness insanity narrative rating',body:[`
-<p>Sanity is a <b>1 to ${TRACK_MAX} rating, not a monitor</b>. It never subtracts dice.</p>
+<p>Sanity is a <b>0 to ${TRACK_MAX} rating, not a monitor</b>. It never subtracts dice.</p>
 <p>Below 5 the Keeper rolls forced roleplay. At 0 the character is permanently mad and becomes an NPC.</p>
 <p>It cannot be raised with Grit. It takes safe havens, professional help, or Emily.</p>`]},
 
@@ -292,12 +309,7 @@ export const REFERENCE = [
 <tr><td class="n">3</td><td>Heroic Surge: +3 AP now, +2 next, +1 after, then take 2 Shock</td></tr></table>
 <p>There is no separate pool. This is the same Grit you would spend on advancement.</p>`]},
 
-{c:'Grit',t:'Advancement costs',k:'raise skill attribute talent advantage cost xp experience',body:[`
-<table><tr><td>Skill</td><td class="n">new rating &times; 3</td></tr>
-<tr><td>Attribute</td><td class="n">new rating &times; 4</td></tr>
-<tr><td>Advantage, tier 1 or 2</td><td class="n">10</td></tr>
-<tr><td>Advantage, tier 3</td><td class="n">15</td></tr>
-<tr><td>Talent</td><td class="n">10 to 30</td></tr></table>
+{c:'Grit',t:'Advancement costs',k:'raise skill attribute talent advantage cost xp experience mastery',body:[T.advancement,`
 <p>Non-humans pay <em>+6 Grit</em> on every Talent. Raising anything needs a one-line narrative justification.</p>
 <p>During play a skill's rating, with the Master Skill bonus, is at most <b>${SKILL_CAP.perAttribute} &times; the linked attribute</b>, and never more than ${SKILL_CAP.max}. Sanity cannot be bought with Grit at all.</p>`]},
 

@@ -124,6 +124,10 @@ describe("normalize", () => {
     expect([sheet.starve, sheet.morality, sheet.sanity]).toEqual([0, 6, 8]);
   });
 
+  it("keeps a Sanity of 0, the book's own lowest level, not the missing-value default", () => {
+    expect(normalize({ ...blank(), sanity: 0 }).sanity).toBe(0);
+  });
+
   it("refuses data that cannot be a sheet, so the caller never overwrites it", () => {
     for (const bad of [null, undefined, "text", 5, [], [{}]]) expect(() => normalize(bad)).toThrow(SheetFormatError);
     expect(() => normalize({ base: "nope" })).toThrow(SheetFormatError);
@@ -509,6 +513,12 @@ describe("conditions", () => {
     setCondition(sheet, "shock", 4);
     expect(sheet.cm.shock).toBe(3);
     expect(toggleBox(0, 1)).toBe(1);
+  });
+
+  // The Sanity and Morality tracks use this same toggle, so a Sanity of 1 must be
+  // able to step down to 0, the book's lowest level (docs/adr/0017).
+  it("steps a track down to 0 from its lowest box", () => {
+    expect(toggleBox(1, 1)).toBe(0);
   });
 
   it("clears the dying tracker when Trauma drops below ten", () => {
