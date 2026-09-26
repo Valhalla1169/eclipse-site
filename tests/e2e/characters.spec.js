@@ -1,4 +1,4 @@
-import { blank } from "../../public/js/eclipse-rules.js";
+import { SCHEMA_VERSION, blank } from "../../public/js/eclipse-rules.js";
 import { CHARACTER_ID, assignmentRow, callsTo, campaign, characterRow, expect, ids, open, patchMock, players, seed, sheetPath, storedMock, test } from "./helpers.js";
 
 const { dana, dm } = players;
@@ -61,7 +61,7 @@ test.describe("the list of characters", () => {
     await expect(page).toHaveURL(/\/characters\/40000000-0000-4000-8000-000000900001$/);
     const [post] = await callsTo(page, CHARACTERS, "POST");
     expect(Object.keys(post.body).sort()).toEqual(["character_name", "data", "owner_id", "schema_version"]);
-    expect(post.body).toMatchObject({ owner_id: ids.player, schema_version: 1, character_name: "" });
+    expect(post.body).toMatchObject({ owner_id: ids.player, schema_version: SCHEMA_VERSION, character_name: "" });
     expect(await callsTo(page, CHARACTERS, "PATCH")).toHaveLength(0);
   });
 
@@ -143,10 +143,10 @@ test.describe("the list of characters", () => {
     await expect(page.getByRole("alert")).toContainText("That file is not an Eclipse character.");
     expect(await callsTo(page, CHARACTERS, "POST")).toHaveLength(0);
 
-    await upload(JSON.stringify({ ...sheetOf("From a file"), schemaVersion: 1, extra: "kept" }));
+    await upload(JSON.stringify({ ...sheetOf("From a file"), schemaVersion: SCHEMA_VERSION, extra: "kept" }));
     await expect(page.locator("#f_name")).toHaveValue("From a file");
     const [post] = await callsTo(page, CHARACTERS, "POST");
-    expect(post.body).toMatchObject({ character_name: "From a file", schema_version: 1, data: { extra: "kept" } });
+    expect(post.body).toMatchObject({ character_name: "From a file", schema_version: SCHEMA_VERSION, data: { extra: "kept" } });
   });
 });
 

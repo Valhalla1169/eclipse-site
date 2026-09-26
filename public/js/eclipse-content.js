@@ -4,15 +4,15 @@
 // the book is a change here (docs/adr/0013).
 //
 // Each table is marked:
-//   Stored: a saved sheet keeps its names or keys. Rename one only with a
-//     migration step, and retire a row instead of deleting it.
+//   Stored: a saved sheet keeps its names, keys or places in the list. Rename or
+//     reorder one only with a migration step, and retire a row instead of deleting it.
 //   Not stored: no saved sheet points at it, so it can change freely.
 
 /* ── a new character ──────────────────────────────────────── */
 
 // Not stored: written into a new sheet, so a change here changes only new
 // characters. A new character's Sanity is its race's.
-export const START = { race: "human", attribute: 1, essence: 10, veil: 0, psyche: 0, morality: 5 };
+export const START = { race: "human", attribute: 1, essence: 10, veil: 0, psyche: 0, morality: 6 };
 
 // Stored: `k` is the field name in sheet.base and sheet.oth.
 export const ATTRS = [
@@ -78,6 +78,9 @@ export const SKILLS = [
 ];
 // Not stored. An untrained skill rolls this many difficulty stages harder.
 export const UNTRAINED_STAGES = 2;
+// Not stored. During play a skill's rating, with the Master Skill bonus, is at most
+// `perAttribute` times its linked attribute, and never more than `max`.
+export const SKILL_CAP = { perAttribute: 2, max: 10 };
 
 // Stored: an advantage's or a flaw's `t`.
 export const ADV_TIERS = ["Tier 1 (5 pts)", "Tier 2 (5 pts)", "Tier 3 (8 pts)"];
@@ -171,23 +174,24 @@ export const DYING = {
 
 // Stored: sanity and morality are ratings from 1 to this.
 export const TRACK_MAX = 10;
-// Not stored. One word per level, from 1 up.
+// Stored: a saved level picks its word by place. One word per level, from 1 up.
 export const SANITY = [
   { t: "gone" }, { t: "shattered" }, { t: "unravelling" }, { t: "slipping" }, { t: "fraying" },
   { t: "strained" }, { t: "holding" }, { t: "steady" }, { t: "clear" }, { t: "lucid" },
 ];
-// Not stored. One word and one line per level, from 1 up.
+// Stored: as SANITY. One word and one line per level, from 1, the most selfless,
+// to TRACK_MAX, the most monstrous.
 export const MORALITY = [
-  { t: "Monstrous", l: "Even your allies watch the door when you sleep." },
-  { t: "Cruel", l: "You stopped counting the ones you left behind." },
-  { t: "Ruthless", l: "Whatever it takes, and it usually takes a lot." },
-  { t: "Hardened", l: "You help when it is cheap to help." },
-  { t: "Pragmatic", l: "You do the arithmetic before you do the right thing." },
-  { t: "Human", l: "Still recognisably the person you were before." },
-  { t: "Decent", l: "People remember that you came back for them." },
-  { t: "Principled", l: "You keep promises that cost you something." },
-  { t: "Selfless", l: "Strangers hear your name before they meet you." },
   { t: "Luminous", l: "Emily talks about people like you when she still has hope." },
+  { t: "Selfless", l: "Strangers hear your name before they meet you." },
+  { t: "Principled", l: "You keep promises that cost you something." },
+  { t: "Decent", l: "People remember that you came back for them." },
+  { t: "Human", l: "Still recognisably the person you were before." },
+  { t: "Pragmatic", l: "You do the arithmetic before you do the right thing." },
+  { t: "Hardened", l: "You help when it is cheap to help." },
+  { t: "Ruthless", l: "Whatever it takes, and it usually takes a lot." },
+  { t: "Cruel", l: "You stopped counting the ones you left behind." },
+  { t: "Monstrous", l: "Even your allies watch the door when you sleep." },
 ];
 
 /* ── recovery ─────────────────────────────────────────────── */

@@ -73,7 +73,7 @@
   --veil-bg: color-mix(in srgb, var(--crust) 86%, transparent);
   --modal-bg: color-mix(in srgb, var(--crust) 82%, transparent);
 
-  /* Sanity fades from the well to Mauve. Morality runs Red, Peach, Yellow, Green, Teal. */
+  /* Sanity fades from the well to Mauve. Morality runs Teal, Green, Yellow, Peach, Red. */
   --san-0: color-mix(in srgb, var(--rift) 30%, var(--well));
   --san-1: color-mix(in srgb, var(--rift) 38%, var(--well));
   --san-2: color-mix(in srgb, var(--rift) 46%, var(--well));
@@ -84,16 +84,16 @@
   --san-7: color-mix(in srgb, var(--rift) 86%, var(--well));
   --san-8: color-mix(in srgb, var(--rift) 93%, var(--well));
   --san-9: var(--rift);
-  --mor-0: var(--blood);
-  --mor-1: color-mix(in srgb, var(--blood) 60%, var(--hunger));
-  --mor-2: var(--hunger);
-  --mor-3: color-mix(in srgb, var(--hunger) 60%, var(--corona));
-  --mor-4: color-mix(in srgb, var(--hunger) 20%, var(--corona));
-  --mor-5: color-mix(in srgb, var(--corona) 60%, var(--bile));
-  --mor-6: color-mix(in srgb, var(--corona) 20%, var(--bile));
-  --mor-7: var(--bile);
-  --mor-8: color-mix(in srgb, var(--bile) 50%, var(--ok));
-  --mor-9: var(--ok);
+  --mor-0: var(--ok);
+  --mor-1: color-mix(in srgb, var(--bile) 50%, var(--ok));
+  --mor-2: var(--bile);
+  --mor-3: color-mix(in srgb, var(--corona) 20%, var(--bile));
+  --mor-4: color-mix(in srgb, var(--corona) 60%, var(--bile));
+  --mor-5: color-mix(in srgb, var(--hunger) 20%, var(--corona));
+  --mor-6: color-mix(in srgb, var(--hunger) 60%, var(--corona));
+  --mor-7: var(--hunger);
+  --mor-8: color-mix(in srgb, var(--blood) 60%, var(--hunger));
+  --mor-9: var(--blood);
 
   max-width: 1440px;
   margin: 0 auto;
@@ -334,7 +334,6 @@
   display: flex; justify-content: space-between;
 }
 .sgroup h3 .cap { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--bone-dim); letter-spacing: 0.03em; font-weight: 400; }
-.sgroup h3 .cap.exempt { color: var(--corona-t); }
 .srow { display: grid; grid-template-columns: 1fr 32px 32px 38px; gap: 5px; align-items: center; padding: 2px 0; }
 .srow label { font-size: 15.5px; line-height: 1.3; cursor: pointer; color: var(--bone-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px dotted var(--edge-3); }
 .srow input {

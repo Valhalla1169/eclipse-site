@@ -25,6 +25,7 @@ import {
   RITUAL,
   RITUAL_TIERS,
   SHIELD_DEGRADE_STEP,
+  SKILL_CAP,
   STARVATION,
   TRACK_MAX,
   UNOPPOSED_DIFFICULTY,
@@ -103,6 +104,15 @@ export const REFERENCE_TABLES = {
   ritualToll: { rows: RITUAL_TIERS.map((tier) => [tier.t, n(`${MINUS}${tier.exertionOff}`)]) },
   quality: { rows: QUALITY.map((band) => [band.q, band.word]) },
   toolKits: { rows: KITS.map((kit) => [kit.lb ? `${kit.name}, ${kit.lb} lb` : kit.name, n(signed(kit.dice))]) },
+  retries: {
+    rows: [
+      ["Lockpicking", "5 to 15 min, breaks a pick, lock jams at +2"],
+      ["Hacking", "10 to 30 min, burns an exploit, alerts at +1"],
+      ["Medicine", `${RECOVERY.medicalMinutes} min an attempt, burns supplies, patient takes Shock`],
+      ["Scavenge", "1 hour, draws attention"],
+      ["Crafting", "1 to 8 hrs, materials lost"],
+    ],
+  },
 };
 const T = REFERENCE_TABLES;
 const sellPrices = [...QUALITY].reverse().map((band) => `${band.q} gives ${band.sellPercent}%`).join(", ");
@@ -289,7 +299,7 @@ export const REFERENCE = [
 <tr><td>Advantage, tier 3</td><td class="n">15</td></tr>
 <tr><td>Talent</td><td class="n">10 to 30</td></tr></table>
 <p>Non-humans pay <em>+6 Grit</em> on every Talent. Raising anything needs a one-line narrative justification.</p>
-<p>Skills cap at <b>twice the linked attribute</b> during play, and Sanity cannot be bought with Grit at all.</p>`]},
+<p>During play a skill's rating, with the Master Skill bonus, is at most <b>${SKILL_CAP.perAttribute} &times; the linked attribute</b>, and never more than ${SKILL_CAP.max}. Sanity cannot be bought with Grit at all.</p>`]},
 
 {c:'Grit',t:'Earning Grit',k:'award session milestone rift enclave',body:[`
 <p>1 to 5 per session by how much was at stake. Milestones add <em>+5</em>: closing a rift, destroying an AI node, saving an enclave, ending a major antagonist.</p>
@@ -312,10 +322,5 @@ export const REFERENCE = [
 <p><b>Field repair</b> restores half the original rating. <b>Workshop repair</b> restores all of it. Both take an hour and a scrap unit.</p>`]},
 
 {c:'Gear',t:'Why you cannot just retry',k:'anti spam time material consequence lockpick hack',body:[`
-<p>Every attempt costs <b>time</b>, most cost <b>materials</b>, and failure usually makes it <b>worse</b>.</p>
-<table><tr><td>Lockpicking</td><td>5 to 15 min, breaks a pick, lock jams at +2</td></tr>
-<tr><td>Hacking</td><td>10 to 30 min, burns an exploit, alerts at +1</td></tr>
-<tr><td>Medicine</td><td>15 min a box, burns supplies, patient takes Shock</td></tr>
-<tr><td>Scavenge</td><td>1 hour, draws attention</td></tr>
-<tr><td>Crafting</td><td>1 to 8 hrs, materials lost</td></tr></table>`]},
+<p>Every attempt costs <b>time</b>, most cost <b>materials</b>, and failure usually makes it <b>worse</b>.</p>`,T.retries]},
 ];

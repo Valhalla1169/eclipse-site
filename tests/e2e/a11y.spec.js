@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { blank } from "../../public/js/eclipse-rules.js";
+import { SCHEMA_VERSION, blank } from "../../public/js/eclipse-rules.js";
 import { CHARACTER_ID, assignmentRow, campaign, characterRow, expect, ids, open, players, seed, sheetPath, test } from "./helpers.js";
 
 // An automated accessibility check (DESIGN.md sections 4 and 6.4) of every page, in the
@@ -16,7 +16,7 @@ sheet.starve = 7;
 sheet.base.vei = 4;
 sheet.spells[0] = { n: "Spark", l: 3 };
 const row = characterRow(sheet, { updated_at: "2026-09-19T11:00:00.000000+00:00" });
-const history = [{ id: 1, character_id: CHARACTER_ID, schema_version: 1, character_name: "Marlo", data: sheet, reason: "edit", saved_at: "2026-09-19T10:00:00.000000+00:00" }];
+const history = [{ id: 1, character_id: CHARACTER_ID, schema_version: SCHEMA_VERSION, character_name: "Marlo", data: sheet, reason: "edit", saved_at: "2026-09-19T10:00:00.000000+00:00" }];
 
 async function expectClean(page, label) {
   const { violations } = await new AxeBuilder({ page }).withTags(RULES).analyze();
@@ -87,7 +87,7 @@ for (const theme of ["latte", "mocha"]) {
       const profiles = [{ id: PLAYER_ID, display_name: "Dana" }];
       const invite = (id, extra) => ({ id: `30000000-0000-4000-8000-0000000000${id}`, campaign_id: ids.campaign, label: "Dana", created_at: "2026-09-18T10:00:00.000Z", expires_at: "2099-01-01T00:00:00.000Z", max_uses: 1, use_count: 0, revoked_at: null, ...extra });
       const invites = [invite("01"), invite("02", { revoked_at: "2026-09-19T00:00:00.000Z" })];
-      const departed = [{ id: 7, campaign_id: ids.campaign, player_id: "00000000-0000-4000-8000-0000000000b4", character_id: "40000000-0000-4000-8000-0000000000c4", character_name: "Old hand", schema_version: 1, data: sheet, reason: "left", kept_at: "2026-09-10T12:00:00.000000+00:00" }];
+      const departed = [{ id: 7, campaign_id: ids.campaign, player_id: "00000000-0000-4000-8000-0000000000b4", character_id: "40000000-0000-4000-8000-0000000000c4", character_name: "Old hand", schema_version: SCHEMA_VERSION, data: sheet, reason: "left", kept_at: "2026-09-10T12:00:00.000000+00:00" }];
       await seed(page, { mock: { profile: players.dm.profile, campaigns: [campaign], members, profiles: [...profiles, { id: "00000000-0000-4000-8000-0000000000b4", display_name: "Zed" }], characters: [row], assignments: [assignmentRow()], invites, departed }, user: players.dm });
       await setTheme(page);
       await open(page, `/campaign/${ids.campaign}/keeper`);

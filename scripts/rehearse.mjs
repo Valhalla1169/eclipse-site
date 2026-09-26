@@ -12,7 +12,7 @@
 // exactly what a real deploy would see. Never touches the Supabase project.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { MIGRATIONS, SCHEMA_VERSION, openSheet } from "../public/js/eclipse-rules.js";
+import { MIGRATIONS, MIGRATION_REWRITES, SCHEMA_VERSION, openSheet, storedVersion } from "../public/js/eclipse-rules.js";
 import { isMain } from "./account-lists.mjs";
 import { loadBackup } from "./backup-check.mjs";
 import { die, dropDb, must, psql, requirePostgres } from "./local-db.mjs";
@@ -24,7 +24,8 @@ const SOURCES = ["characters", "departed_sheets", "character_history"];
 // a migration step rename or move a field — the value just moves with it — while still
 // catching a step that drops one outright. Blanks, booleans and the small numbers 0 and
 // 1 are skipped: they turn up all over a sheet on their own, so losing one means nothing
-// and checking it only invites false alarms.
+// and checking it only invites false alarms. A field a step names in MIGRATION_REWRITES
+// gets a new value on purpose, so its old value is not counted as lost.
 function isInteresting(value) {
   if (typeof value === "string") return value.trim() !== "";
   if (typeof value === "number") return value !== 0 && value !== 1;
@@ -51,14 +52,23 @@ export function findLostValues(before, after) {
   return lost;
 }
 
+// The paths that the steps from version `from` up to `to` give a new value on purpose.
+function rewrittenPaths(rewrites, from, to) {
+  return new Set(Object.entries(rewrites).flatMap(([version, paths]) => (Number(version) >= from && Number(version) < to ? paths : [])));
+}
+
 // Runs the rules on one stored row. `source` is the table it came from; id and name are
 // for the report; schema_version and data are the stored columns.
-export function rehearseSheet({ source, id, name, schema_version, data }, { current = SCHEMA_VERSION, steps = MIGRATIONS } = {}) {
+export function rehearseSheet(
+  { source, id, name, schema_version, data },
+  { current = SCHEMA_VERSION, steps = MIGRATIONS, rewrites = MIGRATION_REWRITES } = {},
+) {
   const base = { source, id, name, schema_version };
   try {
     const { sheet, readOnly, schemaVersion } = openSheet({ data, schema_version }, { current, steps });
     if (readOnly) return { ...base, status: "read-only", detail: `stored version ${schema_version} is newer than the code's ${schemaVersion}` };
-    const lost = findLostValues(data, sheet);
+    const rewritten = rewrittenPaths(rewrites, storedVersion(schema_version), current);
+    const lost = findLostValues(data, sheet).filter((path) => !rewritten.has(path));
     if (lost.length) return { ...base, status: "lost-data", detail: lost };
     return { ...base, status: "ok" };
   } catch (err) {

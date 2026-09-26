@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DIFFICULTY, MORALITY, SANITY, STARVATION, TRACK_MAX } from "../../public/js/eclipse-content.js";
-import { ATTR_NAMES, blank, dyingState, encPenalty, encTiers, penalties, ritualCost, weights } from "../../public/js/eclipse-rules.js";
+import { ATTR_NAMES, blank, dyingState, encPenalty, encTiers, penalties, ritualCost, skillCap, weights } from "../../public/js/eclipse-rules.js";
 import { starvationDays } from "../../public/js/sheet/core-page.js";
 import { REFERENCE, REFERENCE_TABLES as T } from "../../public/js/sheet/reference-data.js";
 
@@ -109,6 +109,22 @@ describe("the Reference tables", () => {
     const actions = Object.fromEntries(rowsOf(T.actions));
     for (const [move, ap] of rowsOf(T.defending).slice(0, 2)) expect(ap, move).toBe(`${actions["Block or Dodge"]} AP`);
     expect(rowsOf(T.reloads)[0][1]).toBe(`${actions["Load a fresh magazine"]} AP`);
+  });
+
+  it("give one time for a medical treatment attempt, on every card that says it", () => {
+    const [, minutes] = cardText("Medical treatment").match(/(\d+) minutes/);
+    const retry = Object.fromEntries(rowsOf(T.retries)).Medicine;
+    const healing = Object.fromEntries(rowsOf(T.healing)).Medical;
+    expect([retry, healing]).toEqual([expect.stringMatching(new RegExp(`^${minutes} min an attempt,`)), `${minutes} min`]);
+  });
+
+  it("Advancement costs gives the skill cap the sheet flags", () => {
+    const [, times, max] = cardText("Advancement costs").match(/at most <b>(\d+) &times; the linked attribute<\/b>, and never more than (\d+)/);
+    const sheet = blank();
+    for (const attribute of [1, 3, 5, 6, 9]) {
+      sheet.base.cla = attribute;
+      expect(skillCap(sheet, "cla"), `attribute ${attribute}`).toBe(Math.min(Number(max), Number(times) * attribute));
+    }
   });
 });
 
