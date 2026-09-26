@@ -1,7 +1,8 @@
 // Turns typing and clicking on the sheet into changes to the sheet's inputs.
 // The sheet object is only ever changed here (and by eclipse-rules.js mutations).
 import { h } from "../dom.js";
-import { ATTR_NAMES, PROFS, chooseProfession, chooseRace, int, intOrBlank, setCondition, setOverflow, toggleBox } from "../eclipse-rules.js";
+import { MASTER_BONUS, PROFESSION_BONUS, PROFS } from "../eclipse-content.js";
+import { ATTR_NAMES, chooseProfession, chooseRace, int, intOrBlank, setCondition, setOverflow, toggleBox } from "../eclipse-rules.js";
 import { LISTS } from "./testament-page.js";
 import { REFERENCE } from "./reference-data.js";
 import { fillIdentity, growTextarea, renderSheet } from "./render.js";
@@ -140,7 +141,7 @@ export function bindSheet(ctx) {
     }
     profList.replaceChildren(
       ...hits.map((name, i) =>
-        h("button", { type: "button", role: "option", "data-pick": name, class: i === profMark ? "on" : null }, name, h("small", {}, `+1 ${ATTR_NAMES[PROFS[name].a]} · ${PROFS[name].m} +2`)),
+        h("button", { type: "button", role: "option", "data-pick": name, class: i === profMark ? "on" : null }, name, h("small", {}, `+${PROFESSION_BONUS} ${ATTR_NAMES[PROFS[name].a]} · ${PROFS[name].m} +${MASTER_BONUS}`)),
       ),
     );
   }
@@ -363,12 +364,13 @@ export function bindSheet(ctx) {
 
   /* ── reference search ─────────────────────────────────── */
   let category = "All";
+  const cardWords = REFERENCE.map((card, i) => `${card.k} ${$(`[data-ref="${i}"]`).textContent}`.toLowerCase());
   const filterReference = () => {
     const query = $("#refSearch").value.trim().toLowerCase();
     let shown = 0;
     REFERENCE.forEach((card, i) => {
       const el = $(`[data-ref="${i}"]`);
-      const words = `${card.t} ${card.c} ${card.k} ${card.html.replace(/<[^>]+>/g, " ")}`.toLowerCase();
+      const words = cardWords[i];
       const show = (category === "All" || card.c === category) && (!query || query.split(/\s+/).every((word) => words.includes(word)));
       el.classList.toggle("hide", !show);
       if (show) shown += 1;

@@ -361,7 +361,7 @@
 .cm-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3px; }
 .cm-name { font-family: "Chakra Petch", sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; }
 .cm-meta { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--bone-dim); }
-.boxes { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; }
+.boxes { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 3px; }
 .bx { aspect-ratio: 1 / 1; border: 1px solid var(--field); border-radius: 1px; background: var(--well); cursor: pointer; position: relative; padding: 0; }
 .bx.thr { border-color: var(--bone); }
 .bx.thr::after { content: ""; position: absolute; left: 50%; bottom: -4px; width: 1px; height: 3px; background: var(--bone-dim); }
@@ -382,12 +382,12 @@
 .stv-count .n { font-family: "Chakra Petch", sans-serif; font-size: 38.5px; font-weight: 700; color: var(--hunger); line-height: 1; }
 .stv-count .l { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--bone-dim); line-height: 1.25; }
 .stv-mid { min-width: 0; }
-.stv-track { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; }
+.stv-track { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 5px; }
 .dbx { height: 23px; border: 1px solid var(--field); border-radius: 1px; background: var(--well); cursor: pointer; padding: 0; position: relative; transition: background 0.2s ease, border-color 0.2s ease; }
 .dbx.on { background: var(--hunger); border-color: var(--hunger); }
 .dbx.fatal.on { background: var(--blood); border-color: var(--blood); }
 .dbx.mark { border-color: var(--bone); }
-.stv-scale { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; margin-top: 4px; font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--bone-dim); text-align: center; }
+.stv-scale { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 5px; margin-top: 4px; font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--bone-dim); text-align: center; }
 .stv-pen { text-align: center; white-space: nowrap; }
 .stv-pen .l { display: block; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--bone-dim); }
 .stv-pen .n { font-family: "IBM Plex Mono", monospace; font-size: 29px; font-weight: 600; color: var(--hunger-t); line-height: 1.1; }
@@ -403,7 +403,7 @@
 .trk-name { font-family: "Chakra Petch", sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
 .trk-name.san { color: var(--rift-t); }
 .trk-state { font-family: "Chakra Petch", sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-align: right; }
-.san-track, .mor-track { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; margin-top: 3px; }
+.san-track, .mor-track { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 3px; margin-top: 3px; }
 .sb, .mb {
   aspect-ratio: 1 / 1; border: 1px solid var(--field); border-radius: 50%; background: var(--well);
   cursor: pointer; padding: 0; transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;

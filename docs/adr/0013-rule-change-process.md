@@ -33,8 +33,10 @@ A two-question checklist for changing the rules, plus one guard test.
 1. **Does a stored field's shape or meaning change, or does a sheet reference a name that's going
    away?**
    - No (a new field, a new row in a table, a different number, a new page section): edit
-     `eclipse-rules.js` directly. `normalize()` already fills in a default for anyone missing the new
-     field. No version bump, no migration.
+     `eclipse-content.js` or `eclipse-rules.js` directly. `normalize()` already fills in a default
+     for anyone missing the new field. No version bump, no migration.
+   - A rule number or a content row changes in one place, `public/js/eclipse-content.js`; the
+     sheet, the Reference cards and the rules all read it from there.
    - Yes: bump `SCHEMA_VERSION`, add a `MIGRATIONS[old version]` step, and add a unit test for that
      step against a small sample of real old-shape data (not just a synthetic object). Then rehearse
      it: make a fresh backup and run `npm run rehearse` on it before the pull request is merged.

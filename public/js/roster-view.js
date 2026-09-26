@@ -2,6 +2,7 @@
 // by a live subscription and a slow timer, plus a "download all sheets" backup.
 // Read only in every way (ADR 0001, 0009): nothing here writes to the database.
 import { h } from "./dom.js";
+import { MONITOR_BOXES, TRACK_MAX } from "./eclipse-content.js";
 import { backupFile, buildRoster } from "./roster.js";
 import { fileNameForName, serializeStored } from "./sheet/files.js";
 import { friendlyError, timeAgo } from "./util.js";
@@ -14,7 +15,7 @@ const penaltyText = (value) => (value > 0 ? `${MINUS}${value}` : value < 0 ? `+$
 const stat = (label, value) => [h("dt", {}, label), h("dd", {}, value)];
 
 function playerStats(summary) {
-  const monitor = (label, { boxes, penalty }) => stat(label, `${boxes}/10, ${penaltyText(penalty)}`);
+  const monitor = (label, { boxes, penalty }) => stat(label, `${boxes}/${MONITOR_BOXES}, ${penaltyText(penalty)}`);
   return h(
     "dl",
     { class: "stats" },
@@ -24,8 +25,8 @@ function playerStats(summary) {
     stat("Load", `${summary.load.pounds} lb, ${summary.load.tier.toLowerCase()}`),
     stat("Action points", summary.actionPoints),
     stat("Soak", `B ${summary.soak.ballistic} / I ${summary.soak.impact}`),
-    stat("Sanity", `${summary.sanity.label}, ${summary.sanity.value}/10`),
-    stat("Morality", `${summary.morality.label}, ${summary.morality.value}/10`),
+    stat("Sanity", `${summary.sanity.label}, ${summary.sanity.value}/${TRACK_MAX}`),
+    stat("Morality", `${summary.morality.label}, ${summary.morality.value}/${TRACK_MAX}`),
     stat("Days without rations", summary.starveDays),
   );
 }

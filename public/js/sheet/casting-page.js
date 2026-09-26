@@ -1,6 +1,7 @@
 // Page 4, Casting: Veil and Psyche pools, schools, the effect ladder, spells, powers, rituals.
 import { h } from "../dom.js";
-import { CAST_TYPES, EFFECT_SCALE, PSY_SCHOOLS, RITUAL_TIERS, VEIL_SCHOOLS, psyAP, schoolSlots, total, veilAP } from "../eclipse-rules.js";
+import { CASTING, CAST_TYPES, EFFECT_SCALE, FULL_REST_HOURS, PSY_SCHOOLS, RITUAL_TIERS, VEIL_SCHOOLS } from "../eclipse-content.js";
+import { psyAP, schoolSlots, total, veilAP } from "../eclipse-rules.js";
 import { addRow, headRow, heading, note, panel, removeButton, tabPanel } from "./ui.js";
 
 const options = (values) => values.map((value) => h("option", {}, value));
@@ -45,9 +46,9 @@ export const spellRows = (sheet) => sheet.spells.map((_, i) => castRow("spells",
 export const powerRows = (sheet) => sheet.powers.map((_, i) => castRow("powers", i));
 export const ritualRows = (sheet) => sheet.rituals.map((_, i) => ritualRow(i));
 export const ladderRows = () =>
-  Array.from({ length: 10 }, (_, i) => {
+  EFFECT_SCALE.map((scale, i) => {
     const level = i + 1;
-    return h("tr", { "data-lvl": level }, h("td", { class: "lvl" }, level), h("td", {}, level), h("td", {}, veilAP(level)), h("td", {}, psyAP(level)), h("td", { class: "scale" }, EFFECT_SCALE[i]));
+    return h("tr", { "data-lvl": level }, h("td", { class: "lvl" }, level), h("td", {}, level), h("td", {}, veilAP(level)), h("td", {}, psyAP(level)), h("td", { class: "scale" }, scale));
   });
 
 // The school pickers for Veil ("v") or Psyche ("p"): one per two points of the rating.
@@ -57,7 +58,7 @@ export function schoolPickers(sheet, which) {
   const slots = schoolSlots(rating);
   const choices = isVeil ? VEIL_SCHOOLS : PSY_SCHOOLS;
   const known = isVeil ? sheet.vSchools : sheet.pSchools;
-  if (!slots) return [h("span", { class: "noslots" }, rating ? `Rating ${rating} grants no school yet. One school per 2 points.` : "Not a caster.")];
+  if (!slots) return [h("span", { class: "noslots" }, rating ? `Rating ${rating} grants no school yet. One school per ${CASTING.pointsPerSchool} points.` : "Not a caster.")];
   return Array.from({ length: slots }, (_, i) =>
     h(
       "select",
@@ -131,7 +132,7 @@ export function buildCastingPage(sheet) {
         prefix: "v",
         spentKey: "mpSpent",
         spentLabel: "MP spent",
-        formula: "Veil × 3",
+        formula: `Veil × ${CASTING.pointsPerRating}`,
         skills: ["Sorcery", "Ritual Casting"],
       }),
       disciplinePanel(sheet, {
@@ -142,7 +143,7 @@ export function buildCastingPage(sheet) {
         prefix: "p",
         spentKey: "ppSpent",
         spentLabel: "PP spent",
-        formula: "Psyche × 3",
+        formula: `Psyche × ${CASTING.pointsPerRating}`,
         skills: ["Psionics"],
         extra: h("p", { class: "castnote" }, "Psyche has no rituals and no familiars — Psionics is its only casting skill."),
       }),
@@ -164,11 +165,11 @@ export function buildCastingPage(sheet) {
           [
             ["Points are spent ", "before", " the roll. A failed spell still costs them."],
             ["Veil healing, first cast since a Full Rest: ", "Shock equal to the Effect Level", "."],
-            ["Every Veil healing cast after that: ", "Rot equal to Effect Level / 2", ", rounded up."],
-            ["Psyche healing, always: ", "Shock equal to Effect Level / 2", ", rounded up."],
+            ["Every Veil healing cast after that: ", `Rot equal to Effect Level / ${CASTING.veilHealRotDivisor}`, ", rounded up."],
+            ["Psyche healing, always: ", `Shock equal to Effect Level / ${CASTING.psycheHealShockDivisor}`, ", rounded up."],
             ["Botch on two 1s: ", "Shock equal to the Effect Level", " and a permanent cosmetic scar."],
             ["Botch on three or more 1s: roll the Botch Severity table.", "", ""],
-            ["Both pools refresh only on a Full Rest of 8 hours or more.", "", ""],
+            [`Both pools refresh only on a Full Rest of ${FULL_REST_HOURS} hours or more.`, "", ""],
           ].map(([before, bold, after]) => h("span", { class: "rule" }, before, bold ? h("b", {}, bold) : null, after || null)),
         ),
         h("label", { class: "freecast" }, h("input", { type: "checkbox", "data-cast": "freeHeal" }), h("span", {}, "Free Veil healing cast used. Next one costs ", h("b", { id: "nextToll" }, "Rot"), ".")),

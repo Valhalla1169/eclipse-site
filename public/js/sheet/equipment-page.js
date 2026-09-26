@@ -1,5 +1,6 @@
 // Page 2, Equipment: encumbrance, supplies, worn items and containers.
 import { h } from "../dom.js";
+import { ENCUMBRANCE, RATION_LB } from "../eclipse-content.js";
 import { addRow, headRow, heading, note, panel, removeButton, tabPanel } from "./ui.js";
 
 const itemHead = () =>
@@ -88,6 +89,9 @@ export function containerPanels(sheet) {
 const supplyRow = (name, ...cells) => h("div", { class: "sup" }, h("span", { class: "nm" }, name), ...cells);
 const supplyInput = (key, mode, label) => h("input", { "data-sup": key, inputmode: mode, "aria-label": label });
 
+// Each mark on the bar is where that tier starts.
+const tierName = (index) => ENCUMBRANCE.tiers[index].name.toLowerCase();
+
 function encumbrancePanel() {
   const tick = (id, label, valueId) => h("span", { id }, label, h("b", { id: valueId }, "0"));
   const split = (label, id) => h("div", {}, h("div", { class: "lbl" }, label), h("div", { class: "val", id }, "0"));
@@ -108,10 +112,10 @@ function encumbrancePanel() {
       h(
         "div",
         { class: "enc-ticks" },
-        tick("lab_l", "light", "enc_l"),
-        tick("lab_m", "moderate", "enc_m"),
-        tick("lab_s", "serious", "enc_s"),
-        tick("lab_c", "cannot move", "enc_c"),
+        tick("lab_l", tierName(1), "enc_l"),
+        tick("lab_m", tierName(2), "enc_m"),
+        tick("lab_s", tierName(3), "enc_s"),
+        tick("lab_c", tierName(4), "enc_c"),
       ),
       h("div", { class: "enc-split" }, split("Worn", "enc_worn"), split("Packs", "enc_packs"), split("Supplies", "enc_sup"), split("Max lift", "enc_lift")),
     ),
@@ -123,7 +127,7 @@ function suppliesPanel() {
     {},
     heading("Supplies"),
     h("div", { class: "sup-head" }, h("span", {}, "Item"), h("span", {}, "Qty"), h("span", {}, "Unit lb"), h("span", {}, "Weight")),
-    supplyRow("Rations", supplyInput("rations", "numeric", "Rations quantity"), h("span", { class: "fixedw" }, "1.0"), h("span", { class: "wt", id: "w_rations" }, "0")),
+    supplyRow("Rations", supplyInput("rations", "numeric", "Rations quantity"), h("span", { class: "fixedw" }, RATION_LB.toFixed(1)), h("span", { class: "wt", id: "w_rations" }, "0")),
     supplyRow("Medical supplies", supplyInput("medQ", "numeric", "Medical supplies quantity"), supplyInput("medW", "decimal", "Medical supplies unit weight"), h("span", { class: "wt", id: "w_med" }, "0")),
     supplyRow("Components and scrap", supplyInput("cmpQ", "numeric", "Components quantity"), supplyInput("cmpW", "decimal", "Components unit weight"), h("span", { class: "wt", id: "w_cmp" }, "0")),
     supplyRow("Ammunition", supplyInput("ammoQ", "numeric", "Ammunition quantity"), supplyInput("ammoW", "decimal", "Ammunition unit weight"), h("span", { class: "wt", id: "w_ammo" }, "0")),

@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { MONITOR_BOXES, PROFS, RACES, SKILLS } from "../../public/js/eclipse-content.js";
 import {
   MIGRATIONS,
-  MONITOR_BOXES,
-  PROFS,
-  RACES,
   SCHEMA_VERSION,
-  SKILLS,
   SheetFormatError,
   armorDegradation,
   blank,
