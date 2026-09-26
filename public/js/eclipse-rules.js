@@ -391,7 +391,9 @@ export function dyingState(sheet, penalty) {
   const stable = sheet.dy.aided || (need > 0 && have >= need);
   // Shown even when dormant, so the panel keeps its shape: what the goal would be at a full monitor.
   const previewNeed = Math.max(1, fdiv(MONITOR_BOXES, Math.max(1, total(sheet, "end"))));
-  const daily = DYING.daily.find((row) => sheet.cm.trauma <= row.upToTrauma);
+  // A real Trauma count always fits a row (the last has no upper bound). Bad stored
+  // data (not a number) fits none, so it falls back to the worst row, same as before.
+  const daily = DYING.daily.find((row) => sheet.cm.trauma <= row.upToTrauma) ?? DYING.daily.at(-1);
   return {
     live,
     stable,

@@ -463,6 +463,30 @@ describe("conditions", () => {
     expect(overflowPool(withBase({ ess: 10 }))).toBe(3);
     expect(overflowPool(withBase({ ess: 0 }))).toBe(1);
   });
+
+  // A hand-edited .eclipse file can put anything in cm.trauma; normalize() does not
+  // check its type. Every function that reads it must still return, not throw, or
+  // the sheet becomes unopenable for the player and the Keeper alike.
+  it.each(["x", {}])("does not throw when Trauma is not a number (%j)", (bad) => {
+    const badSheet = () => {
+      const sheet = blank();
+      sheet.cm.trauma = bad;
+      return sheet;
+    };
+    expect(() => penalties(badSheet())).not.toThrow();
+    expect(() => criticalMonitor(badSheet())).not.toThrow();
+    expect(() => summarizeSheet(badSheet())).not.toThrow();
+    expect(() => setCondition(badSheet(), "trauma", 3)).not.toThrow();
+    expect(() => setOverflow(badSheet(), 2)).not.toThrow();
+
+    const sheet = badSheet();
+    let state;
+    expect(() => {
+      state = dyingState(sheet, penalties(sheet));
+    }).not.toThrow();
+    // Same fallback as the stage before this table existed: nothing fits, so it reads as the worst case.
+    expect(state.dailyDifficulty).toBe("Difficult");
+  });
 });
 
 describe("choices", () => {

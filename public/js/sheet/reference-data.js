@@ -41,6 +41,14 @@ const selfStabilize = DIFFICULTY[DYING.selfRoll];
 const encumbranceStep = ENCUMBRANCE.step;
 const traumaBand = (row, next) => (next ? `${row.fromTrauma} to ${next.fromTrauma - 1}` : `${row.fromTrauma}+`);
 
+// Two worked examples of rolling untrained, built from the same stage order and
+// step count the sheet applies, so the card cannot name a pair the sheet disagrees with.
+const difficultyStages = Object.values(DIFFICULTY);
+const untrainedExample = difficultyStages
+  .slice(0, 2)
+  .map((stage, i) => `${stage.name} becomes ${difficultyStages[i + UNTRAINED_STAGES].name}`)
+  .join(", ");
+
 export const REFERENCE_TABLES = {
   difficulty: { rows: Object.values(DIFFICULTY).map((stage) => [stage.name, n(lost(stage.dice)), stage.note]) },
   actions: { rows: Object.values(ACTIONS).map((action) => [action.name, n(action.ap)]) },
@@ -130,7 +138,7 @@ export const REFERENCE = [
 <p><b>Retries cost.</b> Time passes, materials burn, and failure usually makes the next attempt harder.</p>`]},
 
 {c:'Checks',t:'Untrained use',k:'untrained no skill rank penalty',body:[`
-<p>Roll the <b>attribute alone</b> and add <em>+${UNTRAINED_STAGES} difficulty stages</em>. Easy becomes Challenging, Moderate becomes Difficult.</p>
+<p>Roll the <b>attribute alone</b> and add <em>+${UNTRAINED_STAGES} difficulty stages</em>. ${untrainedExample}.</p>
 <p>Sorcery, Ritual Casting, and Psionics cannot be attempted untrained.</p>`]},
 
 {c:'Combat',t:'The round',k:'initiative order round seconds turn',body:[`

@@ -10,8 +10,8 @@
 
 /* ── a new character ──────────────────────────────────────── */
 
-// Written into a new sheet, so a change here changes only new characters.
-// A new character's Sanity is its race's.
+// Not stored: written into a new sheet, so a change here changes only new
+// characters. A new character's Sanity is its race's.
 export const START = { race: "human", attribute: 1, essence: 10, veil: 0, psyche: 0, morality: 5 };
 
 // Stored: `k` is the field name in sheet.base and sheet.oth.
@@ -61,6 +61,7 @@ export const PROFS = {
   Scientist: { a: "cla", m: "Eclipse Knowledge" },
   Teacher: { a: "cla", m: "Eclipse Knowledge" },
 };
+// Not stored.
 export const PROFESSION_BONUS = 1;
 export const MASTER_BONUS = 2;
 
@@ -75,7 +76,7 @@ export const SKILLS = [
   ["Veil", "vei", ["Ritual Casting", "Sorcery"]],
   ["Psyche", "psy", ["Psionics"]],
 ];
-// An untrained skill rolls this many difficulty stages harder.
+// Not stored. An untrained skill rolls this many difficulty stages harder.
 export const UNTRAINED_STAGES = 2;
 
 // Stored: an advantage's or a flaw's `t`.
@@ -84,7 +85,7 @@ export const FLAW_TIERS = ["Light (+3 pts)", "Medium (+4 pts)", "Heavy (+5 pts)"
 
 /* ── derived stats ────────────────────────────────────────── */
 
-// What each derived stat divides its attributes by.
+// Not stored. What each derived stat divides its attributes by.
 export const DERIVED_DIVISOR = { actionPoints: 3, passivePerception: 3, dodgePool: 3, personalSoak: 8, overflow: 3 };
 
 /* ── checks ───────────────────────────────────────────────── */
@@ -119,11 +120,11 @@ export const RELOADS = [
   { name: "Drum", rounds: 60, ap: 3 },
   { name: "Belt", rounds: 100, ap: 4 },
 ];
-// What each AP spent aiming gives.
+// Not stored. What each AP spent aiming gives.
 export const AIM = { dice: 1, armorIgnored: 1 };
-// Burst Fire, on top of the weapon's AP.
+// Not stored. Burst Fire, on top of the weapon's AP.
 export const BURST = { ap: 1, rounds: 3, damage: 2 };
-// An attack nobody defends against rolls against this.
+// Not stored. An attack nobody defends against rolls against this.
 export const UNOPPOSED_DIFFICULTY = 3;
 
 // Stored: a weapon's `skill`. The skills you can attack with.
@@ -136,7 +137,8 @@ export const WEAPON_MODES = ["SA", "SA / BF", "SA / BF / FA", "Melee", "Thrown",
 
 /* ── damage and conditions ────────────────────────────────── */
 
-export const MONITOR_BOXES = 10; // each of Shock, Trauma and Rot
+// Stored: cm.shock, cm.trauma and cm.rot each fill up to this many boxes.
+export const MONITOR_BOXES = 10;
 
 // Stored: `track` is the field name in sheet.cm and sheet.notes. Each full `per`
 // boxes of a monitor costs a die: `per` is that attribute, divided by `divide` when given.
@@ -145,6 +147,7 @@ export const MONITORS = [
   { track: "trauma", name: "Trauma", per: "end", soak: "armor + personnel" },
   { track: "rot", name: "Rot", per: "ess", divide: 3, soak: "none" },
 ];
+// Not stored.
 export const FULL_ROT_ESSENCE_PER_HOUR = 1;
 
 // Not stored. A monitor at capacity takes over the dial. Trauma outranks Rot outranks Shock.
@@ -166,7 +169,8 @@ export const DYING = {
   ],
 };
 
-export const TRACK_MAX = 10; // Sanity and Morality run from 1 to this
+// Stored: sanity and morality are ratings from 1 to this.
+export const TRACK_MAX = 10;
 // Not stored. One word per level, from 1 up.
 export const SANITY = [
   { t: "gone" }, { t: "shattered" }, { t: "unravelling" }, { t: "slipping" }, { t: "fraying" },
@@ -188,6 +192,7 @@ export const MORALITY = [
 
 /* ── recovery ─────────────────────────────────────────────── */
 
+// Not stored.
 export const RECOVERY = { naturalHours: 24, naturalStage: "easy", medicalMinutes: 30, medicalSupplies: 1 };
 export const FULL_REST_HOURS = 8;
 // Not stored. Medical treatment's difficulty stage, from the patient's Trauma, in rising order.
@@ -210,6 +215,7 @@ export const STARVATION = {
   ],
   deathDay: 12,
 };
+// Not stored.
 export const RATION_LB = 1;
 
 // Not stored. Each load threshold is one step of `lb` per point of Lethality, or
@@ -229,6 +235,7 @@ export const ENCUMBRANCE = {
 
 /* ── casting ──────────────────────────────────────────────── */
 
+// Not stored.
 export const CASTING = { pointsPerRating: 3, psycheApCap: 5, pointsPerSchool: 2, veilHealRotDivisor: 2, psycheHealShockDivisor: 2 };
 
 // Stored: vSchools, pSchools, and a spell's, power's or ritual's `s`.
@@ -261,10 +268,12 @@ export const RITUAL_TIERS = [
   { t: "8 hours", unit: "year", tvBase: 100, exertionOff: 4 },
   { t: "24 hours", unit: null, tvBase: 200, exertionOff: 5 },
 ];
+// Not stored.
 export const RITUAL = { tvPerLevel: 25, riftScarShock: 3 };
 
 /* ── gear ─────────────────────────────────────────────────── */
 
+// Not stored.
 export const SHIELD_DEGRADE_STEP = 10;
 
 // Not stored. The dice a kit adds, and what it weighs.

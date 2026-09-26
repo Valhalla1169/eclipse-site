@@ -258,7 +258,7 @@ function renderMonitors(root, sheet, P) {
   for (const track of ["shock", "trauma", "rot"]) {
     const threshold = P.thr[track];
     root.querySelector(`#thr_${track}`).textContent = threshold;
-    // Boxes stop at ten, so say the number out loud once it goes beyond.
+    // Boxes stop at the monitor's max, so say the number out loud once it goes beyond.
     const over = sheet.cm[track] - MONITOR_BOXES;
     const nameEl = root.querySelector(`.cm-${track} .cm-name`);
     const tag = nameEl.querySelector(".overtag");
@@ -468,7 +468,7 @@ function renderTestament(root, sheet) {
   };
   carry("c_prof", sheet.id.prof, "set on the Core sheet");
   carry("c_bg", sheet.id.bg, "set on the Core sheet");
-  carry("c_master", sheet.id.master ? `${sheet.id.master} +2` : "", "none chosen");
+  carry("c_master", sheet.id.master ? `${sheet.id.master} +${MASTER_BONUS}` : "", "none chosen");
   const race = raceOf(sheet);
   carry("c_race", race.name, "set on the Core sheet");
   const ability = root.querySelector("#c_racial");

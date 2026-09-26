@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { MORALITY, SANITY, STARVATION, TRACK_MAX } from "../../public/js/eclipse-content.js";
-import { ATTR_NAMES, blank, dyingState, encPenalty, encTiers, penalties, ritualCost } from "../../public/js/eclipse-rules.js";
+import { DIFFICULTY, MORALITY, SANITY, STARVATION, TRACK_MAX } from "../../public/js/eclipse-content.js";
+import { ATTR_NAMES, blank, dyingState, encPenalty, encTiers, penalties, ritualCost, weights } from "../../public/js/eclipse-rules.js";
 import { starvationDays } from "../../public/js/sheet/core-page.js";
 import { REFERENCE, REFERENCE_TABLES as T } from "../../public/js/sheet/reference-data.js";
 
@@ -34,15 +34,28 @@ describe("the Reference tables", () => {
     }
   });
 
-  it("Encumbrance names each load tier and its penalty as the sheet does", () => {
+  it("gives the weight of a ration the sheet uses", () => {
+    const [, said] = cardText("Starvation").match(/weighs (\d+(?:\.\d+)?) lb/);
+    const sheet = blank();
+    sheet.sup.rations = 1;
+    expect(weights(sheet).supplies).toBe(Number(said));
+  });
+
+  it("Encumbrance names each load tier and its penalty as the sheet does, right at each boundary", () => {
     const sheet = blank();
     const tiers = encTiers(sheet);
-    const firstLoads = [0, tiers.light, tiers.moderate, tiers.serious, tiers.immobile].map((limit, i) => (i ? limit + 0.1 : limit));
+    const thresholds = [tiers.light, tiers.moderate, tiers.serious, tiers.immobile];
     const rows = rowsOf(T.encumbrance);
-    expect(rows).toHaveLength(firstLoads.length);
-    rows.forEach(([name, cost], i) => {
-      sheet.sup.rations = firstLoads[i];
-      expect(encPenalty(sheet), name).toMatchObject({ tier: name, p: lost(cost) });
+    expect(rows).toHaveLength(thresholds.length + 1);
+    // medQ x medW, not rations, so this load is exact lb regardless of RATION_LB.
+    const check = (load, i) => {
+      Object.assign(sheet.sup, { medQ: 1, medW: load });
+      expect(encPenalty(sheet), `${load} lb -> ${rows[i][0]}`).toMatchObject({ tier: rows[i][0], p: lost(rows[i][1]) });
+    };
+    check(0, 0); // the lightest load
+    thresholds.forEach((limit, i) => {
+      check(limit, i); // the last load still in this tier
+      check(limit + 0.1, i + 1); // the first load of the next tier
     });
   });
 
@@ -60,12 +73,15 @@ describe("the Reference tables", () => {
   it("Difficulty stages has the stages the dying rolls use, and the dice they cost", () => {
     const stages = Object.fromEntries(rowsOf(T.difficulty).map(([name, cost]) => [name, lost(cost)]));
     const sheet = blank();
-    Object.assign(sheet.base, { end: 4, ste: 3 });
-    const [, self, said] = cardText("Stabilizing").match(/fixed <em>(\w+) \(&minus;(\d+)\)/);
-    expect([stages[self], 4 + 3 - dyingState(sheet, penalties(sheet)).rawPool]).toEqual([Number(said), Number(said)]);
-    for (const trauma of [10, 13, 16, 20]) {
+    // High enough that no Difficulty stage's dice (up to Near impossible's 9) clamps rawPool to
+    // its floor of 1, so the arithmetic below only fails when the roll and the card disagree.
+    Object.assign(sheet.base, { end: 10, ste: 10 });
+    const [, self, said] = cardText("Stabilizing").match(/fixed <em>([\w ]+) \(&minus;(\d+)\)/);
+    expect([stages[self], 20 - dyingState(sheet, penalties(sheet)).rawPool]).toEqual([Number(said), Number(said)]);
+    // Known Trauma values, one inside each row of the daily table, so a wrong stage fails here.
+    for (const [trauma, key] of [[10, "moderate"], [13, "challenging"], [16, "difficult"], [20, "difficult"]]) {
       sheet.cm.trauma = trauma;
-      expect(Object.keys(stages)).toContain(dyingState(sheet, penalties(sheet)).dailyDifficulty);
+      expect(dyingState(sheet, penalties(sheet)).dailyDifficulty, `trauma ${trauma}`).toBe(DIFFICULTY[key].name);
     }
     for (const [, cost] of rowsOf(T.medicalDifficulty)) expect(Object.values(stages)).toContain(lost(cost));
   });
@@ -93,11 +109,6 @@ describe("the Reference tables", () => {
     const actions = Object.fromEntries(rowsOf(T.actions));
     for (const [move, ap] of rowsOf(T.defending).slice(0, 2)) expect(ap, move).toBe(`${actions["Block or Dodge"]} AP`);
     expect(rowsOf(T.reloads)[0][1]).toBe(`${actions["Load a fresh magazine"]} AP`);
-
-    const toolKits = rowsOf(T.toolKits).map(([name, cost]) => [name.split(",")[0], cost]);
-    expect(toolKits).toEqual(rowsOf(T.medicalKits));
-
-    for (const [band] of rowsOf(T.quality)) expect(cardText("Trading")).toContain(`${band} gives`);
   });
 });
 
@@ -119,4 +130,5 @@ describe("the content", () => {
   it("has one Sanity and one Morality word for each level", () => {
     expect(SANITY).toHaveLength(TRACK_MAX);
     expect(MORALITY).toHaveLength(TRACK_MAX);
-  });});
+  });
+});

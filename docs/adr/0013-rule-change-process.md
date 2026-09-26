@@ -34,17 +34,20 @@ A two-question checklist for changing the rules, plus one guard test.
    away?**
    - No (a new field, a new row in a table, a different number, a new page section): edit
      `eclipse-content.js` or `eclipse-rules.js` directly. `normalize()` already fills in a default
-     for anyone missing the new field. No version bump, no migration.
-   - A rule number or a content row changes in one place, `public/js/eclipse-content.js`; the
-     sheet, the Reference cards and the rules all read it from there.
+     for anyone missing the new field. No version bump, no migration. A rule number or a content
+     row changes in one place, `public/js/eclipse-content.js`; the sheet, the Reference cards and
+     the rules all read it from there.
    - Yes: bump `SCHEMA_VERSION`, add a `MIGRATIONS[old version]` step, and add a unit test for that
      step against a small sample of real old-shape data (not just a synthetic object). Then rehearse
      it: make a fresh backup and run `npm run rehearse` on it before the pull request is merged.
-2. **Is a named table row (a race, a profession, a skill, a spell school) being renamed or removed?**
+2. **Is a row of a table marked Stored in `eclipse-content.js` (a race, a profession) being renamed
+   or removed, or is a number marked Stored (`MONITOR_BOXES`, `TRACK_MAX`) changing?**
    - Renamed: that's a `migrate()` step like any other — rewrite the stored key.
    - Removed: don't delete the row. Mark it retired and leave it out of the pickers offered when
      making or changing a choice on a new or existing character; a sheet that already points at it
      keeps resolving it exactly as before.
+   - A Stored number changing: that's a shape change too, the same as a rename — bump
+     `SCHEMA_VERSION` and add a migration step.
 
 A unit test in `tests/unit/eclipse-rules.test.js` fails if `SCHEMA_VERSION` goes up without a
 `MIGRATIONS` step for every version below it. A changelog comment above `MIGRATIONS` in
