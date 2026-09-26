@@ -114,6 +114,53 @@ export const assignmentRow = (characterId = CHARACTER_ID, extra = {}) => ({
 
 export const sheetPath = (id = CHARACTER_ID) => `/characters/${id}`;
 
+// A made-up rulebook for the fake database. The real book is never in this repo (ADR 0016).
+const wideRow = (n) => `| Pace${n} | ${["Squares", "Noise", "Stamina", "Hunger", "Distance", "Visibility"].map((word) => `${word}${n}`).join(" | ")} | ${n * 2} |`;
+export const RULEBOOK = {
+  book: { title: "A Made-up Field Guide", version: "sample 3" },
+  pages: [
+    {
+      position: 1,
+      slug: "getting-started",
+      title: "Getting Started",
+      body: [
+        "# Getting Started",
+        "",
+        "A *made-up* chapter with **bold** text, a [part of this page](#what-you-need), [the next chapter](/rules/moving-about) and [an outside page](https://example.com/guide).",
+        "",
+        "## What you need",
+        "",
+        "- Two dice",
+        "- A pencil",
+        "  1. Sharp",
+        "  2. Not chewed",
+        "",
+        "> A note in a quote.",
+        "",
+        "<script>window.__ran = true</script> <img src=x> [a bad link](javascript:alert(1)) ![a map](https://example.com/map.png)",
+      ].join("\n"),
+    },
+    {
+      position: 2,
+      slug: "moving-about",
+      title: "Moving About",
+      body: [
+        "# Moving About",
+        "",
+        "| Pace | Squares | Noise | Stamina | Hunger | Distance | Visibility | Cost |",
+        "|:--|:-:|:-:|:-:|:-:|:-:|:-:|--:|",
+        wideRow(1),
+        wideRow(2),
+        "",
+        "---",
+        "",
+        "Use `2d6` and read [what you need](/rules/getting-started#what-you-need).",
+      ].join("\n"),
+    },
+    { position: 5, slug: "last-words", title: "Last Words", body: "# Last Words\n\nThe end." },
+  ],
+};
+
 // Another device saves the sheet: the stored data and updated_at change behind the page's back.
 export const otherDeviceSaves = (page, data, id = CHARACTER_ID) =>
   page.evaluate(
