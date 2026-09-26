@@ -20,10 +20,12 @@
     "vendor": "node scripts/vendor.mjs",
     "creators": "node scripts/creators.mjs",
     "admins": "node scripts/admins.mjs",
+    "rulebook": "node scripts/rulebook.mjs",
     "staging": "node scripts/staging.mjs",
     "test:db": "node scripts/test-db.mjs",
     "backup": "node scripts/backup.mjs",
     "backup:check": "node scripts/backup-check.mjs",
+    "rehearse": "node scripts/rehearse.mjs",
     "test:e2e": "playwright test"
   },
   "devDependencies": {

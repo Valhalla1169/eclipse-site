@@ -159,8 +159,11 @@ p { margin: 0; }
   .wordmark span { display: none; }
   .theme-switcher { order: 2; }
   .account { order: 3; flex-basis: 100%; }
+  .account .btn-small { padding-inline: 0.5rem; }
 }
-.account { display: flex; align-items: center; gap: 0.6rem; }
+/* A button that does not fit goes to the next row; its words stay on one line. */
+.account { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+.account .btn { white-space: nowrap; }
 .account-name {
   max-width: 12rem;
   overflow: hidden;
@@ -387,6 +390,38 @@ article.card:hover h3, article.card:focus-within h3 { color: var(--hover-title);
 .stats dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 .small { font-size: 0.85rem; }
 .badge-alert { border: 2px solid var(--danger); background: transparent; }
+
+/* ---- Rulebook ---- */
+.contents { margin: 0; padding: 0; list-style: none; }
+.contents li + li { border-top: 1px solid var(--surface0); }
+.contents a { display: block; padding: 0.6rem 0; }
+
+.chapter { overflow-wrap: break-word; }
+.chapter * { margin: 0; }
+.chapter > * + *, .chapter blockquote > * + *, .chapter li > * + * { margin-top: 1rem; }
+.chapter li + li { margin-top: 0.25rem; }
+.chapter > :is(h2, h3, h4, h5, h6):not(:first-child) { margin-top: 2rem; }
+.chapter :is(h1, h2, h3, h4, h5, h6) { line-height: 1.25; scroll-margin-top: calc(var(--header-h, 0px) + 1rem); }
+.chapter h3 { font-size: 1.1rem; }
+.chapter :is(h4, h5, h6) { font-size: 1rem; }
+.chapter :is(ul, ol) { padding-left: 1.5rem; }
+.chapter blockquote { padding: 0.75rem 1rem; border-left: 4px solid var(--field-border); background: var(--mantle); }
+.chapter hr { border: 0; border-top: 1px solid var(--surface0); }
+.chapter code { padding: 0.1em 0.3em; border-radius: 0.25rem; background: var(--mantle); font-family: var(--font-mono); font-size: 0.9em; }
+/* Code wraps, so only a table can be wider than the page. */
+.chapter pre { padding: 0.75rem 1rem; border: 1px solid var(--surface0); border-radius: 0.5rem; background: var(--mantle); white-space: pre-wrap; }
+.chapter pre code { padding: 0; background: none; }
+.table-scroll { overflow-x: auto; }
+.chapter table { min-width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.chapter :is(th, td) { padding: 0.4rem 0.75rem; border: 1px solid var(--surface0); text-align: left; vertical-align: top; }
+.chapter th { background: var(--mantle); }
+.chapter .align-center { text-align: center; }
+.chapter .align-right { text-align: right; }
+
+.chapter-nav { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem; padding-top: 1.5rem; border-top: 1px solid var(--surface0); }
+.chapter-nav .btn { text-align: left; }
+.chapter-next { margin-left: auto; }
+.chapter-step { display: block; font-size: 0.85rem; font-weight: 400; color: var(--subtext1); }
 
 /* ---- Footer (full-width band, like deyderae.dev) ---- */
 .site-footer {

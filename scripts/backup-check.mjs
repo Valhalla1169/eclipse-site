@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isMain } from "./account-lists.mjs";
 import { readCopyBlocks, readCounts } from "./backup.mjs";
-import { createSchemaDb, die, dropDb, psql, requirePostgres } from "./local-db.mjs";
+import { createSchemaDb, die, dropDb, must, psql, requirePostgres } from "./local-db.mjs";
 
 function bare(name) {
   const m = /^"?([a-z_][a-z0-9_]*)"?$/.exec(name);
@@ -46,28 +46,27 @@ export function summary({ expected, found, ok }) {
   return `${expected} in the backup, ${found} loaded`;
 }
 
-// psql's DETAIL and CONTEXT lines can quote a row, so only the ERROR lines are shown.
-function must(r, what) {
-  if (r.status !== 0) {
-    const errors = (r.stderr || "").split(/\r?\n/).filter((l) => l.includes("ERROR"));
-    throw new Error(`Could not ${what}.\n${errors.join("\n") || (r.error ? r.error.message : "")}`);
-  }
-  return r.stdout;
-}
-
 const rowsOf = (stdout) => stdout.split(/\r?\n/).filter(Boolean).map((l) => l.split("|"));
 
-function check(file, text, expected) {
-  const db = `eclipse_backup_check_${process.pid}`;
-  try {
-    const migrations = createSchemaDb(db);
-    const existing = new Map();
-    const columns = must(psql(["-At", "-c", "select table_schema || '.' || table_name || '|' || column_name from information_schema.columns where table_schema = 'auth'"], { db }), "read the auth tables");
-    for (const [table, column] of rowsOf(columns)) existing.set(table, (existing.get(table) || new Set()).add(column));
-    const extra = authColumnsSql(readCopyBlocks(text), existing);
-    if (extra) must(psql(["-c", extra], { db }), "add the backup's auth columns");
+// Loads a backup into a fresh throwaway database: the harness and every migration
+// (local-db.mjs), then the auth columns and rows the file needs. Shared with
+// scripts/rehearse.mjs, so both prove a real backup loads the same way. Returns the
+// database's name and how many migrations it applied; the caller must dropDb() it.
+export function loadBackup(file, text, { prefix = "eclipse_backup_check" } = {}) {
+  const db = `${prefix}_${process.pid}`;
+  const migrations = createSchemaDb(db);
+  const existing = new Map();
+  const columns = must(psql(["-At", "-c", "select table_schema || '.' || table_name || '|' || column_name from information_schema.columns where table_schema = 'auth'"], { db }), "read the auth tables");
+  for (const [table, column] of rowsOf(columns)) existing.set(table, (existing.get(table) || new Set()).add(column));
+  const extra = authColumnsSql(readCopyBlocks(text), existing);
+  if (extra) must(psql(["-c", extra], { db }), "add the backup's auth columns");
+  must(psql(["--single-transaction", "-f", file], { db }), "load the backup");
+  return { db, migrations };
+}
 
-    must(psql(["--single-transaction", "-f", file], { db }), "load the backup");
+function check(file, text, expected) {
+  const { db, migrations } = loadBackup(file, text);
+  try {
     console.log(`loaded the backup after the harness and ${migrations} migrations\n\nrows per table:`);
 
     const counted = must(

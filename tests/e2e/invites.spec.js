@@ -1,4 +1,4 @@
-import { blank } from "../../public/js/eclipse-rules.js";
+import { SCHEMA_VERSION, blank } from "../../public/js/eclipse-rules.js";
 import { assignmentRow, callsTo, campaign, characterRow, expect, ids, open, patchMock, players, seed, test } from "./helpers.js";
 
 const { dana, dm } = players;
@@ -19,7 +19,7 @@ const ZED_COPY = {
   player_id: ZED,
   character_id: "40000000-0000-4000-8000-0000000000c4",
   character_name: "Old hand",
-  schema_version: 1,
+  schema_version: SCHEMA_VERSION,
   data: named("Old hand"),
   reason: "left",
   kept_at: "2026-09-10T12:00:00.000000+00:00",

@@ -3,13 +3,23 @@
 import { h } from "../dom.js";
 import {
   ATTRS,
+  CASTING,
+  DIFFICULTY,
+  DYING,
+  MASTER_BONUS,
   MONITOR_BOXES,
   MORALITY,
-  NO_RACIAL_ABILITY,
+  RECOVERY,
+  RITUAL,
   SANITY,
   SKILLS,
   SPECIALS,
+  STARVATION,
   TRACK_MAX,
+  UNTRAINED_STAGES,
+} from "../eclipse-content.js";
+import {
+  NO_RACIAL_ABILITY,
   armorDegradation,
   castingPool,
   clampTrack,
@@ -22,6 +32,7 @@ import {
   carriedQuantity,
   int,
   num,
+  overSkillCap,
   penalties,
   psyAP,
   r1,
@@ -30,6 +41,7 @@ import {
   raceOf,
   ritualCost,
   shieldDegradation,
+  skillCap,
   skillPool,
   soak,
   total,
@@ -145,7 +157,7 @@ export function renderSheet(root, sheet) {
     const mod = race + profession;
     const modEl = root.querySelector(`[data-mod="${attr.k}"]`);
     modEl.textContent = mod ? plusMinus(mod) : "·";
-    modEl.title = mod ? [race ? `${plusMinus(race)} race` : "", profession ? "+1 profession" : ""].filter(Boolean).join(", ") : "";
+    modEl.title = mod ? [race ? `${plusMinus(race)} race` : "", profession ? `${plusMinus(profession)} profession` : ""].filter(Boolean).join(", ") : "";
     modEl.classList.toggle("prof", !!profession && !race);
     const other = root.querySelector(`[data-oth="${attr.k}"]`);
     if (other !== active) other.value = sheet.oth[attr.k] || "";
@@ -203,16 +215,12 @@ export function renderSheet(root, sheet) {
 }
 
 function renderSkills(root, sheet, P, active) {
-  for (const [, attrKey, list] of SKILLS) {
+  for (const [, attrKey] of SKILLS) {
     const cap = root.querySelector(`[data-cap="${attrKey}"]`);
-    if (!cap) continue;
-    const hasMaster = list.includes(sheet.id.master);
-    cap.textContent = `max ${total(sheet, attrKey)}${hasMaster ? ", master exempt" : ""}`;
-    cap.classList.toggle("exempt", hasMaster);
+    if (cap) cap.textContent = `max ${skillCap(sheet, attrKey)}`;
   }
   root.querySelectorAll(".srow").forEach((row) => {
     const name = row.dataset.skill;
-    const attrKey = row.dataset.attr;
     const level = row.querySelector("[data-sk]");
     const other = row.querySelector("[data-so]");
     const out = row.querySelector(".pool");
@@ -222,12 +230,12 @@ function renderSkills(root, sheet, P, active) {
     if (level !== active) level.value = sheet.skills[name] ?? "";
     if (other !== active) other.value = sheet.sother[name] ?? "";
 
-    // A Master Skill is exempt from the linked attribute cap.
-    level.classList.toggle("over", !master && pool.level > total(sheet, attrKey));
+    const over = overSkillCap(sheet, name);
+    level.classList.toggle("over", over);
     row.classList.toggle("trained", pool.rating > 0);
     row.classList.toggle("master", master);
     const badge = label.querySelector(".mbadge");
-    if (master && !badge) label.append(h("span", { class: "mbadge" }, "+2"));
+    if (master && !badge) label.append(h("span", { class: "mbadge" }, `+${MASTER_BONUS}`));
     if (!master && badge) badge.remove();
 
     out.classList.toggle("ut", pool.rating === 0);
@@ -235,11 +243,11 @@ function renderSkills(root, sheet, P, active) {
     out.textContent = pool.shown;
     out.title =
       `${pool.base} attribute + ${pool.level} level` +
-      (master ? " + 2 master" : "") +
+      (master ? ` + ${MASTER_BONUS} master` : "") +
       (pool.extra ? (pool.extra < 0 ? ` − ${Math.abs(pool.extra)} other` : ` + ${pool.extra} other`) : "") +
       (pool.penalty ? ` − ${pool.penalty} penalty` : "") +
-      (pool.rating === 0 ? " (untrained: +2 difficulty stages)" : "") +
-      (master ? " · exempt from the attribute cap" : "");
+      (pool.rating === 0 ? ` (untrained: +${UNTRAINED_STAGES} difficulty stages)` : "") +
+      (over ? ` · rating ${pool.rating} is above the cap of ${skillCap(sheet, row.dataset.attr)}` : "");
   });
 }
 
@@ -248,7 +256,7 @@ function renderMonitors(root, sheet, P) {
   for (const track of ["shock", "trauma", "rot"]) {
     const threshold = P.thr[track];
     root.querySelector(`#thr_${track}`).textContent = threshold;
-    // Boxes stop at ten, so say the number out loud once it goes beyond.
+    // Boxes stop at the monitor's max, so say the number out loud once it goes beyond.
     const over = sheet.cm[track] - MONITOR_BOXES;
     const nameEl = root.querySelector(`.cm-${track} .cm-name`);
     const tag = nameEl.querySelector(".overtag");
@@ -278,7 +286,7 @@ function renderStarvation(root, sheet, P) {
   root.querySelector("#stv_foot").classList.toggle("fatal", P.dead);
   root.querySelector("#starvePanel").classList.toggle("fatal", P.dead);
   root.querySelector("#stv_foot").firstElementChild.textContent = P.dead
-    ? "Twelve days without food or water. This character has died of starvation."
+    ? `${STARVATION.deathDay} days without food or water. This character has died of starvation.`
     : "Eating a ration reduces the counter by one; it does not reset to zero.";
 }
 
@@ -308,7 +316,7 @@ function renderDying(root, sheet, P) {
   panel.classList.toggle("safe", state.live && state.stable);
 
   const formula = root.querySelector("#dy_formula");
-  formula.replaceChildren(`Endurance ${total(sheet, "end")} + Steadfast ${total(sheet, "ste")} − 3`, h("br"), "no condition penalties apply");
+  formula.replaceChildren(`Endurance ${total(sheet, "end")} + Steadfast ${total(sheet, "ste")} − ${DIFFICULTY[DYING.selfRoll].dice}`, h("br"), "no condition penalties apply");
   root.querySelector("#dy_pool").textContent = state.rawPool;
   root.querySelector("#dy_need").textContent = state.need;
   root.querySelector("#dy_have").textContent = state.have;
@@ -340,7 +348,7 @@ function renderDying(root, sheet, P) {
   hint.replaceChildren(
     ...(state.stable
       ? [
-          "No longer dying, still unconscious. Once per 24 hours roll ",
+          `No longer dying, still unconscious. Once per ${RECOVERY.naturalHours} hours roll `,
           h("b", {}, "Endurance + Steadfast"),
           " with normal penalties: ",
           h("b", {}, state.dailyDifficulty),
@@ -375,7 +383,7 @@ function renderDial(root, sheet, P) {
   root.querySelector("#dialCaption").textContent = crit
     ? crit.line
     : P.dead
-      ? "Starved. Twelve days is as long as the wasteland gives you."
+      ? `Starved. ${STARVATION.deathDay} days is as long as the wasteland gives you.`
       : P.total < 0
         ? "Something is holding you steady."
         : P.total === 0
@@ -407,7 +415,7 @@ function renderEquipment(root, sheet) {
   const tier = root.querySelector("#enc_tier");
   tier.textContent = enc.tier;
   tier.className = `t ${enc.cls}`;
-  text("enc_pen", enc.stuck ? "cannot move, 1 m per AP" : enc.p ? `−${enc.p} dice to all checks` : "no penalty");
+  text("enc_pen", enc.stuck ? `${enc.tier.toLowerCase()}, 1 m per AP` : enc.p ? `−${enc.p} dice to all checks` : "no penalty");
   const fill = root.querySelector("#enc_fill");
   fill.style.setProperty("--fill", `${Math.min(100, enc.frac * 100)}%`);
   fill.className = `enc-fill ${enc.cls}`;
@@ -458,7 +466,7 @@ function renderTestament(root, sheet) {
   };
   carry("c_prof", sheet.id.prof, "set on the Core sheet");
   carry("c_bg", sheet.id.bg, "set on the Core sheet");
-  carry("c_master", sheet.id.master ? `${sheet.id.master} +2` : "", "none chosen");
+  carry("c_master", sheet.id.master ? `${sheet.id.master} +${MASTER_BONUS}` : "", "none chosen");
   const race = raceOf(sheet);
   carry("c_race", race.name, "set on the Core sheet");
   const ability = root.querySelector("#c_racial");
@@ -470,8 +478,7 @@ function renderTestament(root, sheet) {
 function renderCasting(root, sheet, P) {
   const veil = total(sheet, "vei");
   const psyche = total(sheet, "psy");
-  const magic = veil * 3;
-  const psionic = psyche * 3;
+  const { magicPoints: magic, psionicPoints: psionic } = derivedStats(sheet);
   const magicLeft = Math.max(0, magic - int(sheet.cast.mpSpent));
   const psionicLeft = Math.max(0, psionic - int(sheet.cast.ppSpent));
   const text = (id, value) => {
@@ -485,7 +492,7 @@ function renderCasting(root, sheet, P) {
   text("p_left", psionicLeft);
   root.querySelector("#veilPanel").classList.toggle("dormant", veil === 0);
   root.querySelector("#psyPanel").classList.toggle("dormant", psyche === 0);
-  text("nextToll", sheet.cast.freeHeal ? "Rot, level / 2" : "only Shock");
+  text("nextToll", sheet.cast.freeHeal ? `Rot, level / ${CASTING.veilHealRotDivisor}` : "only Shock");
 
   root.querySelectorAll("[data-cp]").forEach((el) => {
     const pool = castingPool(sheet, el.dataset.cp, P.total);
@@ -524,7 +531,7 @@ function renderCasting(root, sheet, P) {
     const cost = ritualCost(row);
     duration.textContent = cost ? cost.duration : "—";
     tv.textContent = cost ? cost.tv : "0";
-    shock.textContent = cost ? (cost.scar ? `${cost.exertion} +3 scar` : cost.exertion) : "0";
+    shock.textContent = cost ? (cost.scar ? `${cost.exertion} +${RITUAL.riftScarShock} scar` : cost.exertion) : "0";
     for (const el of [duration, tv, shock]) el.classList.toggle("dim", !cost);
   });
 }

@@ -1,6 +1,6 @@
 // Page 3, Testament: who the character is, their people and their story.
 import { h } from "../dom.js";
-import { ADV_TIERS, FLAW_TIERS } from "../eclipse-rules.js";
+import { ADV_TIERS, FLAW_TIERS } from "../eclipse-content.js";
 import { addRow, headRow, heading, note, panel, removeButton, tabPanel } from "./ui.js";
 
 // The editable lists on this page. `cols` says what each column holds:

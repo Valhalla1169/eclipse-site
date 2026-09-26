@@ -10,7 +10,10 @@ import { SheetFormatError, openSheet } from "./eclipse-rules.js";
 import { h } from "./dom.js";
 import { createRouter } from "./router.js";
 import { historyView } from "./history-view.js";
+import { CHAPTER_SLUG } from "./markdown.js";
 import { FALLBACK_REFRESH_MS, createRosterPanel } from "./roster-view.js";
+import * as rulebook from "./rulebook.js";
+import { chapterView, contentsView } from "./rulebook-view.js";
 import { createSheetView } from "./sheet/index.js";
 import { downloadText, fileNameForName, readSheetFile, serializeStored } from "./sheet/files.js";
 import * as views from "./views.js";
@@ -29,6 +32,8 @@ const ROUTES = [
   { name: "character", pattern: "/characters/:characterId" },
   { name: "history", pattern: "/characters/:characterId/history" },
   { name: "snapshot", pattern: "/characters/:characterId/history/:historyId" },
+  { name: "rules", pattern: "/rules" },
+  { name: "chapter", pattern: "/rules/:slug" },
   { name: "choose", pattern: "/campaign/:id/character" },
   { name: "dm", pattern: "/campaign/:id/keeper" },
   { name: "dmsheet", pattern: "/campaign/:id/keeper/:characterId" },
@@ -297,6 +302,11 @@ async function onRoute({ path, search, match, initial }) {
       return await showSnapshot({ ...here, historyId: match.params.historyId });
     }
 
+    if (match.name === "rules" || match.name === "chapter") {
+      if (!(await ensureReady({ path, initial }))) return;
+      return await showRulebook({ slug: match.params.slug, alive, announce });
+    }
+
     // choose and the DM's pages
     if (!isUuid(match.params.id)) return showHere(views.notFoundView("We could not find that campaign."), "Not found");
     if (!(await ensureReady({ path, initial }))) return;
@@ -512,6 +522,35 @@ async function showSnapshot({ user, characterId, historyId, alive, announce }) {
   });
   const bar = backBar(`${characterPath(row.id)}/history`, "Back to the history", " ", restore, " ", status);
   return show(h("div", {}, bar, view.element), displayName(row), announce, { wide: true, dispose: view.dispose });
+}
+
+// The rulebook (ADR 0016): its contents, or one chapter.
+async function showRulebook({ slug, alive, announce }) {
+  if (slug !== undefined && !CHAPTER_SLUG.test(slug)) return show(views.notFoundView("That chapter is not in the rulebook."), "Not found", announce);
+  show(views.loadingView("Loading the rulebook..."), "Rulebook", announce);
+  const [book, chapters, chapter] = await Promise.all([slug ? null : rulebook.readBook(), rulebook.listChapters(), slug ? rulebook.readChapter(slug) : null]);
+  if (!alive()) return;
+  if (!slug) return show(contentsView({ book, chapters }), book ? book.title : "Rulebook", announce);
+  if (!chapter) return show(views.notFoundView("That chapter is not in the rulebook."), "Not found", announce);
+  show(chapterView({ chapter, chapters }), chapter.title, announce);
+  showPart(announce);
+}
+
+// A link to a part of a chapter. The browser looked for that part before the chapter was drawn.
+function showPart(announce) {
+  let id = "";
+  try {
+    id = decodeURIComponent(location.hash.slice(1));
+  } catch {
+    return;
+  }
+  const part = id && document.getElementById(id);
+  if (!part || !part.closest(".chapter")) return;
+  if (announce) {
+    part.setAttribute("tabindex", "-1");
+    part.focus({ preventScroll: true });
+  }
+  part.scrollIntoView();
 }
 
 // ── The DM's pages. Read only, and only for characters active in their campaign. ──

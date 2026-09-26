@@ -278,6 +278,18 @@
     return adminOnly(c, "revoke an approval") || revokeApproval(c, body);
   }
 
+  // The rulebook (migration 0012). `c.rulebook` holds { book: { title, version }, pages:
+  // [{ position, slug, title, body }] }. Like the real grants, it answers only a signed-in
+  // person, and nobody can write it.
+  function rulebook(c, u, table, method, input, init) {
+    if (!signedIn(input, init) || method !== "GET") return json(401, { code: "42501", message: "permission denied for table " + table, details: null, hint: null });
+    var book = c.rulebook || { book: null, pages: [] };
+    if (table === "rulebook") return json(200, book.book ? [projector(u)(book.book)] : []);
+    var pages = book.pages.filter(function (p) { return matches(u, p, ["slug"]); });
+    pages.sort(function (a, b) { return a.position - b.position; });
+    return json(200, pages.map(projector(u)));
+  }
+
   document.addEventListener("securitypolicyviolation", function (e) {
     var v = JSON.parse(localStorage.getItem("__viol") || "[]");
     v.push({ directive: e.violatedDirective, blocked: e.blockedURI, file: e.sourceFile || "", line: e.lineNumber });
@@ -397,6 +409,7 @@
       return adminRpc(c, rpcName, body);
     }
 
+    if (path === "/rest/v1/rulebook" || path === "/rest/v1/rulebook_pages") return rulebook(c, u, path.slice("/rest/v1/".length), method, input, init);
     if (path === "/rest/v1/characters") return characters(c, u, method, body);
     if (path === "/rest/v1/campaign_characters" && method === "GET") return assignments(c, u);
     if (path === "/rest/v1/departed_sheets" && method === "GET") return departed(c, u);

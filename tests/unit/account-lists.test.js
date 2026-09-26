@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseRows, readArgs } from "../../scripts/account-lists.mjs";
 import { sqlFor as adminsSql } from "../../scripts/admins.mjs";
 import { sqlFor as creatorsSql } from "../../scripts/creators.mjs";
@@ -29,24 +29,55 @@ describe("parseRows", () => {
 });
 
 describe("readArgs", () => {
+  const example = "npm run admins approve you@example.com staging";
+  const read = (...words) => readArgs(["node", "admins.mjs", ...words], example);
+  afterEach(() => vi.unstubAllEnvs());
+
   it("takes plain words, so PowerShell and npm pass them through", () => {
-    expect(readArgs(["node", "admins.mjs", "approve", "a@b.co", "print-sql"])).toEqual({ command: "approve", email: "a@b.co", printSql: true, project: "live" });
-    expect(readArgs(["node", "admins.mjs", "--print-sql", "list"])).toEqual({ command: "list", email: undefined, printSql: true, project: "live" });
-    expect(readArgs(["node", "creators.mjs", "add", "a@b.co"])).toEqual({ command: "add", email: "a@b.co", printSql: false, project: "live" });
+    expect(read("approve", "a@b.co", "print-sql")).toEqual({ command: "approve", email: "a@b.co", printSql: true, project: "live" });
+    expect(read("print-sql", "list")).toEqual({ command: "list", email: undefined, printSql: true, project: "live" });
+    expect(read("add", "a@b.co")).toEqual({ command: "add", email: "a@b.co", printSql: false, project: "live" });
   });
 
   it("uses the staging project only when the last word is staging", () => {
-    expect(readArgs(["node", "admins.mjs", "list", "staging"])).toEqual({ command: "list", email: undefined, printSql: false, project: "staging" });
-    expect(readArgs(["node", "admins.mjs", "approve", "a@b.co", "staging"])).toEqual({ command: "approve", email: "a@b.co", printSql: false, project: "staging" });
-    expect(readArgs(["node", "creators.mjs", "add", "a@b.co", "staging", "print-sql"])).toEqual({ command: "add", email: "a@b.co", printSql: true, project: "staging" });
-    expect(readArgs(["node", "creators.mjs", "add", "staging", "a@b.co"]).project).toBe("live");
+    expect(read("list", "staging")).toEqual({ command: "list", email: undefined, printSql: false, project: "staging" });
+    expect(read("approve", "a@b.co", "staging")).toEqual({ command: "approve", email: "a@b.co", printSql: false, project: "staging" });
+    expect(read("add", "a@b.co", "staging", "print-sql")).toEqual({ command: "add", email: "a@b.co", printSql: true, project: "staging" });
   });
 
   // Without an email, "staging" is not taken as one.
   it("leaves no email when staging follows the command", () => {
-    const args = readArgs(["node", "admins.mjs", "approve", "staging"]);
+    const args = read("approve", "staging");
     expect(args).toEqual({ command: "approve", email: undefined, printSql: false, project: "staging" });
     expect(() => adminsSql(args.command, args.email)).toThrow(/plain email/);
+  });
+
+  // A mistyped `staging` must never fall back to the live project.
+  it("refuses a word left over", () => {
+    for (const words of [["add", "a@b.co", "stagin"], ["add", "a@b.co", "live"], ["add", "staging", "a@b.co"], ["list", "a@b.co", "b@c.de"]]) {
+      expect(read(...words), words.join(" ")).toBeNull();
+    }
+  });
+
+  // npm keeps "--staging" or "-staging" for itself as npm_config_staging, and the script
+  // gets no project word at all.
+  it.each([
+    ["--staging", "npm_config_staging"],
+    ["-staging", "npm_config_staging"],
+    ["--live", "npm_config_live"],
+    ["--print-sql", "npm_config_print_sql"],
+  ])("refuses to run when npm took %s", (_flag, variable) => {
+    vi.stubEnv(variable, "true");
+    expect(() => read("approve", "a@b.co")).toThrow(`Nothing was run. Write each word with no "-", for example:\n  ${example}`);
+  });
+
+  it.each(["--staging", "-staging", "--live", "-x"])("refuses %s given to the script itself", (flag) => {
+    expect(() => read("approve", "a@b.co", flag)).toThrow(`"${flag}" starts with "-". Nothing was run.`);
+  });
+
+  it("does not mind npm's own settings, such as the one npm run -s makes", () => {
+    vi.stubEnv("npm_config_loglevel", "silent");
+    expect(read("list").project).toBe("live");
   });
 });
 
