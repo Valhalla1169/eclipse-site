@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { MONITOR_BOXES, PROFS, RACES, SKILLS } from "../../public/js/eclipse-content.js";
+import { MONITOR_BOXES, MORALITY, PROFS, RACES, SKILLS } from "../../public/js/eclipse-content.js";
 import {
   MIGRATIONS,
+  MIGRATION_REWRITES,
   SCHEMA_VERSION,
   SheetFormatError,
   armorDegradation,
@@ -18,12 +19,14 @@ import {
   migrate,
   normalize,
   openSheet,
+  overSkillCap,
   overflowPool,
   penalties,
   ritualCost,
   setCondition,
   setOverflow,
   shieldDegradation,
+  skillCap,
   skillPool,
   soak,
   summarizeSheet,
@@ -32,6 +35,7 @@ import {
   weaponPool,
   weights,
 } from "../../public/js/eclipse-rules.js";
+import { parseSheetFile } from "../../public/js/sheet/files.js";
 
 const withBase = (values, sheet = blank()) => {
   Object.assign(sheet.base, values);
@@ -117,7 +121,7 @@ describe("normalize", () => {
 
   it("repairs a wrong-typed number, because the sheet cannot show it", () => {
     const sheet = normalize({ ...blank(), starve: "lots", morality: null, sanity: undefined });
-    expect([sheet.starve, sheet.morality, sheet.sanity]).toEqual([0, 5, 8]);
+    expect([sheet.starve, sheet.morality, sheet.sanity]).toEqual([0, 6, 8]);
   });
 
   it("refuses data that cannot be a sheet, so the caller never overwrites it", () => {
@@ -150,7 +154,7 @@ describe("migrate and openSheet", () => {
   });
 
   it("opens a current sheet for editing", () => {
-    const opened = openSheet({ data: { id: { name: "Marlo" } }, schema_version: 1 });
+    const opened = openSheet({ data: { id: { name: "Marlo" } }, schema_version: SCHEMA_VERSION });
     expect(opened).toMatchObject({ readOnly: false, migrated: false });
     expect(opened.sheet.id.name).toBe("Marlo");
   });
@@ -177,6 +181,84 @@ describe("migrate and openSheet", () => {
   it("has a migration step for every version below SCHEMA_VERSION", () => {
     for (let version = 1; version < SCHEMA_VERSION; version += 1) {
       expect(MIGRATIONS[version], `MIGRATIONS[${version}]`).toBeTypeOf("function");
+    }
+    for (const version of Object.keys(MIGRATION_REWRITES)) expect(MIGRATIONS[version], `MIGRATION_REWRITES[${version}]`).toBeTypeOf("function");
+  });
+});
+
+describe("version 1 to 2: Morality runs the book's way", () => {
+  // Version 1's words, from level 1 up.
+  const V1_WORDS = ["Monstrous", "Cruel", "Ruthless", "Hardened", "Pragmatic", "Human", "Decent", "Principled", "Selfless", "Luminous"];
+  const step = MIGRATIONS[1];
+  const moralityAfter = (stored) => openSheet({ data: stored, schema_version: 1 }).sheet.morality;
+  const wordOf = (level) => MORALITY[level - 1].t;
+
+  // A sheet as version 1 stored it: the same fields as today, and a level that ran the other way.
+  const v1Sheet = () => {
+    const data = blank();
+    data.id = { ...data.id, name: "Aria Vance", race: "hallowed", prof: "Paramedic / EMT", master: "Medicine" };
+    data.skills = { Medicine: 3, Stealth: 2 };
+    data.notes.shock = "fell off the overpass";
+    data.morality = 3;
+    data.homebrew = { scar: "left hand" };
+    return data;
+  };
+
+  it("runs from 1, the most selfless, to 10, the most monstrous", () => {
+    expect([wordOf(1), wordOf(10)]).toEqual(["Luminous", "Monstrous"]);
+  });
+
+  it.each([
+    [1, 10], [2, 9], [3, 8], [4, 7], [5, 6], [6, 5], [7, 4], [8, 3], [9, 2], [10, 1],
+  ])("moves a stored %i to %i, the same word", (before, after) => {
+    expect(moralityAfter({ morality: before })).toBe(after);
+    expect(wordOf(after)).toBe(V1_WORDS[before - 1]);
+  });
+
+  it.each([
+    [0, 0], [-3, 0], [0.4, 0], [11, 1], [99, 1], [3.4, 8], [3.5, 7],
+  ])("moves a stored %s, out of range or not whole, to %i", (before, after) => {
+    expect(moralityAfter({ morality: before })).toBe(after);
+  });
+
+  it.each([["missing", {}], ["null", { morality: null }], ["text", { morality: "7" }], ["a list", { morality: [3] }]])(
+    "gives a %s Morality the word version 1 showed, Pragmatic",
+    (_, stored) => {
+      expect(step(stored).morality).toBe(6);
+      expect(wordOf(moralityAfter(stored))).toBe(V1_WORDS[5 - 1]);
+    },
+  );
+
+  it("starts a new sheet on the word a new version 1 sheet started on", () => {
+    expect(wordOf(blank().morality)).toBe(V1_WORDS[5 - 1]);
+  });
+
+  it("changes nothing else, keeps unknown fields, and leaves its input alone", () => {
+    const data = v1Sheet();
+    const before = structuredClone(data);
+    expect(step(data)).toEqual({ ...before, morality: 8 });
+    expect(data).toEqual(before);
+  });
+
+  it("opens a stored version 1 sheet at the same word, ready to save at the current version", () => {
+    const opened = openSheet({ data: v1Sheet(), schema_version: 1 });
+    expect(opened).toMatchObject({ readOnly: false, migrated: true, schemaVersion: SCHEMA_VERSION });
+    expect(opened.sheet).toMatchObject({ morality: 8, homebrew: { scar: "left hand" }, skills: { Medicine: 3 }, notes: { shock: "fell off the overpass" } });
+    expect(summarizeSheet(opened.sheet).morality).toEqual({ value: 8, label: V1_WORDS[3 - 1] });
+  });
+
+  it("migrates an old .eclipse file on import like a stored row, with or without a version", () => {
+    for (const file of [{ ...v1Sheet(), schemaVersion: 1 }, v1Sheet()]) {
+      const sheet = parseSheetFile(JSON.stringify(file));
+      expect(sheet).toMatchObject({ morality: 8, homebrew: { scar: "left hand" } });
+      expect(sheet).not.toHaveProperty("schemaVersion");
+    }
+  });
+
+  it("leaves data that cannot be a sheet for normalize to refuse", () => {
+    for (const bad of [null, undefined, "text", 5, [], [{}]]) {
+      expect(step(bad)).toBe(bad);
+      expect(() => openSheet({ data: bad, schema_version: 1 })).toThrow(SheetFormatError);
     }
   });
 });
@@ -337,6 +419,33 @@ describe("skills", () => {
     sheet.skills.Psionics = 3;
     expect(castingPool(sheet, "Sorcery", 1).shown).toBe(4);
     expect(castingPool(sheet, "Psionics", 0).shown).toBe(5);
+  });
+
+  it.each([[1, 2], [3, 6], [5, 10], [6, 10], [9, 10]])("caps a skill at twice its attribute, and at 10: attribute %i caps at %i", (attribute, cap) => {
+    expect(skillCap(withBase({ cla: attribute }), "cla")).toBe(cap);
+  });
+
+  it("flags a rating above the cap, not one at it", () => {
+    const sheet = withBase({ cla: 3, ins: 6 });
+    for (const [skill, rating, over] of [["Tactics", 6, false], ["Tactics", 7, true], ["Stealth", 10, false], ["Stealth", 11, true]]) {
+      sheet.skills[skill] = rating;
+      expect(overSkillCap(sheet, skill), `${skill} ${rating}`).toBe(over);
+    }
+  });
+
+  it("counts the Master Skill bonus in the rating it caps", () => {
+    const sheet = withBase({ cla: 3 });
+    sheet.id.master = "Engineering";
+    sheet.skills.Engineering = 4;
+    expect(overSkillCap(sheet, "Engineering")).toBe(false);
+    sheet.skills.Engineering = 5;
+    expect(overSkillCap(sheet, "Engineering")).toBe(true);
+  });
+
+  it("caps Dodge by Instinct, the attribute it is linked to, not the Dodge Pool", () => {
+    const sheet = withBase({ ins: 2, cla: 9 });
+    sheet.skills.Dodge = 5;
+    expect(overSkillCap(sheet, "Dodge")).toBe(true);
   });
 
   it("computes a weapon pool from its skill, and none without one", () => {
@@ -532,7 +641,7 @@ describe("summarizeSheet", () => {
       soak: { ballistic: 0, impact: 0 },
       load: { pounds: 0, tier: "Unburdened", penalty: 0 },
       sanity: { value: 8, label: "steady" },
-      morality: { value: 5, label: "Pragmatic" },
+      morality: { value: 6, label: "Pragmatic" },
       starveDays: 0,
     });
   });
@@ -552,6 +661,13 @@ describe("summarizeSheet", () => {
       starveDays: 6,
     });
     expect(summary.penalty).toBe(2 + 5 + 3 + 1);
+  });
+
+  it("names the nearest word for a hand-edited level that is not whole", () => {
+    const sheet = blank();
+    sheet.morality = 3.5;
+    sheet.sanity = 7.4;
+    expect(summarizeSheet(sheet)).toMatchObject({ morality: { value: 4, label: "Decent" }, sanity: { value: 7, label: "holding" } });
   });
 
   it("does not fail on a race or profession the book does not have", () => {

@@ -1,6 +1,7 @@
 import { expect, test as base } from "@playwright/test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { SCHEMA_VERSION } from "../../public/js/eclipse-rules.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REF = "eosnplpgzqahwgaytauu";
@@ -95,7 +96,7 @@ export const FIRST_STAMP = "2026-09-19T11:00:00.000123+00:00";
 export const characterRow = (data, extra = {}) => ({
   id: CHARACTER_ID,
   owner_id: ids.player,
-  schema_version: 1,
+  schema_version: SCHEMA_VERSION,
   character_name: (data.id && data.id.name) || "",
   data,
   updated_at: FIRST_STAMP,

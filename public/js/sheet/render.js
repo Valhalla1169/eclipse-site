@@ -32,6 +32,7 @@ import {
   carriedQuantity,
   int,
   num,
+  overSkillCap,
   penalties,
   psyAP,
   r1,
@@ -40,6 +41,7 @@ import {
   raceOf,
   ritualCost,
   shieldDegradation,
+  skillCap,
   skillPool,
   soak,
   total,
@@ -213,16 +215,12 @@ export function renderSheet(root, sheet) {
 }
 
 function renderSkills(root, sheet, P, active) {
-  for (const [, attrKey, list] of SKILLS) {
+  for (const [, attrKey] of SKILLS) {
     const cap = root.querySelector(`[data-cap="${attrKey}"]`);
-    if (!cap) continue;
-    const hasMaster = list.includes(sheet.id.master);
-    cap.textContent = `max ${total(sheet, attrKey)}${hasMaster ? ", master exempt" : ""}`;
-    cap.classList.toggle("exempt", hasMaster);
+    if (cap) cap.textContent = `max ${skillCap(sheet, attrKey)}`;
   }
   root.querySelectorAll(".srow").forEach((row) => {
     const name = row.dataset.skill;
-    const attrKey = row.dataset.attr;
     const level = row.querySelector("[data-sk]");
     const other = row.querySelector("[data-so]");
     const out = row.querySelector(".pool");
@@ -232,8 +230,8 @@ function renderSkills(root, sheet, P, active) {
     if (level !== active) level.value = sheet.skills[name] ?? "";
     if (other !== active) other.value = sheet.sother[name] ?? "";
 
-    // A Master Skill is exempt from the linked attribute cap.
-    level.classList.toggle("over", !master && pool.level > total(sheet, attrKey));
+    const over = overSkillCap(sheet, name);
+    level.classList.toggle("over", over);
     row.classList.toggle("trained", pool.rating > 0);
     row.classList.toggle("master", master);
     const badge = label.querySelector(".mbadge");
@@ -249,7 +247,7 @@ function renderSkills(root, sheet, P, active) {
       (pool.extra ? (pool.extra < 0 ? ` − ${Math.abs(pool.extra)} other` : ` + ${pool.extra} other`) : "") +
       (pool.penalty ? ` − ${pool.penalty} penalty` : "") +
       (pool.rating === 0 ? ` (untrained: +${UNTRAINED_STAGES} difficulty stages)` : "") +
-      (master ? " · exempt from the attribute cap" : "");
+      (over ? ` · rating ${pool.rating} is above the cap of ${skillCap(sheet, row.dataset.attr)}` : "");
   });
 }
 

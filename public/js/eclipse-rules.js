@@ -28,13 +28,14 @@ import {
   SANITY,
   SHIELD_DEGRADE_STEP,
   SKILLS,
+  SKILL_CAP,
   SPECIALS,
   STARVATION,
   START,
   TRACK_MAX,
 } from "./eclipse-content.js";
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const ATTR_NAMES = Object.fromEntries([...ATTRS, ...SPECIALS].map((attr) => [attr.k, attr.n]));
 export const NO_RACIAL_ABILITY = RACES.human.abil;
@@ -186,14 +187,28 @@ export function normalize(data) {
   return sheet;
 }
 
+// Version 1 ran Morality the other way, 10 the most selfless. It had 10 levels, 0 for
+// not recorded, and read a missing number as 5. The mirror level keeps the word.
+function moralityFromVersion1(stored) {
+  const level = typeof stored === "number" ? Math.min(10, Math.max(0, Math.round(stored))) : 5;
+  return level === 0 ? 0 : 11 - level;
+}
+
 // Steps that bring older stored data up to the next version. MIGRATIONS[n] takes
 // version n data and returns version n + 1 data. Every version below SCHEMA_VERSION
 // needs one (tests/unit/eclipse-rules.test.js checks none is missing); a rules change
-// that only adds a field or a table row needs no step at all (docs/adr/0013).
+// that only adds a field or a table row needs no step at all (docs/adr/0013). A step
+// uses the numbers of its own version, not the current ones in eclipse-content.js.
 //
 // Changelog — one line per bump, so the whole history is in this one file:
-//   (none yet: every sheet has been version 1)
-export const MIGRATIONS = {};
+//   1 → 2: Morality runs the book's way, 1 the most selfless and 10 the most monstrous (docs/adr/0017).
+export const MIGRATIONS = {
+  1: (data) => (isPlainObject(data) ? { ...data, morality: moralityFromVersion1(data.morality) } : data),
+};
+
+// The stored fields each step gives a new value on purpose, so `npm run rehearse`
+// does not report their old values as lost.
+export const MIGRATION_REWRITES = { 1: ["morality"] };
 
 export function migrate(data, from, { to = SCHEMA_VERSION, steps = MIGRATIONS } = {}) {
   let current = data;
@@ -205,10 +220,13 @@ export function migrate(data, from, { to = SCHEMA_VERSION, steps = MIGRATIONS } 
   return current;
 }
 
+// A missing or bad stored version is version 1.
+export const storedVersion = (version) => (Number.isInteger(version) && version >= 1 ? version : 1);
+
 // What the app does with a stored row. A sheet from a newer version is shown but
 // never saved: an old page must not overwrite what a newer one wrote.
 export function openSheet({ data, schema_version: version }, { current = SCHEMA_VERSION, steps = MIGRATIONS } = {}) {
-  const stored = Number.isInteger(version) && version >= 1 ? version : 1;
+  const stored = storedVersion(version);
   const newer = stored > current;
   const sheet = normalize(newer ? data : migrate(data, stored, { to: current, steps }));
   return { sheet, readOnly: newer, migrated: !newer && stored < current, schemaVersion: current };
@@ -255,6 +273,8 @@ export const profBonus = (sheet, k) => (professionOf(sheet)?.a === k ? PROFESSIO
 export const modOf = (sheet, k) => racial(sheet, k) + profBonus(sheet, k);
 export const total = (sheet, k) => int(sheet.base[k]) + modOf(sheet, k) + int(sheet.oth[k]);
 export const ratingOf = (sheet, name) => int(sheet.skills[name]) + (sheet.id.master === name ? MASTER_BONUS : 0);
+export const skillCap = (sheet, attrKey) => Math.min(SKILL_CAP.max, SKILL_CAP.perAttribute * total(sheet, attrKey));
+export const overSkillCap = (sheet, name) => ratingOf(sheet, name) > skillCap(sheet, own(SKILL_ATTR, name));
 export const overflowPool = (sheet) => Math.max(1, fdiv(total(sheet, "ess"), DERIVED_DIVISOR.overflow));
 
 // The dice lost to days without rations. The steps are in rising order.
@@ -407,7 +427,8 @@ export function dyingState(sheet, penalty) {
 }
 
 export const criticalMonitor = (sheet) => CRITICAL_MONITORS.find((c) => sheet.cm[c.track] >= MONITOR_BOXES) || null;
-export const clampTrack = (value) => Math.min(TRACK_MAX, Math.max(0, value));
+// A whole level, so a hand-edited 3.5 still names a word.
+export const clampTrack = (value) => Math.min(TRACK_MAX, Math.max(0, Math.round(value)));
 
 // What the Keeper's roster shows about a sheet: the numbers a Keeper reaches for during play.
 export function summarizeSheet(sheet) {

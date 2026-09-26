@@ -68,6 +68,23 @@ describe("rehearseSheet", () => {
     const result = rehearseSheet({ ...row, schema_version: 1 }, { current: 2, steps });
     expect(result.status).toBe("ok");
   });
+
+  it("does not count a field a step rewrites on purpose as lost, and still catches the rest", () => {
+    const stored = { ...row, data: { id: { name: "Aria Vance" }, morality: 7 } };
+    const rewrites = { 1: ["morality"] };
+    expect(rehearseSheet(stored, { current: 2, steps: { 1: (data) => ({ ...data, morality: 4 }) }, rewrites })).toMatchObject({ status: "ok" });
+    const dropsName = { 1: (data) => ({ ...data, morality: 4, id: {} }) };
+    expect(rehearseSheet(stored, { current: 2, steps: dropsName, rewrites })).toMatchObject({ status: "lost-data", detail: ["id.name"] });
+  });
+
+  it("excuses a rewritten field only when its step ran", () => {
+    const current = { ...row, schema_version: 2, data: { id: { name: "Aria Vance" }, morality: "seven" } };
+    expect(rehearseSheet(current, { current: 2, steps: {}, rewrites: { 1: ["morality"] } })).toMatchObject({ status: "lost-data", detail: ["morality"] });
+  });
+
+  it("passes the real Morality step on a version 1 sheet", () => {
+    for (const morality of [2, 7, 9, 10]) expect(rehearseSheet({ ...row, data: { ...row.data, morality } }), `morality ${morality}`).toMatchObject({ status: "ok" });
+  });
 });
 
 describe("summaryLine", () => {

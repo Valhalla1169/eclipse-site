@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { blank } from "../../public/js/eclipse-rules.js";
+import { SCHEMA_VERSION, blank } from "../../public/js/eclipse-rules.js";
 import { anotherTab, callsTo, campaign, characterRow, expect, ids, open, otherDeviceSaves, patchMock, players, seed, sheetPath, storedCharacter, test } from "./helpers.js";
 
 const { dana, dm } = players;
@@ -62,7 +62,7 @@ test.describe("loading", () => {
 
   test("a sheet from a newer version is read-only and never saved over", async ({ page }) => {
     const data = named("Marlo", { fromTheFuture: { keep: true } });
-    await openSheet(page, { character: characterRow(data, { schema_version: 2 }) });
+    await openSheet(page, { character: characterRow(data, { schema_version: SCHEMA_VERSION + 1 }) });
     await expect(page.getByRole("alert")).toContainText("newer version");
     await expect(page.locator("#f_name")).toHaveValue("Marlo");
     expect(await page.locator("#page1").evaluate((el) => el.inert)).toBe(true);
@@ -94,7 +94,7 @@ test.describe("saving", () => {
     expect(patch.query).toContain("id=eq.40000000-0000-4000-8000-000000000001");
     expect(decodeURIComponent(patch.query)).toContain("updated_at=eq.2026-09-19T11:00:00.000123+00:00");
     expect(Object.keys(patch.body).sort()).toEqual(["character_name", "data", "schema_version"]);
-    expect(patch.body).toMatchObject({ character_name: "Marlo Vance", schema_version: 1 });
+    expect(patch.body).toMatchObject({ character_name: "Marlo Vance", schema_version: SCHEMA_VERSION });
     expect(patch.body.data.id.name).toBe("Marlo Vance");
 
     // the second save uses the updated_at the first one returned
@@ -481,7 +481,7 @@ test.describe(".eclipse files", () => {
     const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Save a copy" }).click()]);
     expect(download.suggestedFilename()).toBe("Marlo-Vance.eclipse");
     const file = JSON.parse(await readFile(await download.path(), "utf8"));
-    expect(file.schemaVersion).toBe(1);
+    expect(file.schemaVersion).toBe(SCHEMA_VERSION);
     expect(file.id.name).toBe("Marlo Vance!");
     expect(file.base).toBeTruthy();
   });
@@ -491,7 +491,7 @@ test.describe(".eclipse files", () => {
 
   test("Loading a file asks first, and then replaces the live sheet and saves it", async ({ page }) => {
     await openSheet(page, { character: characterRow(named("Marlo")) });
-    const file = { ...named("From the file"), schemaVersion: 1, extra: "kept" };
+    const file = { ...named("From the file"), schemaVersion: SCHEMA_VERSION, extra: "kept" };
     await upload(page, JSON.stringify(file));
     await expect(page.getByRole("heading", { name: "Load this file?" })).toBeVisible();
     await expect(page.locator("#f_name")).toHaveValue("Marlo");
@@ -523,7 +523,7 @@ test.describe(".eclipse files", () => {
 
   test("a file that is not a character is refused and the sheet is unchanged", async ({ page }) => {
     await openSheet(page, { character: characterRow(named("Marlo")) });
-    for (const bad of ["not json", JSON.stringify({ hello: 1 }), JSON.stringify([1, 2]), JSON.stringify({ ...named("x"), schemaVersion: 9 })]) {
+    for (const bad of ["not json", JSON.stringify({ hello: 1 }), JSON.stringify([1, 2]), JSON.stringify({ ...named("x"), schemaVersion: SCHEMA_VERSION + 1 })]) {
       await upload(page, bad);
       await expect(page.getByRole("alert")).toBeVisible();
       await expect(page.locator("#f_name")).toHaveValue("Marlo");
@@ -590,8 +590,37 @@ test.describe("the sheet itself", () => {
     await expect(page.locator("#san_state")).toHaveText("steady · 8/10");
     await page.locator('[data-san="2"]').click();
     await expect(page.locator("#san_state")).toHaveText("unravelling · 3/10");
+    await expect(page.locator("#mor_state")).toHaveText("Pragmatic · 6/10");
+    await expect(page.locator(".mor-ends span")).toHaveText(["Luminous", "Monstrous"]);
+    await page.locator('[data-mor="0"]').click();
+    await expect(page.locator("#mor_state")).toHaveText("Luminous · 1/10");
     await page.locator('[data-mor="9"]').click();
-    await expect(page.locator("#mor_state")).toHaveText("Luminous · 10/10");
+    await expect(page.locator("#mor_state")).toHaveText("Monstrous · 10/10");
+  });
+
+  test("a sheet stored before Morality ran the book's way keeps its word, and saves at the new version", async ({ page }) => {
+    await openSheet(page, { character: characterRow(named("Marlo", { morality: 3, oldField: "kept" }), { schema_version: 1 }) });
+    await expect(page.locator("#mor_state")).toHaveText("Ruthless · 8/10");
+    await expect(page.locator('[data-mor="7"]')).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator('[data-mor="8"]')).toHaveAttribute("aria-pressed", "false");
+    await page.locator("#f_bg").fill("Farm");
+    await saved(page);
+    const [patch] = await callsTo(page, CHARACTERS, "PATCH");
+    expect(patch.body).toMatchObject({ schema_version: SCHEMA_VERSION, data: { morality: 8, oldField: "kept", id: { bg: "Farm" } } });
+  });
+
+  test("a skill above twice its attribute is flagged, Master Skill bonus included", async ({ page }) => {
+    const data = named("Marlo");
+    data.base.cla = 2;
+    data.id.master = "Engineering";
+    data.skills = { Engineering: 2, Tactics: 4 };
+    await openSheet(page, { character: characterRow(data) });
+    await expect(page.locator('[data-cap="cla"]')).toHaveText("max 4");
+    await expect(page.locator('[data-sk="Tactics"]')).not.toHaveClass(/over/);
+    await expect(page.locator('[data-sk="Engineering"]')).not.toHaveClass(/over/);
+    await page.locator('[data-sk="Engineering"]').fill("3");
+    await expect(page.locator('[data-sk="Engineering"]')).toHaveClass(/over/);
+    await expect(page.locator('[data-pool="Engineering"]')).toHaveAttribute("title", /rating 5 is above the cap of 4/);
   });
 
   test("rows can be added and removed, and one blank row always stays", async ({ page }) => {

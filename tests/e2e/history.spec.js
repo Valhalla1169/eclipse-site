@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { blank } from "../../public/js/eclipse-rules.js";
+import { SCHEMA_VERSION, blank } from "../../public/js/eclipse-rules.js";
 import { CHARACTER_ID, FIRST_STAMP, assignmentRow, calls, callsTo, campaign, characterRow, expect, ids, open, otherDeviceSaves, players, seed, sheetPath, storedCharacter, test } from "./helpers.js";
 
 const { dana, dm } = players;
@@ -17,7 +17,7 @@ const CURRENT = sheetOf("Marlo Vance", (d) => (d.cm.trauma = 5));
 const snapshot = (id, reason, savedAt, data, extra = {}) => ({
   id,
   character_id: CHARACTER_ID,
-  schema_version: 1,
+  schema_version: SCHEMA_VERSION,
   character_name: data.id.name,
   data,
   reason,
@@ -73,7 +73,7 @@ test.describe("the history list", () => {
     const [download] = await Promise.all([page.waitForEvent("download"), items(page).nth(1).getByRole("button", { name: "Save a copy" }).click()]);
     expect(download.suggestedFilename()).toBe("Marlo-V.eclipse");
     const file = JSON.parse(await readFile(await download.path(), "utf8"));
-    expect(file).toMatchObject({ schemaVersion: 1, id: { name: "Marlo V." }, cm: { shock: 2 } });
+    expect(file).toMatchObject({ schemaVersion: SCHEMA_VERSION, id: { name: "Marlo V." }, cm: { shock: 2 } });
   });
 
   test("someone else's character, and a bad id, are not found", async ({ page }) => {
