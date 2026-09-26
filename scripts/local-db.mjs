@@ -33,6 +33,16 @@ export function psql(args, { db = "postgres", stopOnError = true } = {}) {
   return spawnSync(psqlBin, flags, { encoding: "utf8", cwd: root });
 }
 
+// Runs a psql call and throws with just its ERROR lines if it failed. DETAIL and
+// CONTEXT lines can quote a whole row, so only ERROR lines are kept.
+export function must(r, what) {
+  if (r.status !== 0) {
+    const errors = (r.stderr || "").split(/\r?\n/).filter((l) => l.includes("ERROR"));
+    throw new Error(`Could not ${what}.\n${errors.join("\n") || (r.error ? r.error.message : "")}`);
+  }
+  return r.stdout;
+}
+
 export function die(message) {
   console.error(message);
   process.exit(1);

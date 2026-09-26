@@ -36,7 +36,8 @@ A two-question checklist for changing the rules, plus one guard test.
      `eclipse-rules.js` directly. `normalize()` already fills in a default for anyone missing the new
      field. No version bump, no migration.
    - Yes: bump `SCHEMA_VERSION`, add a `MIGRATIONS[old version]` step, and add a unit test for that
-     step against a small sample of real old-shape data (not just a synthetic object).
+     step against a small sample of real old-shape data (not just a synthetic object). Then rehearse
+     it: make a fresh backup and run `npm run rehearse` on it before the pull request is merged.
 2. **Is a named table row (a race, a profession, a skill, a spell school) being renamed or removed?**
    - Renamed: that's a `migrate()` step like any other — rewrite the stored key.
    - Removed: don't delete the row. Mark it retired and leave it out of the pickers offered when
