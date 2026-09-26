@@ -1,6 +1,7 @@
-// What the owner's tools share. They change the lists that no client can write:
-// public.campaign_creators (`npm run creators`, ADR 0005), and public.site_admins and
-// public.approved_emails (`npm run admins`, ADR 0014).
+// What the owner's tools share. They change the tables that no client can write:
+// public.campaign_creators (`npm run creators`, ADR 0005), public.site_admins and
+// public.approved_emails (`npm run admins`, ADR 0014), and the rulebook
+// (`npm run rulebook`, ADR 0016).
 //
 // They run SQL on the live project, or on the staging project when the last word is
 // `staging` (how: supabase-target.mjs).
@@ -51,8 +52,13 @@ export function parseRows(stdout) {
 }
 
 // project: "live" or "staging".
-export function runSql(sql, project = "live") {
-  const r = supabase(target(project), ["db", "query", "--linked", "--output-format", "json", sql]);
+export const runSql = (sql, project = "live") => query([sql], project);
+
+// For SQL longer than a command line can hold (about 32 KB on Windows).
+export const runSqlFile = (file, project = "live") => query(["--file", file], project);
+
+function query(source, project) {
+  const r = supabase(target(project), ["db", "query", "--linked", "--output-format", "json", ...source]);
   if (r.status !== 0) {
     throw new Error(`The Supabase CLI failed. Are you logged in (npx supabase login)${project === "live" ? " and linked to the live project" : ""}?\n` + ((r.stderr || "") + (r.stdout || "")).trim().slice(-600));
   }

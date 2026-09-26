@@ -1,4 +1,4 @@
--- Self-asserting privilege tests (ADR 0003, extended by 0004, 0005, 0011 and 0014).
+-- Self-asserting privilege tests (ADR 0003, extended by 0004, 0005, 0011, 0014 and 0016).
 --
 -- rls_policies / rls_hardening / access_model / history prove what RLS allows
 -- GIVEN a role may touch a table at all. This file proves the GRANT layer
@@ -130,13 +130,31 @@ select pg_temp.expect(
   and (select array_agg(roles::text) from pg_policies where schemaname = 'public' and tablename = 'approved_emails') = array['{supabase_auth_admin}'],
   'G5d: RLS is on for both; site_admins has no policy, and approved_emails has one, for supabase_auth_admin only');
 
+-- rulebook and rulebook_pages: a signed-in person reads them, and no client writes them (0012).
+select pg_temp.expect(
+  not exists (
+    select 1 from unnest(array['public.rulebook','public.rulebook_pages']) as t(tbl)
+    where not has_table_privilege('authenticated', t.tbl, 'select')
+       or pg_temp.cols('authenticated', t.tbl, 'insert') <> '{}'
+       or pg_temp.cols('authenticated', t.tbl, 'update') <> '{}'
+       or has_table_privilege('authenticated', t.tbl, 'delete')),
+  'G18: authenticated can only READ rulebook and rulebook_pages, not even one column can be written (0012)');
+select pg_temp.expect(
+  (select relrowsecurity from pg_class where oid = 'public.rulebook'::regclass)
+  and (select relrowsecurity from pg_class where oid = 'public.rulebook_pages'::regclass)
+  and (select array_agg(tablename::text || ' ' || cmd || ' ' || roles::text order by tablename)
+       from pg_policies where schemaname = 'public' and tablename in ('rulebook', 'rulebook_pages'))
+      = array['rulebook SELECT {authenticated}', 'rulebook_pages SELECT {authenticated}'],
+  'G18b: RLS is on for both, and each has one policy: select, for authenticated only');
+
 -- ── no client role holds the dangerous or unused privileges ──────────────
 select pg_temp.expect(
   not exists (
     select 1
     from unnest(array['public.profiles','public.campaigns','public.campaign_players','public.characters',
                       'public.campaign_creators','public.campaign_invites','public.character_history',
-                      'public.campaign_characters','public.departed_sheets','public.site_admins','public.approved_emails']) as t(tbl),
+                      'public.campaign_characters','public.departed_sheets','public.site_admins','public.approved_emails',
+                      'public.rulebook','public.rulebook_pages']) as t(tbl),
          unnest(array['anon','authenticated']) as r(role),
          unnest(array['truncate','references','trigger']) as p(priv)
     where has_table_privilege(r.role, t.tbl, p.priv)),
@@ -148,7 +166,8 @@ select pg_temp.expect(
     select 1
     from unnest(array['public.profiles','public.campaigns','public.campaign_players','public.characters',
                       'public.campaign_creators','public.campaign_invites','public.character_history',
-                      'public.campaign_characters','public.departed_sheets','public.site_admins','public.approved_emails']) as t(tbl),
+                      'public.campaign_characters','public.departed_sheets','public.site_admins','public.approved_emails',
+                      'public.rulebook','public.rulebook_pages']) as t(tbl),
          unnest(array['select','insert','update','delete']) as p(priv)
     where has_table_privilege('anon', t.tbl, p.priv)),
   'G11: anon has no select/insert/update/delete on any table');

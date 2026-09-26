@@ -88,7 +88,7 @@ export function createRouter({ table, onRoute, beforeLeave = () => true }) {
     const url = new URL(link.href, location.href);
     if (url.origin !== location.origin) return;
     event.preventDefault();
-    go(url.pathname + url.search);
+    go(url.pathname + url.search + url.hash);
   });
 
   // Moving between anchors on one page (the skip link, then Back) keeps the view. So

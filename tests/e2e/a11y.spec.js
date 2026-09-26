@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { blank } from "../../public/js/eclipse-rules.js";
-import { CHARACTER_ID, assignmentRow, campaign, characterRow, expect, ids, open, players, seed, sheetPath, test } from "./helpers.js";
+import { CHARACTER_ID, RULEBOOK, assignmentRow, campaign, characterRow, expect, ids, open, players, seed, sheetPath, test } from "./helpers.js";
 
 // An automated accessibility check (DESIGN.md sections 4 and 6.4) of every page, in the
 // lightest and the darkest theme. It finds what a machine can find, mainly contrast,
@@ -64,6 +64,17 @@ for (const theme of ["latte", "mocha"]) {
       await open(page, "/join/ABCDEF0123");
       await expect(page.getByRole("heading", { name: "Join Age of Eclipse?" })).toBeVisible();
       await expectClean(page, "join confirmation");
+    });
+
+    test("the rulebook's contents and a chapter", async ({ page }) => {
+      await seed(page, { mock: { profile: players.dana.profile, rulebook: RULEBOOK }, user: players.dana });
+      await setTheme(page);
+      await open(page, "/rules");
+      await expectClean(page, "/rules");
+      for (const slug of ["getting-started", "moving-about"]) {
+        await open(page, `/rules/${slug}`);
+        await expectClean(page, `/rules/${slug}`);
+      }
     });
 
     test("every page of the sheet", async ({ page }) => {

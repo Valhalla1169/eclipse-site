@@ -157,6 +157,33 @@ npm run creators remove someone@example.com
 
 Players join only through an invite link the Keeper creates on the Keeper page.
 
+## Rulebook
+
+Signed-in people read the player's rulebook at `/rules` (ADR 0016). Its text is **never** in this repo,
+which is public: its Markdown is in a separate private repo, and you upload it with the CLI and your own
+login. The folder must be outside this repo. It holds `book.json`, `{"title": "...", "version": "..."}`,
+and one file for each chapter, named `<number>_<words>.md`: `05_combat_basics.md` is chapter 5, at
+`/rules/combat-basics`, and its first `# ` heading is its title.
+
+1. Migration `0012_rulebook.sql` must be on the project first (Releasing a change, step 3).
+2. Upload to staging, and read it at `http://localhost:8787/rules` with `npm run dev`:
+
+   ```
+   npm run rulebook push D:\eclipse-rulebook\chapters staging
+   ```
+
+3. Then upload the same folder to live:
+
+   ```
+   npm run rulebook push D:\eclipse-rulebook\chapters
+   ```
+
+Each upload replaces the whole book in one transaction, so readers see the old book or the new one. It
+checks every file first and uploads nothing if one is wrong. It prints the chapters' titles and counts,
+never their text. A chapter holds at most 256 KB. The reader shows the Markdown a rulebook needs
+(headings, lists, tables, quotes, code, links to `#part`, `/rules/<slug>` and `https:`); raw HTML and
+other links show as text, and images show their alt text.
+
 ## Deploying
 
 Cloudflare Workers Builds is connected to this repo: every merge into `main` deploys the site. A push to another branch builds it but does not deploy it. `npm run deploy` deploys from this machine, for when that fails.
@@ -194,7 +221,7 @@ the new database for a while.
 | `public/` | The site: `index.html`, `style.css`, `sheet.css`, `script.js` (theme), `js/` (the app; `js/sheet/` is the character sheet), `vendor/` (the pinned Supabase client), `fonts/` (self-hosted sheet fonts), `_headers` (CSP and security headers) |
 | `supabase/migrations/` | The schema, policies and grants |
 | `supabase/tests/` | The database test suites and their harness |
-| `scripts/` | `test-db` and `backup-check` (with `local-db`, what they share), `backup`, `creators` and `admins` (with `account-lists`, what they share), `dev` (serves a copy of `public/` that talks to staging), `staging` (pushes migrations and settings to staging), `supabase-target` and `projects` (pick live or staging for the scripts above), `vendor` (copies the Supabase client and the fonts into `public/`) |
+| `scripts/` | `test-db` and `backup-check` (with `local-db`, what they share), `backup`, `creators`, `admins` and `rulebook` (with `account-lists`, what they share), `dev` (serves a copy of `public/` that talks to staging), `staging` (pushes migrations and settings to staging), `supabase-target` and `projects` (pick live or staging for the scripts above), `vendor` (copies the Supabase client and the fonts into `public/`) |
 | `tests/unit/` | Unit tests |
 | `tests/e2e/` | Browser tests (Playwright) and the fake Supabase they use |
 | `docs/adr/` | Why the design is the way it is |
