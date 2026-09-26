@@ -15,6 +15,13 @@ export const headRow = (...columns) =>
     h("tr", {}, ...columns.map(([label, width, centered]) => h("th", { class: [width, centered && "c"].filter(Boolean).join(" ") || null }, label || h("span", { class: "sr-only" }, "Remove")))),
   );
 
+// A grid with one column per item: the CSS reads the count from --n.
+export function gridOf(count, props, ...children) {
+  const grid = h("div", props, ...children);
+  grid.style.setProperty("--n", String(count));
+  return grid;
+}
+
 export const addRow = (target, label) => h("button", { class: "addrow", type: "button", "data-add": target }, label);
 export const removeButton = (attrs) => h("button", { class: "rm", type: "button", "aria-label": "Remove row", ...attrs }, "×");
 

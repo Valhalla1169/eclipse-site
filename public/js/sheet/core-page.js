@@ -1,12 +1,30 @@
 // Page 1, Core: identity, attributes, skills, condition monitors, dial, weapons.
 import { h, s } from "../dom.js";
-import { ATTRS, COMBAT_SKILLS, MONITOR_BOXES, RACES, SKILLS, SPECIALS, TRACK_MAX, WEAPON_MODES, ALL_SKILLS } from "../eclipse-rules.js";
-import { headRow, heading, panel, tabPanel } from "./ui.js";
+import {
+  ACTIONS,
+  AIM,
+  ATTRS,
+  BURST,
+  CASTING,
+  COMBAT_SKILLS,
+  DERIVED_DIVISOR,
+  DYING,
+  MASTER_BONUS,
+  MONITORS,
+  MONITOR_BOXES,
+  RACES,
+  SHIELD_DEGRADE_STEP,
+  SKILLS,
+  SPECIALS,
+  STARVATION,
+  TRACK_MAX,
+  UNTRAINED_STAGES,
+  WEAPON_MODES,
+} from "../eclipse-content.js";
+import { ALL_SKILLS } from "../eclipse-rules.js";
+import { gridOf, headRow, heading, panel, tabPanel } from "./ui.js";
 
-export const DAYS_WITHOUT_RATIONS = 12;
 export const CORONA_TICKS = 36;
-const FATAL_DAY = DAYS_WITHOUT_RATIONS - 1;
-const PENALTY_DAYS = [2, 5, 8, 11];
 
 const skillId = (name) => `sk_${name.replace(/\W/g, "")}`;
 
@@ -36,7 +54,7 @@ function identityBand() {
       ),
     ),
     identityField(
-      { id: "f_master", label: "Master skill +2" },
+      { id: "f_master", label: `Master skill +${MASTER_BONUS}` },
       h("select", { id: "f_master" }, h("option", { value: "" }, "none"), ...ALL_SKILLS.map((name) => h("option", { value: name }, name))),
     ),
     identityField({ id: "f_bg", label: "Background" }, h("input", { id: "f_bg" })),
@@ -89,14 +107,14 @@ function leftColumn() {
       h(
         "div",
         { class: "derived" },
-        derivedStat("Action Pts", "d_ap", "ECLIPS / 3", "hl"),
+        derivedStat("Action Pts", "d_ap", `ECLIPS / ${DERIVED_DIVISOR.actionPoints}`, "hl"),
         derivedStat("Initiative", "d_init", "1d10 + Ins", "hl"),
-        derivedStat("Passive Perc.", "d_pperc", "C+San+Psy / 3"),
-        derivedStat("Dodge Pool", "d_dodge", "I+C / 3"),
-        derivedStat("Pers. Soak", "d_psoak", "(E+I+S) / 8"),
-        derivedStat("Overflow", "d_over", "Essence / 3"),
-        derivedStat("Magic Pts", "d_mp", "Veil × 3", "rift"),
-        derivedStat("Psionic Pts", "d_pp", "Psyche × 3", "rift"),
+        derivedStat("Passive Perc.", "d_pperc", `C+San+Psy / ${DERIVED_DIVISOR.passivePerception}`),
+        derivedStat("Dodge Pool", "d_dodge", `I+C / ${DERIVED_DIVISOR.dodgePool}`),
+        derivedStat("Pers. Soak", "d_psoak", `(E+I+S) / ${DERIVED_DIVISOR.personalSoak}`),
+        derivedStat("Overflow", "d_over", `Essence / ${DERIVED_DIVISOR.overflow}`),
+        derivedStat("Magic Pts", "d_mp", `Veil × ${CASTING.pointsPerRating}`, "rift"),
+        derivedStat("Psionic Pts", "d_pp", `Psyche × ${CASTING.pointsPerRating}`, "rift"),
       ),
     ),
     panel(
@@ -109,13 +127,13 @@ function leftColumn() {
           "div",
           { class: "trk" },
           h("div", { class: "trk-top" }, h("span", { class: "trk-name san" }, "Sanity"), h("span", { class: "trk-state", id: "san_state" }, "stable")),
-          h("div", { class: "san-track", id: "bx_sanity" }, toggleTrack("sb", "data-san", TRACK_MAX, (i) => `Sanity ${i + 1} of ${TRACK_MAX}`)),
+          gridOf(TRACK_MAX, { class: "san-track", id: "bx_sanity" }, toggleTrack("sb", "data-san", TRACK_MAX, (i) => `Sanity ${i + 1} of ${TRACK_MAX}`)),
         ),
         h(
           "div",
           { class: "trk" },
           h("div", { class: "trk-top" }, h("span", { class: "trk-name" }, "Morality"), h("span", { class: "trk-state", id: "mor_state" }, "Human")),
-          h("div", { class: "mor-track", id: "bx_morality" }, toggleTrack("mb", "data-mor", TRACK_MAX, (i) => `Morality ${i + 1} of ${TRACK_MAX}`)),
+          gridOf(TRACK_MAX, { class: "mor-track", id: "bx_morality" }, toggleTrack("mb", "data-mor", TRACK_MAX, (i) => `Morality ${i + 1} of ${TRACK_MAX}`)),
           h("div", { class: "mor-ends" }, h("span", {}, "Monstrous"), h("span", {}, "Selfless")),
         ),
       ),
@@ -169,7 +187,7 @@ function middleColumn() {
       {},
       heading(
         "Skills",
-        h("span", { class: "legend" }, "Untrained skills roll at +2 difficulty"),
+        h("span", { class: "legend" }, `Untrained skills roll at +${UNTRAINED_STAGES} difficulty`),
         h("label", { class: "ptoggle" }, h("input", { type: "checkbox", id: "applyPen", checked: true }), " subtract dice penalty"),
       ),
       h("div", { class: "skillcols", id: "skillCols" }, SKILLS.map(skillGroup)),
@@ -189,7 +207,7 @@ function middleColumn() {
         gearField("sh_i", "AV I", { value: "0" }),
         gearField("sh_ap", "AP act", { value: "0" }),
       ),
-      h("div", { class: "degrade" }, degradeColumn("Armor degradation", "a", "0"), degradeColumn("Shield degradation", "sh", "10")),
+      h("div", { class: "degrade" }, degradeColumn("Armor degradation", "a", "0"), degradeColumn("Shield degradation", "sh", SHIELD_DEGRADE_STEP)),
     ),
   );
 }
@@ -227,12 +245,25 @@ function weaponsPanel(count) {
       headRow(["Weapon", "w15"], ["Skill", "w12"], ["Pool", "w6", true], ["AP", "w5", true], ["DMG", "w5", true], ["Range", "w7", true], ["Modes", "w10", true], ["Load", "w6", true], ["Res", "w6", true], ["Notes", "w28"]),
       h("tbody", { id: "weaponRows" }, Array.from({ length: count }, (_, i) => weaponRow(i))),
     ),
-    h("div", { class: "wtag" }, "AP is the single action cost · Burst Fire costs AP +1 and adds +2 damage · Aim: 1 AP = +1 die and bypasses 1 armor AV"),
+    h(
+      "div",
+      { class: "wtag" },
+      `AP is the single action cost · Burst Fire costs AP +${BURST.ap} and adds +${BURST.damage} damage · Aim: ${ACTIONS.aim.ap} AP = +${AIM.dice} die and bypasses ${AIM.armorIgnored} armor AV`,
+    ),
   );
 }
 
+// One box per day up to the day that kills. A day that starts a penalty, or kills, is labelled.
+export const starvationDays = () =>
+  Array.from({ length: STARVATION.deathDay }, (_, i) => {
+    const day = i + 1;
+    const fatal = day === STARVATION.deathDay;
+    const step = STARVATION.penalties.find((p) => p.days === day);
+    return { day, fatal, label: fatal ? "death" : step ? `−${step.dice}` : "" };
+  });
+
 function starvationPanel() {
-  const scale = ["", "", "−1", "", "", "−3", "", "", "−5", "", "", "death"];
+  const days = starvationDays();
   return panel(
     { class: "span2", id: "starvePanel" },
     heading("Starvation"),
@@ -243,20 +274,20 @@ function starvationPanel() {
       h(
         "div",
         { class: "stv-mid" },
-        h(
-          "div",
+        gridOf(
+          days.length,
           { class: "stv-track", id: "stv_track" },
-          Array.from({ length: DAYS_WITHOUT_RATIONS }, (_, i) =>
+          days.map(({ day, fatal, label }) =>
             h("button", {
-              class: ["dbx", i === FATAL_DAY && "fatal", PENALTY_DAYS.includes(i) && "mark"].filter(Boolean).join(" "),
+              class: ["dbx", fatal && "fatal", label && "mark"].filter(Boolean).join(" "),
               type: "button",
-              "data-d": i,
+              "data-d": day - 1,
               "aria-pressed": "false",
-              "aria-label": `Day ${i + 1} without rations`,
+              "aria-label": `Day ${day} without rations`,
             }),
           ),
         ),
-        h("div", { class: "stv-scale" }, scale.map((label) => h("span", {}, label))),
+        gridOf(days.length, { class: "stv-scale" }, days.map(({ label }) => h("span", {}, label))),
       ),
       h("div", { class: "stv-pen" }, h("span", { class: "l" }, "Penalty"), h("span", { class: "n", id: "stv_pen" }, "0")),
     ),
@@ -352,34 +383,32 @@ function dialPanel(sheet) {
   );
 }
 
-function monitorRow(track, thresholdId, penaltyId, boxesId, placeholder, label) {
+const MONITOR_HINTS = {
+  shock: "what caused it, e.g. 2 blast, 1 terror",
+  trauma: "e.g. 3 raider rifle, 1 fall",
+  rot: "e.g. 2 disease, 1 swamp exposure",
+};
+
+function monitorRow({ track, name }) {
   return h(
     "div",
     { class: `cm-row cm-${track}`, "data-track": track },
     h(
       "div",
       { class: "cm-top" },
-      h("span", { class: "cm-name" }, label),
-      h("span", { class: "cm-meta" }, "every ", h("b", { id: thresholdId }, "1"), " → ", h("span", { class: "cm-pen", id: penaltyId }, "0")),
+      h("span", { class: "cm-name" }, name),
+      h("span", { class: "cm-meta" }, "every ", h("b", { id: `thr_${track}` }, "1"), " → ", h("span", { class: "cm-pen", id: `pen_${track}` }, "0")),
     ),
-    h("div", { class: "boxes", id: boxesId }, Array.from({ length: MONITOR_BOXES }, (_, i) => h("button", { class: "bx", type: "button", "data-t": track, "data-i": i, "aria-pressed": "false", "aria-label": `${label} box ${i + 1}` }))),
-    h("input", { class: "cmnote", "data-note": track, placeholder, "aria-label": `${label} notes` }),
+    gridOf(
+      MONITOR_BOXES,
+      { class: "boxes", id: `bx_${track}` },
+      Array.from({ length: MONITOR_BOXES }, (_, i) => h("button", { class: "bx", type: "button", "data-t": track, "data-i": i, "aria-pressed": "false", "aria-label": `${name} box ${i + 1}` })),
+    ),
+    h("input", { class: "cmnote", "data-note": track, placeholder: MONITOR_HINTS[track], "aria-label": `${name} notes` }),
   );
 }
 
-function monitorsPanel() {
-  return panel(
-    {},
-    heading("Condition Monitors"),
-    h(
-      "div",
-      { class: "cm" },
-      monitorRow("shock", "thr_shock", "pen_shock", "bx_shock", "what caused it, e.g. 2 blast, 1 terror", "Shock"),
-      monitorRow("trauma", "thr_trauma", "pen_trauma", "bx_trauma", "e.g. 3 raider rifle, 1 fall", "Trauma"),
-      monitorRow("rot", "thr_rot", "pen_rot", "bx_rot", "e.g. 2 disease, 1 swamp exposure", "Rot"),
-    ),
-  );
-}
+const monitorsPanel = () => panel({}, heading("Condition Monitors"), h("div", { class: "cm" }, MONITORS.map(monitorRow)));
 
 function dyingPanel() {
   return panel(
@@ -400,9 +429,14 @@ function dyingPanel() {
       h("div", { class: "dy-track", id: "dy_over" }),
       h("p", { class: "dy-note", id: "dy_hint" }),
       h("span", { class: "dy-flag", id: "dy_flag", hidden: true }, "Stabilized"),
-      h("label", { class: "dy-aid" }, h("input", { type: "checkbox", "data-dy": "aided" }), h("span", {}, "Stabilized by an ally. 5 AP and 1 medical supply unit.")),
+      h(
+        "label",
+        { class: "dy-aid" },
+        h("input", { type: "checkbox", "data-dy": "aided" }),
+        h("span", {}, `Stabilized by an ally. ${ACTIONS.stabilizeAlly.ap} AP and ${DYING.allySupplies} medical supply unit.`),
+      ),
     ),
-    h("p", { class: "dy-idle" }, "Wakes up at 10 Trauma. Until then, none of this applies to you."),
+    h("p", { class: "dy-idle" }, `Wakes up at ${MONITOR_BOXES} Trauma. Until then, none of this applies to you.`),
   );
 }
 

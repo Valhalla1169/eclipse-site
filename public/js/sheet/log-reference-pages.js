@@ -39,6 +39,16 @@ export function buildLogPage(sheet) {
   );
 }
 
+// All rows go in a tbody, where the parser puts them in the static tables, so both kinds look the same.
+const refCell = (tag, cell) => (typeof cell === "string" ? h(tag, {}, cell) : h(tag, { class: "n" }, cell.n));
+const refTable = ({ head, rows }) =>
+  h(
+    "table",
+    {},
+    h("tbody", {}, head ? h("tr", {}, head.map((label) => refCell("th", label))) : null, rows.map((row) => h("tr", {}, row.map((cell) => refCell("td", cell))))),
+  );
+const refPart = (part) => (typeof part === "string" ? staticHtml(part) : refTable(part));
+
 export function buildReferencePage() {
   return tabPanel(
     "page5",
@@ -53,7 +63,7 @@ export function buildReferencePage() {
     h(
       "div",
       { class: "refcols", id: "refCards" },
-      REFERENCE.map((card, i) => h("article", { class: "rc", "data-ref": i }, h("h2", {}, h("span", {}, card.t), h("span", { class: "cat" }, card.c)), h("div", { class: "body" }, staticHtml(card.html)))),
+      REFERENCE.map((card, i) => h("article", { class: "rc", "data-ref": i }, h("h2", {}, h("span", {}, card.t), h("span", { class: "cat" }, card.c)), h("div", { class: "body" }, card.body.map(refPart)))),
     ),
     h("p", { class: "refempty hide", id: "refEmpty" }, "Nothing matches that. Try a shorter word."),
   );
