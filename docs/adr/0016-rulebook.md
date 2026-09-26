@@ -31,15 +31,17 @@ next to their sheets. Its authors have not published it. The owner's decisions:
    signed-out visitor who asks the Data API gets 401. The pages send a signed-out
    visitor to sign in and back.
 3. **Upload.** `npm run rulebook push <folder> [staging]` reads a folder outside this repo (it refuses one
-   inside): `book.json` with the title and version, and one `<number>_<words>.md` file for each chapter.
+   inside it or inside any other clone of it): `book.json` with the title and version, and one
+   `<number>_<words>.md` file for each chapter.
    `05_combat_basics.md` is place 5 at `/rules/combat-basics`, and its first `# ` heading is its title. It
    checks every file first and uploads nothing if one is wrong. It replaces the whole book in one
    transaction, so a reader sees the old book or the new one. The text goes into the SQL as base64, so no
    chapter can end a string or add a statement. The SQL goes to the CLI in a file (`db query --file`),
-   because a Windows command line holds about 32 KB and the book is about 1 MB. It prints counts and
-   titles, never the text. Like
-   `npm run admins`, it uses the owner's CLI login, and the live project unless the last word is
-   `staging`.
+   because a Windows command line holds about 32 KB and the book is about 1 MB, and deletes the file when
+   the CLI stops, also on Ctrl+C. It prints counts and titles, never the text, and never the CLI's own
+   answer, which can quote it. Like `npm run admins`, it uses the owner's CLI login, says which project
+   it uses before it acts, and uses the live project unless the last word is `staging`. It refuses a word
+   that starts with `-`, because npm keeps `--staging` for itself and the script would use live.
 4. **Safe reading.** `markdown.js` turns the Markdown into a tree, then into DOM with `h()`, so the text
    is only ever text nodes (the rendering rule in CLAUDE.md). It reads headings (each with an id, `sec-`
    and its GitHub-style slug, so no heading can take the id of a part of the page), paragraphs, bold and
@@ -53,6 +55,9 @@ next to their sheets. Its authors have not published it. The owner's decisions:
 
 - The book's text is readable by every approved person, and by the owner through the dashboard. Anyone
   signed in can save what they read; the site cannot stop that, and does not try.
+- The policy lets every signed-in token read the book, so anonymous sign-ins, which would give a token to
+  anyone, must stay off (`enable_anonymous_sign_ins = false` in both Supabase config files, checked by
+  `tests/unit/config.test.js`).
 - The migration goes to staging and live first, then the pages merge. The book is uploaded to staging
   first, checked at `npm run dev`, then uploaded to live.
 - The reader does not do everything Markdown can: no footnotes, reference-style links, HTML entities or

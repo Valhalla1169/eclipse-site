@@ -12,9 +12,9 @@
 // `npx supabase link`) and asks for the database password. `npx supabase db dump` needs
 // no password, but it runs pg_dump in Docker.
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import path, { join, resolve } from "node:path";
+import path, { dirname, join, resolve } from "node:path";
 import { isMain } from "./account-lists.mjs";
 import { die, pgTool, root } from "./local-db.mjs";
 
@@ -23,6 +23,26 @@ export const defaultFolder = (home = homedir()) => join(home, "Documents", "Ecli
 export function isInside(folder, parent, p = path) {
   const rel = p.relative(parent, folder);
   return !(rel === ".." || rel.startsWith(".." + p.sep) || p.isAbsolute(rel));
+}
+
+// "owner/name" of a GitHub remote's URL, in lower case, or null.
+export const githubRepo = (url) => /github\.com[:/]+([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/i.exec(url.trim())?.[1].toLowerCase() ?? null;
+
+export const PUBLIC_REPO = githubRepo(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).repository.url);
+
+// The first git work tree at or above `folder` that has this public repo as a remote,
+// or null. Another clone is as public as this one. A work tree whose remotes git cannot
+// read counts as one. Nothing that git prints is shown.
+export function publicCloneAround(folder) {
+  for (let dir = folder; ; dir = dirname(dir)) {
+    if (existsSync(join(dir, ".git"))) {
+      const r = spawnSync("git", ["-C", dir, "config", "--local", "--get-regexp", "^remote\\..*\\.url$"], { encoding: "utf8" });
+      // Status 1: no remote.
+      if (r.error || (r.status !== 0 && r.status !== 1)) return dir;
+      if (r.stdout.split("\n").some((line) => githubRepo(line.slice(line.indexOf(" ") + 1)) === PUBLIC_REPO)) return dir;
+    }
+    if (dirname(dir) === dir) return null;
+  }
 }
 
 // UTC, so the names sort by time: eclipse-backup-2026-09-25-134512Z.sql
@@ -109,7 +129,7 @@ export function formatSize(bytes) {
 
 // pg_dump writes <file>.partial; the file is written only when the dump is whole.
 export function backup({ url, folder, pgDump = pgTool("pg_dump"), now = new Date() }) {
-  if (isInside(folder, root)) throw new Error(`${folder} is inside the repo. Keep backups outside it: they hold secrets, and the repo is public.`);
+  if (isInside(folder, root) || publicCloneAround(folder)) throw new Error(`${folder} is inside a copy of the repo. Keep backups outside it: they hold secrets, and the repo is public.`);
   mkdirSync(folder, { recursive: true });
   const file = join(folder, backupFileName(now));
   const partial = file + ".partial";

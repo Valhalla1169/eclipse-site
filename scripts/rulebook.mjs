@@ -16,9 +16,12 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSyn
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseMarkdown, textOf } from "../public/js/markdown.js";
-import { isMain, runSqlFile } from "./account-lists.mjs";
-import { formatSize, isInside } from "./backup.mjs";
+import { CliFailed, LOGIN_HINT, announce, isMain, readWords, runSqlFile } from "./account-lists.mjs";
+import { formatSize, isInside, publicCloneAround } from "./backup.mjs";
 import { root } from "./supabase-target.mjs";
+
+const USAGE = "Usage: npm run rulebook push <folder>   (add staging for the staging project)";
+const EXAMPLE = "npm run rulebook push <folder> staging";
 
 // The same limits as the checks in supabase/migrations/0012_rulebook.sql.
 export const LIMITS = { bodyBytes: 262144, title: 200, version: 100 };
@@ -66,9 +69,12 @@ function readInfo(folder) {
 // in their order. Throws with every problem it finds.
 export function readBook(folder, repo = root) {
   if (!existsSync(folder) || !statSync(folder).isDirectory()) throw new Error(`${folder} is not a folder.`);
-  if (isInside(realpathSync(folder), realpathSync(repo))) {
+  const real = realpathSync(folder);
+  if (isInside(real, realpathSync(repo))) {
     throw new Error(`${folder} is inside this repo. The book's text must never be in it: the repo is public.`);
   }
+  const clone = publicCloneAround(real);
+  if (clone) throw new Error(`${folder} is inside ${clone}, a copy of this repo. The book's text must never be in it: the repo is public.`);
   const { title, version, problem } = readInfo(folder);
   const problems = problem ? [problem] : [];
   const chapters = [];
@@ -123,42 +129,54 @@ export function databaseError(output) {
   return m ? m[1].replaceAll('\\"', '"').trim() : null;
 }
 
-// ["push", folder] or ["push", folder, "staging"]; anything else is null.
-export function readArgs(words) {
-  const [command, folder, project, ...rest] = words;
-  if (command !== "push" || !folder || rest.length || (project !== undefined && project !== "staging")) return null;
-  return { folder, project: project || "live" };
+// push <folder> [staging], or null. Any other word, even `live`, is refused, so a
+// mistyped `staging` never falls back to the live project.
+export function readArgs(args, env = process.env) {
+  const { words, project, printSql } = readWords(args, EXAMPLE, env);
+  const [command, folder, ...rest] = words;
+  return command === "push" && folder && !rest.length && !printSql ? { folder, project } : null;
 }
 
-function push({ folder, project }) {
-  const book = readBook(folder);
-  if (project === "staging") console.log("On the staging project.");
-  console.log(`${book.title}, version ${book.version}: ${book.chapters.length} chapters.`);
-  for (const chapter of book.chapters) console.log(`  ${String(chapter.position).padStart(4)}  /rules/${chapter.slug}  ${chapter.title}`);
+// Runs the upload's SQL: the row that says what the project now holds, or undefined.
+// The CLI's own answer is never shown, because it can quote a chapter.
+function upload(book, project) {
   const dir = mkdtempSync(join(tmpdir(), "eclipse-rulebook-"));
+  // Ctrl+C would end this process at once, and leave the whole book in the temp folder.
+  // This way it stops only the CLI, and `finally` deletes the folder.
+  const stayForCleanup = () => {};
+  process.on("SIGINT", stayForCleanup);
   try {
     const file = join(dir, "push.sql");
     writeFileSync(file, pushSql(book));
-    let stored;
     try {
-      [stored] = runSqlFile(file, project);
+      return runSqlFile(file, project)[0];
     } catch (err) {
-      throw new Error(`The upload failed, so the book on the project did not change.\n${databaseError(err.message) || err.message}`);
+      if (err instanceof CliFailed) throw new Error(`The upload failed, so the book on the project did not change.\n${databaseError(err.message) || LOGIN_HINT}`);
+      return undefined;
     }
-    if (!stored || Number(stored.chapters) !== book.chapters.length) throw new Error("The project did not answer with the new book. Check it on the site.");
-    console.log(`Uploaded: ${stored.chapters} chapters, ${formatSize(Number(stored.bytes))} of text.`);
   } finally {
+    process.off("SIGINT", stayForCleanup);
     rmSync(dir, { recursive: true, force: true });
   }
 }
 
+function push({ folder, project }) {
+  announce(project);
+  const book = readBook(folder);
+  console.log(`${book.title}, version ${book.version}: ${book.chapters.length} chapters.`);
+  for (const chapter of book.chapters) console.log(`  ${String(chapter.position).padStart(4)}  /rules/${chapter.slug}  ${chapter.title}`);
+  const stored = upload(book, project);
+  if (!stored || Number(stored.chapters) !== book.chapters.length) throw new Error("The project did not answer with the new book. Check it on the site.");
+  console.log(`Uploaded: ${stored.chapters} chapters, ${formatSize(Number(stored.bytes))} of text.`);
+}
+
 if (isMain(import.meta.url)) {
-  const args = readArgs(process.argv.slice(2));
-  if (!args) {
-    console.log("Usage: npm run rulebook push <folder>   (add staging for the staging project)");
-    process.exit(process.argv.length > 2 ? 1 : 0);
-  }
   try {
+    const args = readArgs(process.argv.slice(2));
+    if (!args) {
+      console.log(USAGE);
+      process.exit(process.argv.length > 2 ? 1 : 0);
+    }
     push({ ...args, folder: resolve(process.env.INIT_CWD || process.cwd(), args.folder) });
   } catch (err) {
     console.error(err.message);

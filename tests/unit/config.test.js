@@ -39,6 +39,10 @@ describe.each([
     expect(section(config, "auth").enable_signup).toBe("true");
   });
 
+  it("keeps anonymous sign-ins off, because every signed-in token reads the rulebook", () => {
+    expect(section(config, "auth").enable_anonymous_sign_ins).toBe("false");
+  });
+
   it("turns the before-user-created hook on, pointing at the function the migration makes", () => {
     const hook = section(config, "auth.hook.before_user_created");
     expect(hook, "[auth.hook.before_user_created] is missing").not.toBeNull();

@@ -93,25 +93,40 @@ function closingTicks(text, from, length) {
   return -1;
 }
 
-// The ] that closes the [ at `open`, past escapes and code spans, or -1.
-function closingBracket(text, open) {
-  let depth = 0;
-  for (let i = open; i < text.length; i++) {
+// A ] is never at 0, so 0 can mean "not known yet".
+const NOT_KNOWN = 0;
+const NEVER_CLOSES = -1;
+
+// The ] that closes the [ at `open`, past escapes and code spans, or -1. `known` holds
+// the answer for each [ that a search went past, so each [ is read once. When an inner
+// [ never closes, the outer one does not either.
+function closingBracket(text, open, known) {
+  if (known[open] !== NOT_KNOWN) return known[open];
+  const opens = [];
+  let i = open;
+  while (i < text.length) {
     const ch = text[i];
-    if (ch === "\\") i++;
+    if (ch === "\\") i += 2;
     else if (ch === "`") {
       const ticks = matchAt(text, i, TICKS)[0].length;
       const end = closingTicks(text, i + ticks, ticks);
-      i = (end < 0 ? i : end) + ticks - 1;
-    } else if (ch === "[") depth++;
-    else if (ch === "]" && --depth === 0) return i;
+      i = (end < 0 ? i : end) + ticks;
+    } else if (ch === "[" && known[i] === NEVER_CLOSES) break;
+    else if (ch === "[" && known[i] !== NOT_KNOWN) i = known[i] + 1;
+    else if (ch === "[") opens.push(i++);
+    else if (ch === "]") {
+      known[opens.pop()] = i;
+      if (!opens.length) return i;
+      i++;
+    } else i++;
   }
-  return -1;
+  for (const start of opens) known[start] = NEVER_CLOSES;
+  return NEVER_CLOSES;
 }
 
 // [label](destination "title") from the [ at `open`: { label, destination, end }, or null.
-function readLink(text, open) {
-  const close = closingBracket(text, open);
+function readLink(text, open, known) {
+  const close = closingBracket(text, open, known);
   if (close < 0 || text[close + 1] !== "(") return null;
   let i = skip(text, close + 2);
   let destination;
@@ -163,33 +178,32 @@ function emphasis(items) {
     opener.count > 0 &&
     opener.canOpen &&
     !((opener.canClose || closer.canOpen) && (opener.length + closer.length) % 3 === 0 && (opener.length % 3 || closer.length % 3));
-  let c = 0;
-  while (c < items.length) {
-    const closer = items[c];
-    if (!closer.delim || !closer.canClose || closer.count === 0) {
-      c++;
-      continue;
+  // The items read so far. A pair takes the items between its runs from the end of
+  // `done`, so no other item moves.
+  const done = [];
+  for (const item of items) {
+    while (item.delim && item.canClose && item.count > 0) {
+      const key = `${item.delim}${item.canOpen}${item.length % 3}`;
+      let o = done.length - 1;
+      while (o >= 0 && !(done[o].delim && pairs(done[o], item))) o = done[o] === floors.get(key) ? -1 : o - 1;
+      if (o < 0) {
+        floors.set(key, item);
+        break;
+      }
+      const opener = done[o];
+      const used = opener.count >= 2 && item.count >= 2 ? 2 : 1;
+      opener.count -= used;
+      item.count -= used;
+      done.push(el(used === 2 ? "strong" : "em", {}, tidy(done.splice(o + 1))));
     }
-    const key = `${closer.delim}${closer.canOpen}${closer.length % 3}`;
-    let o = c - 1;
-    while (o >= 0 && !(items[o].delim && pairs(items[o], closer))) o = items[o] === floors.get(key) ? -1 : o - 1;
-    if (o < 0) {
-      floors.set(key, closer);
-      c++;
-      continue;
-    }
-    const opener = items[o];
-    const used = opener.count >= 2 && closer.count >= 2 ? 2 : 1;
-    opener.count -= used;
-    closer.count -= used;
-    items.splice(o + 1, c - o - 1, el(used === 2 ? "strong" : "em", {}, tidy(items.slice(o + 1, c))));
-    c = o + 2;
+    done.push(item);
   }
-  return tidy(items);
+  return tidy(done);
 }
 
 function parseInline(text, inLink = false) {
   const items = [];
+  const brackets = new Int32Array(text.length);
   let buffer = "";
   const push = (...nodes) => {
     if (buffer) items.push(buffer);
@@ -206,12 +220,17 @@ function parseInline(text, inLink = false) {
     } else if (ch === "\\" && ASCII_PUNCT.test(text[i + 1] || "")) {
       buffer += text[i + 1];
       i += 2;
-    } else if (ch === "\n") {
-      const hard = / {2,}$/.test(buffer);
-      buffer = buffer.replace(/ +$/, "");
-      if (hard) push(el("br"));
-      else buffer += "\n";
-      i = skip(text, i + 1, /[ \t]/);
+    } else if (ch === " " || ch === "\n") {
+      const spaces = skip(text, i, / /);
+      if (text[spaces] !== "\n") {
+        buffer += text.slice(i, spaces);
+        i = spaces;
+      } else {
+        // Two spaces or more at the end of a line make a hard break.
+        if (spaces - i >= 2) push(el("br"));
+        else buffer += "\n";
+        i = skip(text, spaces + 1, /[ \t]/);
+      }
     } else if (ch === "`") {
       const ticks = matchAt(text, i, TICKS)[0];
       const end = closingTicks(text, i + ticks.length, ticks.length);
@@ -220,7 +239,7 @@ function parseInline(text, inLink = false) {
         i += ticks.length;
       } else {
         const code = text.slice(i + ticks.length, end).replace(/\n/g, " ");
-        push(el("code", {}, [/^ (?=.*[^ ]).* $/.test(code) ? code.slice(1, -1) : code]));
+        push(el("code", {}, [/^ (?=.*[^ ]).* $/s.test(code) ? code.slice(1, -1) : code]));
         i = end + ticks.length;
       }
     } else if (ch === "<" && !inLink && (found = matchAt(text, i, AUTOLINK))) {
@@ -228,10 +247,10 @@ function parseInline(text, inLink = false) {
       if (href) push(link(href, [found[1]]));
       else buffer += found[0];
       i += found[0].length;
-    } else if (ch === "!" && text[i + 1] === "[" && (found = readLink(text, i + 1))) {
+    } else if (ch === "!" && text[i + 1] === "[" && (found = readLink(text, i + 1, brackets))) {
       buffer += parseInline(found.label, true).map(textOf).join("");
       i = found.end;
-    } else if (ch === "[" && !inLink && (found = readLink(text, i))) {
+    } else if (ch === "[" && !inLink && (found = readLink(text, i, brackets))) {
       const children = parseInline(found.label, true);
       const href = safeHref(found.destination);
       if (href) push(link(href, children));
@@ -264,13 +283,30 @@ function parseInline(text, inLink = false) {
 
 const isBlank = (line) => /^[ \t]*$/.test(line);
 const indentOf = (line) => line.length - line.trimStart().length;
-const FENCE = /^( {0,3})(`{3,}|~{3,})(.*)$/;
-const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/;
+// No two quantifiers in a pattern may match the same characters side by side: on a
+// long line that does not match, the engine would try every way to split them. The s
+// flag lets . match U+2028 and U+2029, which may be inside a line.
+const FENCE = /^( {0,3})(`{3,}|~{3,})(.*)$/s;
+const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*))?$/s;
 const RULE = /^ {0,3}(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})$/;
-const QUOTE = /^ {0,3}> ?(.*)$/;
-const ITEM = /^( {0,3})([-+*]|\d{1,9}[.)])([ \t]+|$)(.*)$/;
+const QUOTE = /^ {0,3}> ?(.*)$/s;
+const ITEM = /^( {0,3})([-+*]|\d{1,9}[.)])([ \t]+|$)(.*)$/s;
 const UNDERLINE = /^ {0,3}(=+|-+)[ \t]*$/;
-const DELIMITER_ROW = /^ *\|? *:?-+:? *(?:\| *:?-+:? *)*\|? *$/;
+const DELIMITER_ROW = /^ *(?:\| *)?:?-+:? *(?:\| *:?-+:? *)*(?:\| *)?$/;
+
+// Where the run of `chars` that ends at `end` starts.
+function runStart(text, end, chars) {
+  while (end > 0 && chars.includes(text[end - 1])) end--;
+  return end;
+}
+
+// A heading's text, without the run of # that may close it after a space or tab.
+function headingText(rest) {
+  let end = runStart(rest, rest.length, " \t");
+  const hashes = runStart(rest, end, "#");
+  if (hashes > 0 && hashes < end && " \t".includes(rest[hashes - 1])) end = runStart(rest, hashes, " \t");
+  return rest.slice(0, end);
+}
 
 function fenceAt(line) {
   const m = FENCE.exec(line);
@@ -381,7 +417,7 @@ function blocks(lines, context) {
       i++;
       add(el("pre", {}, [el("code", {}, [code.join("\n")])]));
     } else if ((m = HEADING.exec(line))) {
-      add(heading(m[1].length, m[2] || "", context));
+      add(heading(m[1].length, headingText(m[2] || ""), context));
       i++;
     } else if (RULE.test(line)) {
       add(el("hr"));
@@ -428,12 +464,16 @@ export function parseMarkdown(markdown) {
     .split("\n")
     .map((line) => line.replace(/^[ \t]+/, (indent) => indent.replace(/\t/g, "    ")));
   const used = new Set();
+  const counts = new Map();
   const context = {
     tables: 0,
     // GitHub's rule for a heading used twice: combat, then combat-1.
     uniqueId(base) {
       let id = base;
-      for (let n = 1; used.has(id); n++) id = `${base}-${n}`;
+      while (used.has(id)) {
+        counts.set(base, (counts.get(base) ?? 0) + 1);
+        id = `${base}-${counts.get(base)}`;
+      }
       used.add(id);
       return id;
     },

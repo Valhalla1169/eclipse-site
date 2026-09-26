@@ -47,8 +47,8 @@ test.describe("the rulebook", () => {
     await signedIn(page);
     await open(page, "/rules/moving-about");
     const table = chapter(page).getByRole("table");
-    await expect(table.getByRole("columnheader")).toHaveText(["Pace", "Squares", "Noise", "Stamina", "Hunger", "Distance", "Visibility", "Cost"]);
-    await expect(table.getByRole("cell", { name: "Noise2" })).toHaveClass("align-center");
+    await expect(table.getByRole("columnheader")).toHaveText(["Colour", "Apple", "Banana", "Cherry", "Grape", "Lemon", "Mango", "Plum"]);
+    await expect(table.getByRole("cell", { name: "Banana2" })).toHaveClass("align-center");
     await expect(table.getByRole("row")).toHaveCount(3);
     const box = chapter(page).getByRole("region", { name: "Table 1" });
     expect(await box.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);

@@ -116,7 +116,8 @@ export const assignmentRow = (characterId = CHARACTER_ID, extra = {}) => ({
 export const sheetPath = (id = CHARACTER_ID) => `/characters/${id}`;
 
 // A made-up rulebook for the fake database. The real book is never in this repo (ADR 0016).
-const wideRow = (n) => `| Pace${n} | ${["Squares", "Noise", "Stamina", "Hunger", "Distance", "Visibility"].map((word) => `${word}${n}`).join(" | ")} | ${n * 2} |`;
+const FRUIT = ["Apple", "Banana", "Cherry", "Grape", "Lemon", "Mango"];
+const wideRow = (n) => `| Colour${n} | ${FRUIT.map((fruit) => `${fruit}${n}`).join(" | ")} | ${n * 2} |`;
 export const RULEBOOK = {
   book: { title: "A Made-up Field Guide", version: "sample 3" },
   pages: [
@@ -148,7 +149,7 @@ export const RULEBOOK = {
       body: [
         "# Moving About",
         "",
-        "| Pace | Squares | Noise | Stamina | Hunger | Distance | Visibility | Cost |",
+        `| Colour | ${FRUIT.join(" | ")} | Plum |`,
         "|:--|:-:|:-:|:-:|:-:|:-:|:-:|--:|",
         wideRow(1),
         wideRow(2),

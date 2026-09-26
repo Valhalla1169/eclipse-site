@@ -161,7 +161,7 @@ Players join only through an invite link the Keeper creates on the Keeper page.
 
 Signed-in people read the player's rulebook at `/rules` (ADR 0016). Its text is **never** in this repo,
 which is public: its Markdown is in a separate private repo, and you upload it with the CLI and your own
-login. The folder must be outside this repo. It holds `book.json`, `{"title": "...", "version": "..."}`,
+login. The folder must be outside this repo and outside any other clone of it. It holds `book.json`, `{"title": "...", "version": "..."}`,
 and one file for each chapter, named `<number>_<words>.md`: `05_combat_basics.md` is chapter 5, at
 `/rules/combat-basics`, and its first `# ` heading is its title.
 
@@ -177,6 +177,10 @@ and one file for each chapter, named `<number>_<words>.md`: `05_combat_basics.md
    ```
    npm run rulebook push D:\eclipse-rulebook\chapters
    ```
+
+Write `staging` as a plain word, as above. npm keeps `--staging` for itself, and the script would then use
+live, so the owner's scripts refuse every word that starts with `-`. Each says which project it uses
+before it acts.
 
 Each upload replaces the whole book in one transaction, so readers see the old book or the new one. It
 checks every file first and uploads nothing if one is wrong. It prints the chapters' titles and counts,

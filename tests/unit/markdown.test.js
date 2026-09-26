@@ -37,6 +37,14 @@ describe("headings", () => {
     expect(parseMarkdown("# Gear\n## Gear\n### Gear!").map((h) => h.props.id)).toEqual(["sec-gear", "sec-gear-1", "sec-gear-2"]);
   });
 
+  it("gives a heading its own id when another heading already took it", () => {
+    expect(parseMarkdown("# Gear 1\n# Gear\n# Gear").map((h) => h.props.id)).toEqual(["sec-gear-1", "sec-gear", "sec-gear-2"]);
+  });
+
+  it("reads a line with U+2028 in it like any other line", () => {
+    expect(parseMarkdown("# a b\n\n- c d").map((n) => n.tag)).toEqual(["h1", "ul"]);
+  });
+
   it("reads underlined headings", () => {
     expect(parseMarkdown("Big\n===\nSmaller\n---")).toEqual([node("h1", { id: "sec-big" }, "Big"), node("h2", { id: "sec-smaller" }, "Smaller")]);
   });
@@ -215,6 +223,37 @@ describe("links", () => {
       expect(CHAPTER_SLUG.test(slug)).toBe(false);
       expect(safeHref(`/rules/${slug}`)).toBeNull();
     }
+  });
+});
+
+describe("a chapter of 256 KiB is read in time, whatever its text", () => {
+  const SIZE = 256 * 1024;
+  const fill = (unit) => unit.repeat(Math.ceil(SIZE / unit.length)).slice(0, SIZE);
+  const spaces = " ".repeat(SIZE);
+
+  it.each([
+    ["[ that never close", fill("[")],
+    ["images that never close", fill("![")],
+    ["the same heading, again and again", fill("# a\n")],
+    ["a table's second line of spaces", `a|b\n${spaces}x`],
+    ["one paragraph of short lines", fill("a\n")],
+    ["lines that end in a space", fill("a \n")],
+    ["a long run of spaces in a line", `a${spaces}b\nc`],
+    ["a heading with a long run of spaces", `# a${spaces}b`],
+    ["U+2028 after a heading's spaces", `# ${spaces} `],
+    ["U+2028 after a list item's spaces", `- ${spaces} `],
+    ["U+2028 after a fence", `\`\`\`${fill("`")} `],
+    ["emphasis around code", fill("*`x` y* ")],
+  ])("%s", (_name, text) => {
+    const start = performance.now();
+    parseMarkdown(text);
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
+
+  it("still gives each of 64K same headings its own id", () => {
+    const ids = parseMarkdown(fill("# a\n")).map((h) => h.props.id);
+    expect(new Set(ids).size).toBe(SIZE / 4);
+    expect(ids.slice(0, 2)).toEqual(["sec-a", "sec-a-1"]);
   });
 });
 
