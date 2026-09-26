@@ -104,6 +104,14 @@ Check a file. This loads it into a throwaway database, with the same Postgres an
 npm run backup:check "C:\Users\you\Documents\Eclipse backups\eclipse-backup-2026-09-25-134512Z.sql"
 ```
 
+Rehearse a rules change on real sheets before it ships (docs/adr/0013). This loads a fresh backup the
+same way, then runs the current `openSheet` on every stored character, departed sheet and history
+snapshot, and reports any that throw, come back read-only, or lose data:
+
+```
+npm run rehearse "C:\Users\you\Documents\Eclipse backups\eclipse-backup-2026-09-25-134512Z.sql"
+```
+
 To restore onto a new Supabase project:
 
 1. `npx supabase link --project-ref <new ref>`, then `npx supabase db push` (the schema).
