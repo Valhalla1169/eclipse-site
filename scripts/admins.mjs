@@ -28,6 +28,7 @@ if (isMain(import.meta.url)) {
   main({
     commands: ["list", "add", "remove", "approve"],
     usage: "Usage: npm run admins list | add <email> | remove <email> | approve <email>   (add staging for the staging project, or print-sql to only show the SQL)",
+    example: "npm run admins approve you@example.com staging",
     sqlFor,
     run(args) {
       if (args.command === "approve") {

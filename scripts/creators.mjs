@@ -20,6 +20,7 @@ if (isMain(import.meta.url)) {
   main({
     commands: ["list", "add", "remove"],
     usage: "Usage: npm run creators list | add <email> | remove <email>   (add staging for the staging project, or print-sql to only show the SQL)",
+    example: "npm run creators add you@example.com staging",
     sqlFor,
     run: (args) =>
       runListCommand(CREATORS, args, {

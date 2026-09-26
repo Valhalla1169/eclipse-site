@@ -1,8 +1,10 @@
+import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CHAPTER_SLUG } from "../../public/js/markdown.js";
+import { PUBLIC_REPO, githubRepo } from "../../scripts/backup.mjs";
 import { LIMITS, chapterFile, chapterTitle, databaseError, pushSql, readArgs, readBook, sqlText } from "../../scripts/rulebook.mjs";
 
 // Made-up chapters only: the real rulebook is never in this repo (docs/adr/0016).
@@ -86,6 +88,8 @@ describe("databaseError", () => {
 });
 
 describe("readArgs", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
   it("reads push <folder>, with staging as an optional last word", () => {
     expect(readArgs(["push", "D:\\Book"])).toEqual({ folder: "D:\\Book", project: "live" });
     expect(readArgs(["push", "D:\\Book", "staging"])).toEqual({ folder: "D:\\Book", project: "staging" });
@@ -93,9 +97,36 @@ describe("readArgs", () => {
 
   // A typo must never fall back to the live project.
   it("refuses anything else", () => {
-    for (const words of [[], ["push"], ["pull", "x"], ["push", "x", "stagin"], ["push", "x", "live"], ["push", "x", "staging", "y"]]) {
+    for (const words of [[], ["push"], ["pull", "x"], ["push", "x", "stagin"], ["push", "x", "live"], ["push", "x", "staging", "y"], ["push", "x", "print-sql"]]) {
       expect(readArgs(words), words.join(" ")).toBeNull();
     }
+  });
+
+  // `npm run rulebook push <folder> --staging` gives the script only "push <folder>".
+  it.each(["npm_config_staging", "npm_config_live"])("refuses to upload when npm took a project word (%s)", (variable) => {
+    vi.stubEnv(variable, "true");
+    expect(() => readArgs(["push", "D:\\Book"])).toThrow("npm run rulebook push <folder> staging");
+  });
+
+  it.each(["--staging", "-staging", "--live", "-x"])("refuses %s", (flag) => {
+    expect(() => readArgs(["push", "D:\\Book", flag])).toThrow(/starts with "-". Nothing was run/);
+  });
+});
+
+describe("githubRepo and publicCloneAround: no copy of this repo may hold the book", () => {
+  it("reads the repo from each form of GitHub address", () => {
+    for (const url of [
+      "https://github.com/Valhalla1169/eclipse-site.git",
+      "git+https://github.com/Valhalla1169/eclipse-site.git",
+      "https://github.com/valhalla1169/Eclipse-Site/",
+      "git@github.com:Valhalla1169/eclipse-site.git",
+      "ssh://git@github.com/Valhalla1169/eclipse-site",
+    ]) {
+      expect(githubRepo(url), url).toBe(PUBLIC_REPO);
+    }
+    expect(PUBLIC_REPO).toBe("valhalla1169/eclipse-site");
+    expect(githubRepo("https://github.com/Valhalla1169/eclipse-rulebook.git")).not.toBe(PUBLIC_REPO);
+    expect(githubRepo("https://example.com/Valhalla1169/eclipse-site.git")).toBeNull();
   });
 });
 
@@ -134,6 +165,32 @@ describe("readBook", () => {
   it("refuses a folder inside the repo", () => {
     const book = folder({ "book.json": info, "01_a.md": "# A" });
     expect(() => readBook(book, dir)).toThrow(/inside this repo/);
+  });
+
+  // Each test's folder is made a git work tree with this remote.
+  const cloneOf = (url) => {
+    const book = folder({ "book.json": info, "01_a.md": "# A secret made-up title" });
+    for (const args of [["init", "-q", dir], ["-C", dir, "remote", "add", "origin", url]]) {
+      expect(spawnSync("git", args).status, args.join(" ")).toBe(0);
+    }
+    return book;
+  };
+
+  it("refuses a folder inside another copy of this repo, and shows nothing from it", () => {
+    for (const url of ["git@github.com:Valhalla1169/eclipse-site.git", "https://github.com/Valhalla1169/eclipse-site"]) {
+      let message = "";
+      try {
+        readBook(cloneOf(url), elsewhere());
+      } catch (err) {
+        message = err.message;
+      }
+      expect(message).toMatch(/a copy of this repo/);
+      expect(message).not.toMatch(/secret|eclipse-site/);
+    }
+  });
+
+  it("reads a folder inside another repo, such as the book's own", () => {
+    expect(readBook(cloneOf("git@github.com:Valhalla1169/eclipse-rulebook.git"), elsewhere()).chapters).toHaveLength(1);
   });
 
   it("names every problem, and uploads nothing", () => {
