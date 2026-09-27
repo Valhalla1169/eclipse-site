@@ -119,8 +119,8 @@ function castTable(title, kind, bodyId, rows, pointsLabel, addLabel) {
 
 export function buildCastingPage(sheet) {
   return tabPanel(
-    "page4",
-    "tab4",
+    "page3",
+    "tab3",
     h(
       "div",
       { class: "pair match" },

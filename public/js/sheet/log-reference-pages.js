@@ -25,8 +25,8 @@ export const logEntries = (sheet) =>
 
 export function buildLogPage(sheet) {
   return tabPanel(
-    "page6",
-    "tab6",
+    "page5",
+    "tab5",
     h(
       "div",
       { class: "logtools" },
@@ -51,8 +51,8 @@ const refPart = (part) => (typeof part === "string" ? staticHtml(part) : refTabl
 
 export function buildReferencePage() {
   return tabPanel(
-    "page5",
-    "tab5",
+    "page6",
+    "tab6",
     h(
       "div",
       { class: "reftools" },

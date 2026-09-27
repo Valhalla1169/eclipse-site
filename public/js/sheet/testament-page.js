@@ -64,8 +64,8 @@ function listPanel(sheet, key, title, noteText, columns, addLabel) {
 
 export function buildTestamentPage(sheet) {
   return tabPanel(
-    "page3",
-    "tab3",
+    "page4",
+    "tab4",
     panel(
       {},
       heading("Who You Are"),
