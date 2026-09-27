@@ -26,7 +26,19 @@ insert into public.campaign_players (campaign_id, player_id) values
 insert into public.characters (id, owner_id, character_name, data) values
   ('d3000000-0000-0000-0000-0000000000a1', 'd1000000-0000-0000-0000-000000000002', 'Live One', '{"a":1}'),
   ('d3000000-0000-0000-0000-0000000000a2', 'd1000000-0000-0000-0000-000000000002', 'Gone Girl', '{"g":1}'),
-  ('d3000000-0000-0000-0000-0000000000a3', 'd1000000-0000-0000-0000-000000000002', 'Still Assigned', '{"s":1}');
+  ('d3000000-0000-0000-0000-0000000000a3', 'd1000000-0000-0000-0000-000000000002', 'Still Assigned', '{"s":1}'),
+  ('d3000000-0000-0000-0000-0000000000a4', 'd1000000-0000-0000-0000-000000000002', 'Untouched', '{"u":1}');
+insert into public.characters (id, owner_id, character_name, data) values
+  ('d3000000-0000-0000-0000-0000000000b1', 'd1000000-0000-0000-0000-000000000003', 'Ozzy''s Own', '{"o":1}');
+
+-- Rows that must survive Gone Girl's purge untouched: history and a departed copy
+-- of another of the owner's characters, and of another player's.
+insert into public.character_history (character_id, owner_id, schema_version, character_name, data, reason) values
+  ('d3000000-0000-0000-0000-0000000000a4', 'd1000000-0000-0000-0000-000000000002', 1, 'Untouched', '{"u":1}', 'edit'),
+  ('d3000000-0000-0000-0000-0000000000b1', 'd1000000-0000-0000-0000-000000000003', 1, 'Ozzy''s Own', '{"o":1}', 'edit');
+insert into public.departed_sheets (campaign_id, player_id, character_id, character_name, schema_version, data, reason) values
+  ('d2000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000002', 'd3000000-0000-0000-0000-0000000000a4', 'Untouched', 1, '{"u":1}', 'left'),
+  ('d2000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000003', 'd3000000-0000-0000-0000-0000000000b1', 'Ozzy''s Own', 1, '{"o":1}', 'left');
 
 -- ═══ 1. A live character cannot be purged ═══════════════════════════════
 select t.act_as('d1000000-0000-0000-0000-000000000002');
@@ -94,8 +106,16 @@ select t.expect_count($q$select 1 from public.departed_sheets where character_id
   'PG6d: the Keeper''s copy is gone too');
 select t.expect_count($q$select 1 from public.characters where id = 'd3000000-0000-0000-0000-0000000000a1' and data = '{"a":1}'$q$, 1,
   'PG6e: Live One is untouched');
-select t.expect_count($q$select 1 from public.characters where owner_id = 'd1000000-0000-0000-0000-000000000002'$q$, 2,
-  'PG6f: nothing else of the owner''s is gone (Live One and the still-assigned anomaly)');
+select t.expect_count($q$select 1 from public.characters where owner_id = 'd1000000-0000-0000-0000-000000000002'$q$, 3,
+  'PG6f: nothing else of the owner''s is gone (Live One, the still-assigned anomaly, and Untouched)');
+select t.expect_count($q$select 1 from public.character_history where character_id = 'd3000000-0000-0000-0000-0000000000a4'$q$, 1,
+  'PG6g: another of the owner''s characters keeps its history');
+select t.expect_count($q$select 1 from public.departed_sheets where character_id = 'd3000000-0000-0000-0000-0000000000a4'$q$, 1,
+  'PG6h: ...and its departed copy');
+select t.expect_count($q$select 1 from public.character_history where character_id = 'd3000000-0000-0000-0000-0000000000b1'$q$, 1,
+  'PG6i: another player''s character keeps its history');
+select t.expect_count($q$select 1 from public.departed_sheets where character_id = 'd3000000-0000-0000-0000-0000000000b1'$q$, 1,
+  'PG6j: ...and its departed copy');
 
 -- ═══ 7. The log: who, when, the id, no name and no data ═════════════════
 select t.expect_count($q$select 1 from public.character_purges where character_id = 'd3000000-0000-0000-0000-0000000000a2' and owner_id = 'd1000000-0000-0000-0000-000000000002' and purged_at is not null$q$, 1,
@@ -109,7 +129,8 @@ select t.expect_count($q$select 1 from information_schema.columns where table_sc
 select t.act_as('d1000000-0000-0000-0000-000000000002');
 select t.expect_denied_with($q$select * from public.list_purges()$q$, 'only a site admin', 'PG8: the owner cannot list the purge log');
 set local role anon;
-select t.expect_denied($q$select * from public.list_purges()$q$, 'PG8b: anon cannot either');
+select t.expect_denied_code($q$select * from public.list_purges()$q$, '42501',
+  'PG8b: anon is refused for lacking the grant, not by the function''s own admin check');
 reset role;
 select t.act_as('d1000000-0000-0000-0000-000000000004');
 select t.expect_count($q$select 1 from public.list_purges() where character_id = 'd3000000-0000-0000-0000-0000000000a2' and owner_name = 'Percy Owner'$q$, 1,
@@ -120,10 +141,10 @@ select t.act_as('d1000000-0000-0000-0000-000000000002');
 do $$
 declare v uuid;
 begin
-  -- Percy already has Live One and the still-assigned anomaly (2 total, both
-  -- already archived except Live One). Bring the total to 30 by making and
-  -- archiving 28 more; the live count never passes 5.
-  for i in 1..28 loop
+  -- Percy already has Live One, the still-assigned anomaly, and Untouched (3
+  -- total). Bring the total to 30 by making and archiving 27 more; the live
+  -- count never passes 5.
+  for i in 1..27 loop
     insert into public.characters (owner_id, character_name) values ('d1000000-0000-0000-0000-000000000002', 'Filler ' || i) returning id into v;
     perform public.delete_character(v);
   end loop;
@@ -136,6 +157,43 @@ select t.expect_count($q$select 1 from (select public.purge_character((select id
 select t.expect_count($q$select 1 from public.characters where owner_id = 'd1000000-0000-0000-0000-000000000002'$q$, 29, 'PG10d: down to twenty-nine');
 select t.expect_affects($q$insert into public.characters (owner_id, character_name) values ('d1000000-0000-0000-0000-000000000002', 'Thirty-one')$q$, 1,
   'PG10e: a new one now fits');
+
+-- ═══ 10. At most 10 purges in a day (docs/adr/0018) ══════════════════════
+-- Percy has purged twice so far (Gone Girl, Filler 1). Purge eight more archived
+-- fillers to reach the daily cap of ten.
+do $$
+declare v uuid;
+begin
+  for i in 2..9 loop
+    select id into v from public.characters where owner_id = 'd1000000-0000-0000-0000-000000000002' and character_name = 'Filler ' || i;
+    perform public.purge_character(v);
+  end loop;
+end $$;
+select t.act_as_superuser();
+select t.expect_count($q$select 1 from public.character_purges where owner_id = 'd1000000-0000-0000-0000-000000000002'$q$, 10,
+  'PG11: ten purges logged for the owner in the last day');
+select t.act_as('d1000000-0000-0000-0000-000000000002');
+select t.expect_denied_with($q$select public.purge_character((select id from public.characters where owner_id = 'd1000000-0000-0000-0000-000000000002' and character_name = 'Filler 10'))$q$,
+  'purged 10 characters in the last 24 hours', 'PG11b: an eleventh purge in the same day is refused, with its own message');
+
+-- ═══ 11. The log outlives the account (owner_id set null, not cascaded) ══
+select t.act_as_superuser();
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('d1000000-0000-0000-0000-000000000005', 'gone@pg.test', '{"display_name": "Gone Owner"}');
+insert into public.characters (id, owner_id, character_name, data) values
+  ('d3000000-0000-0000-0000-0000000000c1', 'd1000000-0000-0000-0000-000000000005', 'Fading', '{"f":1}');
+select t.act_as('d1000000-0000-0000-0000-000000000005');
+select t.expect_count($q$select 1 from (select public.delete_character('d3000000-0000-0000-0000-0000000000c1')) x$q$, 1,
+  'PG12: Gone Owner archives their character');
+select t.expect_count($q$select 1 from (select public.purge_character('d3000000-0000-0000-0000-0000000000c1')) x$q$, 1,
+  'PG12b: ...then purges it');
+select t.act_as_superuser();
+delete from auth.users where id = 'd1000000-0000-0000-0000-000000000005';
+select t.expect_count($q$select 1 from public.character_purges where character_id = 'd3000000-0000-0000-0000-0000000000c1' and owner_id is null$q$, 1,
+  'PG12c: the log keeps the row, owner_id set null, once the account is gone');
+select t.act_as('d1000000-0000-0000-0000-000000000004');
+select t.expect_count($q$select 1 from public.list_purges() where character_id = 'd3000000-0000-0000-0000-0000000000c1' and owner_name = '(no account)'$q$, 1,
+  'PG12d: list_purges shows the "(no account)" fallback');
 
 \echo ALL PURGE TESTS PASSED
 rollback;

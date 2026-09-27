@@ -3,11 +3,11 @@
 --   * purge_character(id): only the character's owner, only while it is archived
 --     (deleted_at is not null), removes the characters row, every character_history
 --     copy of it, and every departed_sheets copy a Keeper kept. One transaction.
---   * Every refusal gives the same message, so it never tells a caller whether
---     someone else's character exists.
+--     Refused past 10 purges in a day, so the log cannot grow without end.
 --   * character_purges logs who, when, and the character's id. No name, no data.
 --     No client role can read it, like site_admins: only list_purges() (a site
---     admin only) reads it.
+--     admin only) reads it. owner_id is set null, not cascaded, when the account
+--     goes, so the log outlives it.
 
 -- ════════════════════════════════════════════════════════════════════
 -- 1. The log
@@ -15,7 +15,7 @@
 create table public.character_purges (
   id           bigint generated always as identity primary key,
   character_id uuid not null,
-  owner_id     uuid not null references auth.users (id) on delete cascade,
+  owner_id     uuid references auth.users (id) on delete set null,
   purged_at    timestamptz not null default now()
 );
 
@@ -27,9 +27,10 @@ revoke all on table public.character_purges from anon, authenticated;
 -- ════════════════════════════════════════════════════════════════════
 -- 2. purge_character: gone for good
 -- ════════════════════════════════════════════════════════════════════
--- Refuses unless the caller is signed in, owns the character, and it is archived,
--- and (defensively) unless it is still active in a campaign. One message for
--- every refusal: it must not say whether someone else's character exists.
+-- Refuses unless the caller is signed in, owns the character, it is archived, and
+-- (defensively) not still active in a campaign. Also refuses past 10 purges in a
+-- day. Every other refusal gives the same message, so it never tells a caller
+-- whether someone else's character exists.
 create function public.purge_character(p_character_id uuid) returns void
 language plpgsql
 security definer
@@ -42,10 +43,16 @@ begin
     raise exception 'that character cannot be purged';
   end if;
 
-  -- The same lock characters_enforce_limits takes, so this cannot race
-  -- undelete_character or a new character for the same person.
-  perform pg_advisory_xact_lock(hashtextextended('characters:' || auth.uid()::text, 0));
+  if (select count(*) from public.character_purges
+      where owner_id = auth.uid() and purged_at > now() - interval '24 hours') >= 10
+  then
+    raise exception 'you have already purged 10 characters in the last 24 hours. Wait a day and try again.';
+  end if;
 
+  -- The row lock alone is enough: a purge only removes rows, so it cannot break
+  -- the count limits, and it keeps this safe against undelete_character on the
+  -- same row. Taking it before any advisory lock (undelete_character's trigger
+  -- takes one after its own row lock) avoids a deadlock between the two.
   select * into v_char from public.characters
    where id = p_character_id and owner_id = auth.uid()
    for update;

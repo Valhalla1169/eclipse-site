@@ -6,6 +6,7 @@
 --   t.act_as_superuser()                 back to the project owner
 --   t.expect_denied(sql, msg)            must fail: RLS/privilege (42501), CHECK (23514) or RAISE (P0001)
 --   t.expect_denied_with(sql, text, msg) ...and the error message must contain `text`
+--   t.expect_denied_code(sql, code, msg) ...and its SQLSTATE must be exactly `code`
 --   t.expect_affects(sql, n, msg)        must succeed and touch exactly n rows
 --   t.expect_count(query, n, msg)        the query must return exactly n rows
 create schema t;
@@ -43,6 +44,24 @@ begin
     get stacked diagnostics v_msg = message_text;
     if position(p_text in v_msg) = 0 then
       raise exception 'ASSERTION FAILED (denied, but with "%" instead of "%"): %', v_msg, p_text, p_msg;
+    end if;
+    raise notice 'ok   %', p_msg;
+    return;
+  end;
+  raise exception 'ASSERTION FAILED (expected denial, but it succeeded): %', p_msg;
+end $$;
+
+-- Unlike expect_denied, this fails the test if the denial is the right kind of
+-- error (RAISE, say) for the wrong reason: it insists on one exact SQLSTATE.
+create function t.expect_denied_code(p_sql text, p_code text, p_msg text) returns void language plpgsql as $$
+declare v_code text;
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    get stacked diagnostics v_code = returned_sqlstate;
+    if v_code <> p_code then
+      raise exception 'ASSERTION FAILED (denied with SQLSTATE % instead of %): %', v_code, p_code, p_msg;
     end if;
     raise notice 'ok   %', p_msg;
     return;

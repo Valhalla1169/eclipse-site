@@ -34,9 +34,10 @@ function guarded(status, action) {
 }
 
 // A confirmation dialog for deleting an archived character forever (docs/adr/0018):
-// it names what is lost, offers a backup download when `row` could be read, and
-// keeps the confirm button off until the character's name is typed exactly.
-function purgeDialog(entry, { row, onPurge }) {
+// it names what is lost, offers a backup download when `row` could be read (or
+// says reading it failed, when `loadFailed`), and keeps the confirm button off
+// until the character's name is typed exactly.
+function purgeDialog(entry, { row, loadFailed, onPurge }) {
   const titleId = `purgeTitle-${entry.id}`;
   const nameId = `purgeName-${entry.id}`;
   const dialogStatus = h("div", { class: "stack" });
@@ -71,7 +72,9 @@ function purgeDialog(entry, { row, onPurge }) {
           ),
           saveStatus,
         )
-      : null,
+      : loadFailed
+        ? h("p", { class: "notice notice-error", role: "alert" }, "Could not load the sheet, so it cannot be saved as a copy here.")
+        : null,
     h("div", { class: "field" }, h("label", { for: nameId }, `Type ${entry.name} to confirm`), nameField),
     dialogStatus,
     h("div", { class: "actions" }, confirmButton, cancelButton),
@@ -159,12 +162,14 @@ export function charactersView({ list, notice, onCreate, onCreateFromFile, onCop
     purgeButton.addEventListener("click", async () => {
       purgeButton.disabled = true;
       let row = null;
+      let loadFailed = false;
       try {
         row = onLoadSheet ? await onLoadSheet(entry.id) : null;
       } catch (error) {
         console.error(error);
+        loadFailed = true;
       }
-      const dialog = purgeDialog(entry, { row, onPurge: () => onPurge(entry.id, entry.name) });
+      const dialog = purgeDialog(entry, { row, loadFailed, onPurge: () => onPurge(entry.id, entry.name) });
       item.append(dialog);
       dialog.addEventListener("close", () => {
         dialog.remove();
@@ -181,7 +186,7 @@ export function charactersView({ list, notice, onCreate, onCreateFromFile, onCop
     "div",
     { class: "stack" },
     h("div", { class: "card-head" }, h("h1", {}, "Your characters"), h("span", { class: "badge" }, `${list.live.length} of ${MAX_CHARACTERS}`)),
-    h("p", { class: "muted" }, "These characters are yours. You choose which one you play in each campaign. Nothing you delete is removed: you can bring it back."),
+    h("p", { class: "muted" }, "These characters are yours. You choose which one you play in each campaign. Deleting hides a character, and you can bring it back. An archived character can also be deleted forever, with no way back."),
     h("div", { class: "actions" }, h("button", { class: "btn btn-primary", type: "button", disabled: list.full, "aria-describedby": describedIfFull(list), onclick: guarded(status, onCreate) }, "New character"), fromFile, fileInput),
     fullNote(list),
     notice ? h("p", { class: "notice notice-success", role: "status" }, notice) : null,

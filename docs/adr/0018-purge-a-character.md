@@ -24,13 +24,16 @@ finished with, not merely hidden.
    whether someone else's character exists.
 2. **No waiting time.** Archiving is enough; ADR 0014's approval-style delay does not apply here; the
    player already chose to archive it once.
-3. **Everything about the character goes:** the row, every `character_history` copy, and every
-   `departed_sheets` copy a Keeper kept from when the player left a campaign with it active. One
-   transaction, in that order, so a crash midway never leaves the row gone but its history behind.
+3. **Everything about the character goes:** every `departed_sheets` copy a Keeper kept from when the
+   player left a campaign with it active, then the row, then every `character_history` copy. Removing
+   the row before its history means the row's own delete trigger, which adds one more history snapshot,
+   is cleaned up too. One transaction, so a crash midway never leaves any of it half gone.
 4. **A small log, `character_purges`: who, when, the character's id. No name, no sheet data.** It has
    no client grant at all, like `site_admins`; only `list_purges()`, a site admin's own read (like
    `list_accounts`), reads it. It exists so the owner can point to when something was deleted forever
-   if it is ever asked about, without keeping the thing itself.
+   if it is ever asked about, without keeping the thing itself. Capped at 10 purges per owner per day,
+   so it cannot grow without end; `owner_id` is set null, not cascaded, when the account is deleted, so
+   the log still shows the purge happened.
 5. **The dialog makes it hard to do by accident.** It says what is lost and that it cannot be undone,
    offers **Save a copy** first when the sheet can be read, and keeps **Delete forever** off until the
    player types the character's name exactly.
@@ -45,3 +48,6 @@ finished with, not merely hidden.
   own archived character, through this function.
 - A departed sheet a Keeper reads can vanish without the Keeper doing anything: it was already the
   player's copy to keep or let go.
+- Realtime does not apply RLS to a DELETE event, so a purge sends the character's id (only the id) to
+  every subscriber of `characters`, such as an open roster. An open Keeper page keeps a purged departed
+  copy in memory until its next sync, at most 30 seconds later.

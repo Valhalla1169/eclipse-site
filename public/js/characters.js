@@ -1,7 +1,7 @@
 // A person's characters. Every call runs as the signed-in user; RLS and the column
 // grants decide what is allowed (docs/adr/0002, 0006, 0011). A character belongs to a
-// person, not a campaign. No delete function exists on purpose (docs/adr/0004):
-// "deleting" hides a character and it can be brought back.
+// person, not a campaign. "Deleting" hides a character and it can be brought back
+// (docs/adr/0004); once archived, its owner can also delete it forever (docs/adr/0018).
 import { SCHEMA_VERSION, blank } from "./eclipse-rules.js";
 import { sb } from "./supabase-client.js";
 
