@@ -27,39 +27,43 @@ import { gridOf, headRow, heading, panel, tabPanel } from "./ui.js";
 
 export const CORONA_TICKS = 36;
 
-const skillId = (name) => `sk_${name.replace(/\W/g, "")}`;
-
-function identityField({ id, label, wide, grit }, control) {
-  return h("div", { class: ["idf", wide && "wide", grit && "grit"].filter(Boolean).join(" ") }, h("label", { for: id }, label), control);
+// The label wraps its control instead of pairing with it by id, so this page
+// can be shown more than once without two elements sharing one id (docs/adr/0019).
+function identityField({ label, wide, grit }, control) {
+  return h("div", { class: ["idf", wide && "wide", grit && "grit"].filter(Boolean).join(" ") }, h("label", {}, label, control));
 }
 
 function identityBand() {
   return h(
     "div",
     { class: "identity" },
-    identityField({ id: "f_name", label: "Survivor", wide: true }, h("input", { id: "f_name" })),
+    identityField({ label: "Survivor", wide: true }, h("input", { "data-f": "id.name" })),
     identityField(
-      { id: "f_race", label: "Race" },
-      h("select", { id: "f_race" }, ...Object.entries(RACES).map(([key, race]) => h("option", { value: key }, race.name))),
+      { label: "Race" },
+      h("select", { "data-f": "id.race" }, ...Object.entries(RACES).map(([key, race]) => h("option", { value: key }, race.name))),
     ),
     h(
       "div",
       { class: "idf" },
-      h("label", { for: "f_prof" }, "Profession"),
       h(
-        "div",
-        { class: "combo" },
-        h("input", { id: "f_prof", autocomplete: "off", role: "combobox", "aria-expanded": "false", "aria-controls": "profList", "aria-autocomplete": "list" }),
-        h("button", { class: "caret", id: "profCaret", type: "button", tabindex: "-1", "aria-label": "Show professions" }, "▼"),
-        h("div", { class: "combo-list", id: "profList", role: "listbox" }),
+        "label",
+        {},
+        "Profession",
+        h(
+          "div",
+          { class: "combo" },
+          h("input", { "data-f": "id.prof", autocomplete: "off", role: "combobox", "aria-expanded": "false", "aria-controls": "profList", "aria-autocomplete": "list" }),
+          h("button", { class: "caret", id: "profCaret", type: "button", tabindex: "-1", "aria-label": "Show professions" }, "▼"),
+          h("div", { class: "combo-list", id: "profList", role: "listbox" }),
+        ),
       ),
     ),
     identityField(
-      { id: "f_master", label: `Master skill +${MASTER_BONUS}` },
-      h("select", { id: "f_master" }, h("option", { value: "" }, "none"), ...ALL_SKILLS.map((name) => h("option", { value: name }, name))),
+      { label: `Master skill +${MASTER_BONUS}` },
+      h("select", { "data-f": "id.master" }, h("option", { value: "" }, "none"), ...ALL_SKILLS.map((name) => h("option", { value: name }, name))),
     ),
-    identityField({ id: "f_bg", label: "Background" }, h("input", { id: "f_bg" })),
-    identityField({ id: "f_grit", label: "Grit banked", grit: true }, h("input", { id: "f_grit" })),
+    identityField({ label: "Background" }, h("input", { "data-f": "id.bg" })),
+    identityField({ label: "Grit banked", grit: true }, h("input", { "data-f": "id.grit" })),
   );
 }
 
@@ -68,9 +72,9 @@ function attributeRow(attr, special) {
     "div",
     { class: `attr-row${special ? " spec" : ""}` },
     h("span", { class: "nm" }, h("b", {}, attr.n.charAt(0)), attr.n.slice(1)),
-    h("input", { class: "cell", "data-base": attr.k, inputmode: "numeric", "aria-label": `${attr.n} base` }),
+    h("input", { class: "cell", "data-f": `base.${attr.k}`, inputmode: "numeric", "aria-label": `${attr.n} base` }),
     h("span", { class: "mod", "data-mod": attr.k }, "·"),
-    h("input", { class: "mod", "data-oth": attr.k, inputmode: "numeric", "aria-label": `${attr.n} other modifier` }),
+    h("input", { class: "mod", "data-f": `oth.${attr.k}`, inputmode: "numeric", "aria-label": `${attr.n} other modifier` }),
     h("span", { class: "tot", "data-tot": attr.k, "aria-label": `${attr.n} total` }, "0"),
   );
 }
@@ -142,6 +146,8 @@ function leftColumn() {
   );
 }
 
+// The visible label stays a sibling of its input (the grid needs both as
+// separate cells), so the input carries its own name instead of a for/id pair.
 function skillGroup([groupName, attrKey, list]) {
   return h(
     "div",
@@ -152,20 +158,20 @@ function skillGroup([groupName, attrKey, list]) {
       h(
         "div",
         { class: "srow", "data-skill": name, "data-attr": attrKey },
-        h("label", { for: skillId(name) }, name),
-        h("input", { id: skillId(name), "data-sk": name, inputmode: "numeric" }),
-        h("input", { class: "oth", "data-so": name, inputmode: "numeric", "aria-label": `${name} other modifier` }),
+        h("label", {}, name),
+        h("input", { "data-f": `skills.${name}`, inputmode: "numeric", "aria-label": `${name} level` }),
+        h("input", { class: "oth", "data-f": `sother.${name}`, inputmode: "numeric", "aria-label": `${name} other modifier` }),
         h("span", { class: "pool", "data-pool": name }, "0"),
       ),
     ),
   );
 }
 
-function gearField(id, label, { name, value } = {}) {
-  return h("div", { class: `af${name ? " name" : ""}` }, h("label", { for: id }, label), h("input", { id, class: name ? null : "num", ...(value === undefined ? {} : { value }) }));
+function gearField(path, label, { name, value } = {}) {
+  return h("div", { class: `af${name ? " name" : ""}` }, h("label", {}, label, h("input", { "data-f": path, class: name ? null : "num", ...(value === undefined ? {} : { value }) })));
 }
 
-function degradeColumn(title, prefix, poolValue) {
+function degradeColumn(title, prefix, path, poolValue) {
   return h(
     "div",
     { class: "degrade-col" },
@@ -174,7 +180,7 @@ function degradeColumn(title, prefix, poolValue) {
       "div",
       { class: "degrade-grid" },
       h("div", {}, h("div", { class: "lbl" }, "Pool"), h("div", { class: "val", id: `${prefix}_dpv` }, poolValue)),
-      h("div", {}, h("label", { class: "lbl", for: `${prefix}_soaked` }, "Soaked"), h("input", { id: `${prefix}_soaked`, inputmode: "numeric", value: "0" })),
+      h("div", {}, h("label", { class: "lbl" }, "Soaked", h("input", { "data-f": path, inputmode: "numeric", value: "0" }))),
       h("div", {}, h("div", { class: "lbl" }, "State"), h("div", { class: "val state", id: `${prefix}_dstate` }, "intact")),
     ),
   );
@@ -189,7 +195,7 @@ function middleColumn() {
       heading(
         "Skills",
         h("span", { class: "legend" }, `Untrained skills roll at +${UNTRAINED_STAGES} difficulty`),
-        h("label", { class: "ptoggle" }, h("input", { type: "checkbox", id: "applyPen", checked: true }), " subtract dice penalty"),
+        h("label", { class: "ptoggle" }, h("input", { type: "checkbox", "data-f": "applyPen", checked: true }), " subtract dice penalty"),
       ),
       h("div", { class: "skillcols", id: "skillCols" }, SKILLS.map(skillGroup)),
     ),
@@ -199,40 +205,40 @@ function middleColumn() {
       h(
         "div",
         { class: "gear-row" },
-        gearField("a_name", "Worn armor", { name: true }),
-        gearField("a_b", "AV B", { value: "0" }),
-        gearField("a_i", "AV I", { value: "0" }),
-        gearField("a_ap", "AP pen", { value: "0" }),
-        gearField("sh_name", "Shield", { name: true }),
-        gearField("sh_b", "AV B", { value: "0" }),
-        gearField("sh_i", "AV I", { value: "0" }),
-        gearField("sh_ap", "AP act", { value: "0" }),
+        gearField("armor.name", "Worn armor", { name: true }),
+        gearField("armor.b", "AV B", { value: "0" }),
+        gearField("armor.i", "AV I", { value: "0" }),
+        gearField("armor.ap", "AP pen", { value: "0" }),
+        gearField("shield.name", "Shield", { name: true }),
+        gearField("shield.b", "AV B", { value: "0" }),
+        gearField("shield.i", "AV I", { value: "0" }),
+        gearField("shield.ap", "AP act", { value: "0" }),
       ),
-      h("div", { class: "degrade" }, degradeColumn("Armor degradation", "a", "0"), degradeColumn("Shield degradation", "sh", SHIELD_DEGRADE_STEP)),
+      h("div", { class: "degrade" }, degradeColumn("Armor degradation", "a", "armor.soaked", "0"), degradeColumn("Shield degradation", "sh", "shield.soaked", SHIELD_DEGRADE_STEP)),
     ),
   );
 }
 
 function weaponRow(index) {
-  const field = (name) => `${index}.${name}`;
-  const cell = (name, label, className = "num") => h("td", { class: "c" }, h("input", { class: className, "data-w": field(name), "aria-label": `Weapon ${index + 1} ${label}` }));
+  const field = (name) => `weapons.${index}.${name}`;
+  const cell = (name, label, className = "num") => h("td", { class: "c" }, h("input", { class: className, "data-f": field(name), "aria-label": `Weapon ${index + 1} ${label}` }));
   return h(
     "tr",
     {},
-    h("td", {}, h("input", { "data-w": field("name"), "aria-label": `Weapon ${index + 1} name` })),
+    h("td", {}, h("input", { "data-f": field("name"), "aria-label": `Weapon ${index + 1} name` })),
     h(
       "td",
       {},
-      h("select", { "data-w": field("skill"), "aria-label": `Weapon ${index + 1} skill` }, h("option", { value: "" }), ...COMBAT_SKILLS.map((name) => h("option", { value: name }, name))),
+      h("select", { "data-f": field("skill"), "aria-label": `Weapon ${index + 1} skill` }, h("option", { value: "" }), ...COMBAT_SKILLS.map((name) => h("option", { value: name }, name))),
     ),
     h("td", { class: "c" }, h("span", { class: "calc dim", "data-wpool": index }, "·")),
     cell("ap", "AP"),
     cell("dmg", "damage"),
     cell("range", "range"),
-    h("td", { class: "c" }, h("select", { class: "ctr", "data-w": field("mode"), "aria-label": `Weapon ${index + 1} modes` }, ...WEAPON_MODES.map((mode) => h("option", {}, mode)))),
+    h("td", { class: "c" }, h("select", { class: "ctr", "data-f": field("mode"), "aria-label": `Weapon ${index + 1} modes` }, ...WEAPON_MODES.map((mode) => h("option", {}, mode)))),
     cell("loaded", "loaded"),
     cell("reserve", "reserve"),
-    h("td", {}, h("input", { class: "wnote", "data-w": field("note"), placeholder: "mods, ammo type, quirks", "aria-label": `Weapon ${index + 1} notes` })),
+    h("td", {}, h("input", { class: "wnote", "data-f": field("note"), placeholder: "mods, ammo type, quirks", "aria-label": `Weapon ${index + 1} notes` })),
   );
 }
 
@@ -301,8 +307,8 @@ const modifierRows = (sheet) =>
     h(
       "div",
       { class: "modrow" },
-      h("input", { class: "mname", "data-mn": i, "aria-label": `Modifier ${i + 1} source` }),
-      h("input", { class: "mval", "data-mv": i, inputmode: "numeric", "aria-label": `Modifier ${i + 1} value` }),
+      h("input", { class: "mname", "data-f": `mods.${i}.n`, "aria-label": `Modifier ${i + 1} source` }),
+      h("input", { class: "mval", "data-f": `mods.${i}.v`, inputmode: "numeric", "aria-label": `Modifier ${i + 1} value` }),
     ),
   );
 
@@ -312,17 +318,17 @@ const soakSourceRows = (sheet) =>
     h(
       "div",
       { class: "smrow" },
-      h("input", { class: "mname", "data-smn": i, "aria-label": `Soak source ${i + 1} name` }),
-      h("input", { class: "mval", "data-smb": i, inputmode: "numeric", "aria-label": `Soak source ${i + 1} Ballistic` }),
-      h("input", { class: "mval", "data-smi": i, inputmode: "numeric", "aria-label": `Soak source ${i + 1} Impact` }),
-      h("input", { class: "mval", "data-smp": i, inputmode: "numeric", "aria-label": `Soak source ${i + 1} Personnel` }),
+      h("input", { class: "mname", "data-f": `soakMods.${i}.n`, "aria-label": `Soak source ${i + 1} name` }),
+      h("input", { class: "mval", "data-f": `soakMods.${i}.b`, inputmode: "numeric", "aria-label": `Soak source ${i + 1} Ballistic` }),
+      h("input", { class: "mval", "data-f": `soakMods.${i}.i`, inputmode: "numeric", "aria-label": `Soak source ${i + 1} Impact` }),
+      h("input", { class: "mval", "data-f": `soakMods.${i}.p`, inputmode: "numeric", "aria-label": `Soak source ${i + 1} Personnel` }),
     ),
   );
 
 function soakPanel(sheet) {
   return panel(
     {},
-    heading("Total Soak", h("label", { class: "ptoggle" }, h("input", { type: "checkbox", id: "useShieldSoak" }), " raising shield")),
+    heading("Total Soak", h("label", { class: "ptoggle" }, h("input", { type: "checkbox", "data-f": "useShieldSoak" }), " raising shield")),
     h(
       "div",
       { class: "soak" },
@@ -405,7 +411,7 @@ function monitorRow({ track, name }) {
       { class: "boxes", id: `bx_${track}` },
       Array.from({ length: MONITOR_BOXES }, (_, i) => h("button", { class: "bx", type: "button", "data-t": track, "data-i": i, "aria-pressed": "false", "aria-label": `${name} box ${i + 1}` })),
     ),
-    h("input", { class: "cmnote", "data-note": track, placeholder: MONITOR_HINTS[track], "aria-label": `${name} notes` }),
+    h("input", { class: "cmnote", "data-f": `notes.${track}`, placeholder: MONITOR_HINTS[track], "aria-label": `${name} notes` }),
   );
 }
 
@@ -433,7 +439,7 @@ function dyingPanel() {
       h(
         "label",
         { class: "dy-aid" },
-        h("input", { type: "checkbox", "data-dy": "aided" }),
+        h("input", { type: "checkbox", "data-f": "dy.aided" }),
         h("span", {}, `Stabilized by an ally. ${ACTIONS.stabilizeAlly.ap} AP and ${DYING.allySupplies} medical supply unit.`),
       ),
     ),

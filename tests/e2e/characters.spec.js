@@ -59,7 +59,7 @@ test.describe("the list of characters", () => {
   test("New character makes a blank one with only the columns a player may write, and opens it", async ({ page }) => {
     await openList(page);
     await page.getByRole("button", { name: "New character", exact: true }).click();
-    await expect(page.locator("#f_name")).toBeVisible();
+    await expect(page.locator('[data-f="id.name"]')).toBeVisible();
     await expect(page).toHaveURL(/\/characters\/40000000-0000-4000-8000-000000900001$/);
     const [post] = await callsTo(page, CHARACTERS, "POST");
     expect(Object.keys(post.body).sort()).toEqual(["character_name", "data", "owner_id", "schema_version"]);
@@ -146,7 +146,7 @@ test.describe("the list of characters", () => {
     expect(await callsTo(page, CHARACTERS, "POST")).toHaveLength(0);
 
     await upload(JSON.stringify({ ...sheetOf("From a file"), schemaVersion: SCHEMA_VERSION, extra: "kept" }));
-    await expect(page.locator("#f_name")).toHaveValue("From a file");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("From a file");
     const [post] = await callsTo(page, CHARACTERS, "POST");
     expect(post.body).toMatchObject({ character_name: "From a file", schema_version: SCHEMA_VERSION, data: { extra: "kept" } });
   });
@@ -239,7 +239,7 @@ test.describe("a character's sheet", () => {
     await patchMock(page, { characters: [characterRow(sheetOf("Marlo"), { deleted_at: "2026-09-19T11:30:00.000000+00:00" })] });
     await open(page, sheetPath());
     await expect(page.getByRole("heading", { name: "Deleted character" })).toBeVisible();
-    await expect(page.locator("#f_name")).toHaveCount(0);
+    await expect(page.locator('[data-f="id.name"]')).toHaveCount(0);
   });
 
   test("has a way back to the list", async ({ page }) => {
@@ -262,7 +262,7 @@ test.describe("choosing a character for a campaign", () => {
     await expect(page.getByText("Your Keeper can see this character's sheet.")).toBeVisible();
     await card(page, "Vex").getByRole("button", { name: "Use this character" }).click();
     await expect(page).toHaveURL(new RegExp(`/characters/${VEX_ID}$`));
-    await expect(page.locator("#f_name")).toHaveValue("Vex");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Vex");
     const [call] = await rpc(page, "choose_character");
     expect(call.body).toEqual({ p_campaign_id: ids.campaign, p_character_id: VEX_ID });
     expect((await storedMock(page)).assignments).toEqual([expect.objectContaining({ campaign_id: ids.campaign, character_id: VEX_ID })]);
@@ -284,7 +284,7 @@ test.describe("choosing a character for a campaign", () => {
   test("a new character can be made and chosen in one step", async ({ page }) => {
     await openChooser(page);
     await page.getByRole("button", { name: "Make a new character for this campaign" }).click();
-    await expect(page.locator("#f_name")).toBeVisible();
+    await expect(page.locator('[data-f="id.name"]')).toBeVisible();
     expect(await callsTo(page, CHARACTERS, "POST")).toHaveLength(1);
     expect(await rpc(page, "choose_character")).toHaveLength(1);
   });

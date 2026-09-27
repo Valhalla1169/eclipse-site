@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { SCHEMA_VERSION, blank } from "../../public/js/eclipse-rules.js";
+import { CORE_FIELDS } from "../../public/js/sheet/fields.js";
 import { anotherTab, callsTo, campaign, characterRow, expect, ids, open, otherDeviceSaves, patchMock, players, seed, sheetPath, storedCharacter, test } from "./helpers.js";
 
 const { dana, dm } = players;
@@ -15,7 +16,7 @@ const named = (name, more = {}) => {
 async function openSheet(page, { character = characterRow(blank()), mock = {} } = {}) {
   await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], character, ...mock }, user: dana });
   await open(page, play);
-  await expect(page.locator("#f_name")).toBeVisible();
+  await expect(page.locator('[data-f="id.name"]')).toBeVisible();
 }
 
 const saved = (page) => expect(page.locator("#saveState")).toContainText("Saved", { timeout: 8000 });
@@ -27,8 +28,8 @@ test.describe("loading", () => {
     data.base.end = 3;
     data.id.prof = "Medical Doctor";
     await openSheet(page, { character: characterRow(data) });
-    await expect(page.locator("#f_name")).toHaveValue("Marlo Vance");
-    await expect(page.locator('[data-base="end"]')).toHaveValue("3");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo Vance");
+    await expect(page.locator('[data-f="base.end"]')).toHaveValue("3");
     await expect(page.locator('[data-tot="cla"]')).toHaveText("2"); // base 1 + Medical Doctor
     await expect(page.locator("#stv_pen")).toHaveText("−1");
     await expect(page.locator("#dialNum")).toHaveText("−1");
@@ -42,10 +43,10 @@ test.describe("loading", () => {
     await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], character: characterRow(blank()), failCharacters: true }, user: dana });
     await page.goto(play);
     await expect(page.getByRole("heading", { name: "Something went wrong" })).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator("#f_name")).toHaveCount(0);
+    await expect(page.locator('[data-f="id.name"]')).toHaveCount(0);
     await patchMock(page, { failCharacters: false });
     await page.getByRole("button", { name: "Try again" }).click();
-    await expect(page.locator("#f_name")).toBeVisible();
+    await expect(page.locator('[data-f="id.name"]')).toBeVisible();
     expect(await callsTo(page, CHARACTERS, "PATCH")).toHaveLength(0);
   });
 
@@ -54,7 +55,7 @@ test.describe("loading", () => {
     await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], character: characterRow(broken) }, user: dana });
     await open(page, play);
     await expect(page.getByRole("alert")).toContainText("could not be read");
-    await expect(page.locator("#f_name")).toHaveCount(0);
+    await expect(page.locator('[data-f="id.name"]')).toHaveCount(0);
     await page.waitForTimeout(2000);
     expect(await callsTo(page, CHARACTERS, "PATCH")).toHaveLength(0);
     expect((await storedCharacter(page)).data.base).toBe("nope");
@@ -64,7 +65,7 @@ test.describe("loading", () => {
     const data = named("Marlo", { fromTheFuture: { keep: true } });
     await openSheet(page, { character: characterRow(data, { schema_version: SCHEMA_VERSION + 1 }) });
     await expect(page.getByRole("alert")).toContainText("newer version");
-    await expect(page.locator("#f_name")).toHaveValue("Marlo");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo");
     expect(await page.locator("#page1").evaluate((el) => el.inert)).toBe(true);
     await expect(page.getByRole("button", { name: "Load file" })).toBeDisabled();
     await page.waitForTimeout(2500);
@@ -87,7 +88,7 @@ test.describe("loading", () => {
 test.describe("saving", () => {
   test("typing saves after a pause, sends the last-seen updated_at, and adopts the new one", async ({ page }) => {
     await openSheet(page, { character: characterRow(named("")) });
-    await page.locator("#f_name").fill("Marlo Vance");
+    await page.locator('[data-f="id.name"]').fill("Marlo Vance");
     await expect(page.locator("#saveState")).toHaveText("Unsaved changes");
     await saved(page);
     const [patch] = await callsTo(page, CHARACTERS, "PATCH");
@@ -98,7 +99,7 @@ test.describe("saving", () => {
     expect(patch.body.data.id.name).toBe("Marlo Vance");
 
     // the second save uses the updated_at the first one returned
-    await page.locator("#f_grit").fill("3");
+    await page.locator('[data-f="id.grit"]').fill("3");
     await saved(page);
     const patches = await callsTo(page, CHARACTERS, "PATCH");
     expect(patches).toHaveLength(2);
@@ -110,7 +111,7 @@ test.describe("saving", () => {
     data.id.pronouns = "they/them";
     data.adv[0] = { n: "Lucky", t: "Tier 1 (5 pts)", e: "", extra: 9 };
     await openSheet(page, { character: characterRow(data) });
-    await page.locator("#f_bg").fill("Farm");
+    await page.locator('[data-f="id.bg"]').fill("Farm");
     await saved(page);
     const stored = (await storedCharacter(page)).data;
     expect(stored.futureField).toEqual({ deep: [1, 2] });
@@ -120,7 +121,7 @@ test.describe("saving", () => {
 
   test("stores inputs only, not computed numbers", async ({ page }) => {
     await openSheet(page, { character: characterRow(named("Marlo")) });
-    await page.locator('[data-base="end"]').fill("4");
+    await page.locator('[data-f="base.end"]').fill("4");
     await page.locator('[data-t="trauma"][data-i="4"]').click();
     await saved(page);
     const stored = (await storedCharacter(page)).data;
@@ -131,9 +132,9 @@ test.describe("saving", () => {
 
   test("a network failure keeps the changes, tells the player, and Save now recovers", async ({ page }) => {
     await openSheet(page, { character: characterRow(named("")), mock: { failPatches: 1 } });
-    await page.locator("#f_name").fill("Marlo");
+    await page.locator('[data-f="id.name"]').fill("Marlo");
     await expect(page.getByRole("alert")).toContainText("could not be saved", { timeout: 8000 });
-    await expect(page.locator("#f_name")).toHaveValue("Marlo");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo");
     await page.getByRole("button", { name: "Save now" }).click();
     await saved(page);
     await expect(page.getByRole("alert")).toHaveCount(0);
@@ -142,9 +143,9 @@ test.describe("saving", () => {
 
   test("a save the database refuses is reported, and Try again works once allowed", async ({ page }) => {
     await openSheet(page, { character: characterRow(named("")), mock: { characterBlocked: true } });
-    await page.locator("#f_name").fill("Marlo");
+    await page.locator('[data-f="id.name"]').fill("Marlo");
     await expect(page.getByRole("alert")).toContainText("refused to save", { timeout: 8000 });
-    await expect(page.locator("#f_name")).toHaveValue("Marlo");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo");
     await patchMock(page, { characterBlocked: false });
     await page.getByRole("button", { name: "Try again" }).click();
     await saved(page);
@@ -153,7 +154,7 @@ test.describe("saving", () => {
 
   test("signing out first saves what is waiting", async ({ page }) => {
     await openSheet(page, { character: characterRow(named("")) });
-    await page.locator("#f_name").fill("Marlo");
+    await page.locator('[data-f="id.name"]').fill("Marlo");
     await page.getByRole("button", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/login/);
     expect((await storedCharacter(page)).character_name).toBe("Marlo");
@@ -161,7 +162,7 @@ test.describe("saving", () => {
 
   test("signing out asks first when the changes cannot be saved, and stays if the player says no", async ({ page }) => {
     await openSheet(page, { character: characterRow(named("")), mock: { characterBlocked: true } });
-    await page.locator("#f_name").fill("Marlo");
+    await page.locator('[data-f="id.name"]').fill("Marlo");
     const messages = [];
     page.once("dialog", (dialog) => {
       messages.push(dialog.message());
@@ -171,12 +172,12 @@ test.describe("saving", () => {
     await expect.poll(() => messages.length).toBe(1);
     expect(messages[0]).toContain("not saved yet");
     await expect(page).toHaveURL(new RegExp(play));
-    await expect(page.locator("#f_name")).toHaveValue("Marlo");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo");
   });
 
   test("Ctrl+S saves at once", async ({ page }) => {
     await openSheet(page, { character: characterRow(named("")) });
-    await page.locator("#f_name").fill("Marlo");
+    await page.locator('[data-f="id.name"]').fill("Marlo");
     await page.keyboard.press("Control+s");
     await saved(page);
   });
@@ -188,9 +189,9 @@ test.describe("two devices", () => {
   test("a save from elsewhere is detected, and nothing is overwritten until the player chooses", async ({ page }) => {
     await openSheet(page, { character: characterRow(named("Marlo")) });
     await otherDeviceSaves(page, theirs());
-    await page.locator("#f_bg").fill("Farm");
+    await page.locator('[data-f="id.bg"]').fill("Farm");
     await expect(page.getByRole("alert")).toContainText("saved somewhere else", { timeout: 8000 });
-    await expect(page.locator("#f_bg")).toHaveValue("Farm");
+    await expect(page.locator('[data-f="id.bg"]')).toHaveValue("Farm");
     expect((await storedCharacter(page)).data.id.name).toBe("Saved on the phone");
     await page.waitForTimeout(2000);
     expect((await callsTo(page, CHARACTERS, "PATCH")).length).toBe(1);
@@ -199,11 +200,11 @@ test.describe("two devices", () => {
   test("Use their version loads it and saves nothing", async ({ page }) => {
     await openSheet(page, { character: characterRow(named("Marlo")) });
     await otherDeviceSaves(page, theirs());
-    await page.locator("#f_bg").fill("Farm");
+    await page.locator('[data-f="id.bg"]').fill("Farm");
     await expect(page.getByRole("alert")).toBeVisible({ timeout: 8000 });
     await page.getByRole("button", { name: "Use their version" }).click();
-    await expect(page.locator("#f_name")).toHaveValue("Saved on the phone");
-    await expect(page.locator("#f_bg")).toHaveValue("");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Saved on the phone");
+    await expect(page.locator('[data-f="id.bg"]')).toHaveValue("");
     await expect(page.getByRole("alert")).toHaveCount(0);
     expect((await callsTo(page, CHARACTERS, "PATCH")).length).toBe(1);
     expect((await storedCharacter(page)).data.id.name).toBe("Saved on the phone");
@@ -212,7 +213,7 @@ test.describe("two devices", () => {
   test("Keep my version saves over theirs, after the player chose it", async ({ page }) => {
     await openSheet(page, { character: characterRow(named("Marlo")) });
     await otherDeviceSaves(page, theirs());
-    await page.locator("#f_bg").fill("Farm");
+    await page.locator('[data-f="id.bg"]').fill("Farm");
     await expect(page.getByRole("alert")).toBeVisible({ timeout: 8000 });
     await page.getByRole("button", { name: "Keep my version" }).click();
     await saved(page);
@@ -223,7 +224,7 @@ test.describe("two devices", () => {
   test("Save copies of both downloads two files", async ({ page }) => {
     await openSheet(page, { character: characterRow(named("Marlo")) });
     await otherDeviceSaves(page, theirs());
-    await page.locator("#f_bg").fill("Farm");
+    await page.locator('[data-f="id.bg"]').fill("Farm");
     await expect(page.getByRole("alert")).toBeVisible({ timeout: 8000 });
     const downloads = [];
     page.on("download", (download) => downloads.push(download.suggestedFilename()));
@@ -247,7 +248,7 @@ test.describe("leaving the sheet", () => {
     await open(page, "/");
     await headerLink(page).click();
     await page.getByRole("link", { name: "Open", exact: true }).click();
-    await expect(page.locator("#f_name")).toBeVisible();
+    await expect(page.locator('[data-f="id.name"]')).toBeVisible();
   }
 
   // A held request waits until release().
@@ -257,7 +258,7 @@ test.describe("leaving the sheet", () => {
 
   // Types a name, and waits for the save to go wrong.
   async function typeUntilAlert(page, alert) {
-    await page.locator("#f_name").fill("Marlo");
+    await page.locator('[data-f="id.name"]').fill("Marlo");
     await expect(page.getByRole("alert")).toContainText(alert, { timeout: 8000 });
   }
 
@@ -302,7 +303,7 @@ test.describe("leaving the sheet", () => {
         await leave(page);
         expect(await cancelled).toBe(LEAVE);
         await expect(page).toHaveURL(onSheet);
-        await expect(page.locator("#f_name")).toHaveValue("Marlo");
+        await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo");
         await expect(page.getByRole("alert")).toContainText(alert);
 
         const accepted = answerNext(page, true);
@@ -318,10 +319,10 @@ test.describe("leaving the sheet", () => {
     test(`${way}: the save ends before the next page is shown, and nothing is asked`, async ({ page }) => {
       await openFromHome(page, { hold: [SAVE] });
       const questions = recordQuestions(page);
-      await page.locator("#f_name").fill("Marlo");
+      await page.locator('[data-f="id.name"]').fill("Marlo");
       await leave(page);
       await expect.poll(() => callsTo(page, CHARACTERS, "PATCH")).toHaveLength(1);
-      await expect(page.locator("#f_name")).toHaveValue("Marlo");
+      await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo");
       await expect(charactersPage(page)).toHaveCount(0);
       await release(page);
       await expect(charactersPage(page)).toBeFocused();
@@ -356,9 +357,9 @@ test.describe("leaving the sheet", () => {
       await backLink(page).click();
       await accepted;
       await expect(page.locator("#main")).toHaveJSProperty("inert", true);
-      await page.locator("#f_name").click({ force: true });
+      await page.locator('[data-f="id.name"]').click({ force: true });
       await page.keyboard.type(" Vance");
-      await expect(page.locator("#f_name")).toHaveValue("Marlo");
+      await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo");
       await end(page);
       await expect(shown(page)).toBeVisible({ timeout: 20_000 });
       await expect(page.locator("#main")).toHaveJSProperty("inert", false);
@@ -371,7 +372,7 @@ test.describe("leaving the sheet", () => {
     const cancelled = answerNext(page, false);
     await page.getByRole("button", { name: "History" }).click();
     expect(await cancelled).toBe(LEAVE);
-    await expect(page.locator("#f_name")).toHaveValue("Marlo");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo");
     const questions = recordQuestions(page);
     await page.getByRole("button", { name: "History" }).click();
     await expect(page.getByRole("heading", { name: "Version history" })).toBeVisible();
@@ -384,7 +385,7 @@ test.describe("leaving the sheet", () => {
     const cancelled = answerNext(page, false);
     await backLink(page).click();
     await cancelled;
-    await page.locator("#f_bg").fill("Farm");
+    await page.locator('[data-f="id.bg"]').fill("Farm");
     await saved(page);
     expect((await storedCharacter(page)).data.id).toMatchObject({ name: "Marlo", bg: "Farm" });
   });
@@ -418,7 +419,7 @@ test.describe("leaving the sheet", () => {
         await expect(page.getByRole("heading", { name: "Welcome, Dana Voss." })).toBeVisible();
       } else {
         await expect(page).toHaveURL(onSheet);
-        await expect(page.locator("#f_name")).toHaveValue("Marlo");
+        await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo");
       }
       await page.waitForTimeout(500);
       expect(questions).toEqual([LEAVE]);
@@ -435,7 +436,7 @@ test.describe("leaving the sheet", () => {
     await expect(page).toHaveURL(onSheet);
     await release(page);
     await expect.poll(() => questions).toEqual([LEAVE]);
-    await expect(page.locator("#f_name")).toHaveValue("Marlo");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo");
     // Still unsaved, so leaving asks again.
     await backLink(page).click();
     await expect.poll(() => questions).toEqual([LEAVE, LEAVE]);
@@ -453,7 +454,7 @@ test.describe("leaving the sheet", () => {
     await expect(page).toHaveURL(onSheet);
     await page.waitForTimeout(500);
     expect(questions).toEqual([]);
-    await expect(page.locator("#f_name")).toHaveValue("Marlo");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo");
   });
 
   test("a sign-out in another tab asks before it leaves, and Cancel keeps the sheet", async ({ page }) => {
@@ -466,7 +467,7 @@ test.describe("leaving the sheet", () => {
     await other.getByRole("button", { name: "Sign out" }).click();
     expect(await cancelled).toBe("Your sign-in changed, and your latest changes are not saved yet. Leave this page and lose them?");
     await expect(page).toHaveURL(onSheet);
-    await expect(page.locator("#f_name")).toHaveValue("Marlo");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo");
 
     const accepted = answerNext(page, true);
     await backLink(page).click();
@@ -494,9 +495,9 @@ test.describe(".eclipse files", () => {
     const file = { ...named("From the file"), schemaVersion: SCHEMA_VERSION, extra: "kept" };
     await upload(page, JSON.stringify(file));
     await expect(page.getByRole("heading", { name: "Load this file?" })).toBeVisible();
-    await expect(page.locator("#f_name")).toHaveValue("Marlo");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo");
     await page.getByRole("button", { name: "Load without a copy" }).click();
-    await expect(page.locator("#f_name")).toHaveValue("From the file");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("From the file");
     await saved(page);
     const stored = (await storedCharacter(page)).data;
     expect(stored.id.name).toBe("From the file");
@@ -508,7 +509,7 @@ test.describe(".eclipse files", () => {
     await openSheet(page, { character: characterRow(named("Marlo")) });
     await upload(page, JSON.stringify(named("From the file")));
     await page.getByRole("button", { name: "Cancel" }).click();
-    await expect(page.locator("#f_name")).toHaveValue("Marlo");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo");
     await page.waitForTimeout(2200);
     expect(await callsTo(page, CHARACTERS, "PATCH")).toHaveLength(0);
   });
@@ -518,7 +519,7 @@ test.describe(".eclipse files", () => {
     await upload(page, JSON.stringify(named("From the file")));
     const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Save a copy, then load" }).click()]);
     expect(JSON.parse(await readFile(await download.path(), "utf8")).id.name).toBe("Marlo");
-    await expect(page.locator("#f_name")).toHaveValue("From the file");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("From the file");
   });
 
   test("a file that is not a character is refused and the sheet is unchanged", async ({ page }) => {
@@ -526,7 +527,7 @@ test.describe(".eclipse files", () => {
     for (const bad of ["not json", JSON.stringify({ hello: 1 }), JSON.stringify([1, 2]), JSON.stringify({ ...named("x"), schemaVersion: SCHEMA_VERSION + 1 })]) {
       await upload(page, bad);
       await expect(page.getByRole("alert")).toBeVisible();
-      await expect(page.locator("#f_name")).toHaveValue("Marlo");
+      await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo");
     }
     expect(await callsTo(page, CHARACTERS, "PATCH")).toHaveLength(0);
   });
@@ -549,7 +550,7 @@ test.describe("the sheet itself", () => {
     await page.locator('[data-t="trauma"][data-i="2"]').click(); // top box again steps back
     await expect(page.locator("#dialNum")).toHaveText("−3");
     await expect(page.locator('[data-pool="Athletics"]')).toHaveText("0"); // 1 attribute - 3 penalty
-    await page.locator("#applyPen").uncheck();
+    await page.locator('[data-f="applyPen"]').uncheck();
     await expect(page.locator('[data-pool="Athletics"]')).toHaveText("1");
   });
 
@@ -562,15 +563,15 @@ test.describe("the sheet itself", () => {
     await page.locator('[data-dyover="0"]').click();
     await expect(page.locator('[data-t="trauma"].on')).toHaveCount(10);
     await expect(page.locator("#dy_of")).toHaveText("1");
-    await page.locator('[data-dy="aided"]').check();
+    await page.locator('[data-f="dy.aided"]').check();
     await expect(page.locator("#dy_flag")).toHaveText("Stabilized by an ally");
   });
 
   test("choosing a profession sets its Master Skill and attribute bonus", async ({ page }) => {
     await openSheet(page, { character: characterRow(named("Marlo")) });
-    await page.locator("#f_prof").click();
+    await page.locator('[data-f="id.prof"]').click();
     await page.getByRole("option", { name: /Medical Doctor/ }).click();
-    await expect(page.locator("#f_master")).toHaveValue("Medicine");
+    await expect(page.locator('[data-f="id.master"]')).toHaveValue("Medicine");
     await expect(page.locator('[data-tot="cla"]')).toHaveText("2");
     await expect(page.locator('.srow[data-skill="Medicine"]')).toHaveClass(/master/);
     await saved(page);
@@ -579,7 +580,7 @@ test.describe("the sheet itself", () => {
 
   test("choosing a race sets its Sanity and modifiers", async ({ page }) => {
     await openSheet(page, { character: characterRow(named("Marlo")) });
-    await page.locator("#f_race").selectOption("voidtouched");
+    await page.locator('[data-f="id.race"]').selectOption("voidtouched");
     await expect(page.locator('[data-tot="let"]')).toHaveText("0"); // base 1, -1 race
     await expect(page.locator('[data-tot="ins"]')).toHaveText("2");
     await expect(page.locator('[data-tot="san"]')).toHaveText("6");
@@ -603,7 +604,7 @@ test.describe("the sheet itself", () => {
     await expect(page.locator("#mor_state")).toHaveText("Ruthless · 8/10");
     await expect(page.locator('[data-mor="7"]')).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator('[data-mor="8"]')).toHaveAttribute("aria-pressed", "false");
-    await page.locator("#f_bg").fill("Farm");
+    await page.locator('[data-f="id.bg"]').fill("Farm");
     await saved(page);
     const [patch] = await callsTo(page, CHARACTERS, "PATCH");
     expect(patch.body).toMatchObject({ schema_version: SCHEMA_VERSION, data: { morality: 8, oldField: "kept", id: { bg: "Farm" } } });
@@ -616,10 +617,10 @@ test.describe("the sheet itself", () => {
     data.skills = { Engineering: 2, Tactics: 4 };
     await openSheet(page, { character: characterRow(data) });
     await expect(page.locator('[data-cap="cla"]')).toHaveText("max 4");
-    await expect(page.locator('[data-sk="Tactics"]')).not.toHaveClass(/over/);
-    await expect(page.locator('[data-sk="Engineering"]')).not.toHaveClass(/over/);
-    await page.locator('[data-sk="Engineering"]').fill("3");
-    await expect(page.locator('[data-sk="Engineering"]')).toHaveClass(/over/);
+    await expect(page.locator('[data-f="skills.Tactics"]')).not.toHaveClass(/over/);
+    await expect(page.locator('[data-f="skills.Engineering"]')).not.toHaveClass(/over/);
+    await page.locator('[data-f="skills.Engineering"]').fill("3");
+    await expect(page.locator('[data-f="skills.Engineering"]')).toHaveClass(/over/);
     await expect(page.locator('[data-pool="Engineering"]')).toHaveAttribute("title", /rating 5 is above the cap of 4/);
   });
 
@@ -722,5 +723,14 @@ test.describe("hostile text", () => {
     await expect(page.locator('[data-lg="0.b"]')).toHaveValue(evil);
     expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
     expect(await page.locator("#main img, #main script").count()).toBe(0);
+  });
+});
+
+test.describe("field list coverage (docs/adr/0019)", () => {
+  test("every input on the Core page is in CORE_FIELDS, and every CORE_FIELDS entry has an input", async ({ page }) => {
+    await openSheet(page);
+    const onPage = await page.locator("#page1 [data-f]").evaluateAll((els) => els.map((el) => el.dataset.f));
+    const listed = CORE_FIELDS.map((f) => f.path);
+    expect([...onPage].sort()).toEqual([...listed].sort());
   });
 });
