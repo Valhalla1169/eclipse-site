@@ -1,7 +1,7 @@
 // A person's characters. Every call runs as the signed-in user; RLS and the column
 // grants decide what is allowed (docs/adr/0002, 0006, 0011). A character belongs to a
-// person, not a campaign. No delete function exists on purpose (docs/adr/0004):
-// "deleting" hides a character and it can be brought back.
+// person, not a campaign. "Deleting" hides a character and it can be brought back
+// (docs/adr/0004); once archived, its owner can also delete it forever (docs/adr/0018).
 import { SCHEMA_VERSION, blank } from "./eclipse-rules.js";
 import { sb } from "./supabase-client.js";
 
@@ -41,6 +41,13 @@ export async function deleteCharacter(id) {
 
 export async function undeleteCharacter(id) {
   const { error } = await sb.rpc("undelete_character", { p_character_id: id });
+  if (error) throw error;
+}
+
+// Removes an archived character forever: the row, its history, and any copy a
+// Keeper kept (docs/adr/0018). Only the owner, and only while it is archived.
+export async function purgeCharacter(id) {
+  const { error } = await sb.rpc("purge_character", { p_character_id: id });
   if (error) throw error;
 }
 

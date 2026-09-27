@@ -380,6 +380,22 @@ article.card:hover, article.card:focus-within,
 .player-card:hover h3, .player-card:focus-within h3,
 article.card:hover h3, article.card:focus-within h3 { color: var(--hover-title); }
 
+/* ---- Confirm dialog (delete a character forever) ---- */
+dialog.confirm-dialog {
+  width: min(30rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 3rem);
+  margin: auto;
+  padding: 1.25rem;
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius);
+  background: var(--base);
+  color: var(--text);
+  overflow: auto;
+}
+dialog.confirm-dialog::backdrop { background: color-mix(in srgb, var(--crust) 75%, transparent); }
+dialog.confirm-dialog h2 { margin: 0 0 0.5rem; font-size: 1.15rem; }
+dialog.confirm-dialog > * + * { margin-top: 0.75rem; }
+
 /* ---- Roster (DM page) ---- */
 .roster { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 1rem; }
 .player-card { background: var(--base); padding: 1rem; }

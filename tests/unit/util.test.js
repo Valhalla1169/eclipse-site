@@ -210,7 +210,14 @@ describe("friendlyError for the character limits", () => {
   it("tells a person at the limit how to make room", () => {
     expect(friendlyError(new Error(`you already have ${MAX_CHARACTERS} characters, the most one person can have`))).toBe(FULL_NOTE);
     expect(FULL_NOTE).toMatch(/Save a copy .* then delete it/);
-    expect(friendlyError(new Error("you have made 30 characters, the most one person can keep, including deleted ones"))).toMatch(/30 characters/);
+    expect(friendlyError(new Error("you have made 30 characters, the most one person can keep, including deleted ones"))).toMatch(/delete an archived one forever/i);
+  });
+});
+
+describe("friendlyError for purging a character forever", () => {
+  it("gives its own message for the daily cap, not the generic refusal", () => {
+    expect(friendlyError(new Error("you have already purged 10 characters in the last 24 hours. Wait a day and try again."))).toMatch(/10 characters forever/);
+    expect(friendlyError(new Error("that character cannot be purged"))).toMatch(/cannot be deleted forever right now/);
   });
 });
 

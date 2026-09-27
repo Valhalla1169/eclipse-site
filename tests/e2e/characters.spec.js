@@ -14,6 +14,8 @@ const sheetOf = (name, change = () => {}) => {
 const MARLO = characterRow(sheetOf("Marlo Vance"));
 const VEX_ID = "40000000-0000-4000-8000-0000000000c2";
 const VEX = characterRow(sheetOf("Vex"), { id: VEX_ID, updated_at: "2026-09-18T10:00:00.000000+00:00" });
+const GONE_ID = "40000000-0000-4000-8000-0000000000d1";
+const GONE = characterRow(sheetOf("Gone Forever"), { id: GONE_ID, deleted_at: "2026-09-02T00:00:00.000000+00:00" });
 const OTHER_CAMPAIGN = { id: "10000000-0000-4000-8000-000000000002", name: "Second Table", dm_id: ids.dm, created_at: "2026-09-02T00:00:00Z" };
 
 const filler = (count) =>
@@ -147,6 +149,83 @@ test.describe("the list of characters", () => {
     await expect(page.locator("#f_name")).toHaveValue("From a file");
     const [post] = await callsTo(page, CHARACTERS, "POST");
     expect(post.body).toMatchObject({ character_name: "From a file", schema_version: SCHEMA_VERSION, data: { extra: "kept" } });
+  });
+});
+
+test.describe("deleting a character forever", () => {
+  const openDialog = async (page) => {
+    await openList(page, { characters: [MARLO, GONE] });
+    await page.getByText("Deleted characters (1)").click();
+    await page.getByRole("button", { name: "Delete forever" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "Delete Gone Forever forever?" })).toBeVisible();
+    return dialog;
+  };
+
+  test("the button appears only for an archived character", async ({ page }) => {
+    await openList(page, { characters: [MARLO, GONE] });
+    await expect(card(page, "Marlo Vance").getByRole("button", { name: "Delete forever" })).toHaveCount(0);
+    await page.getByText("Deleted characters (1)").click();
+    await expect(page.getByRole("button", { name: "Delete forever" })).toBeVisible();
+  });
+
+  test("a wrong or empty name keeps the confirm button off", async ({ page }) => {
+    const dialog = await openDialog(page);
+    const confirmButton = dialog.getByRole("button", { name: "Delete forever" });
+    const nameField = dialog.getByLabel("Type Gone Forever to confirm");
+    await expect(confirmButton).toBeDisabled();
+    await nameField.fill("Gone Forver");
+    await expect(confirmButton).toBeDisabled();
+    await nameField.fill("");
+    await expect(confirmButton).toBeDisabled();
+    await nameField.fill("Gone Forever");
+    await expect(confirmButton).toBeEnabled();
+    expect(await rpc(page, "purge_character")).toHaveLength(0);
+  });
+
+  test("Cancel changes nothing", async ({ page }) => {
+    const dialog = await openDialog(page);
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole("button", { name: "Delete forever" })).toBeFocused();
+    expect(await rpc(page, "purge_character")).toHaveLength(0);
+    await expect(page.getByText("Deleted characters (1)")).toBeVisible();
+  });
+
+  test("Escape changes nothing", async ({ page }) => {
+    const dialog = await openDialog(page);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    expect(await rpc(page, "purge_character")).toHaveLength(0);
+    await expect(page.getByText("Deleted characters (1)")).toBeVisible();
+  });
+
+  test("offers to save a copy first", async ({ page }) => {
+    const dialog = await openDialog(page);
+    const [download] = await Promise.all([page.waitForEvent("download"), dialog.getByRole("button", { name: "Save a copy" }).click()]);
+    expect(download.suggestedFilename()).toBe("Gone-Forever.eclipse");
+    await expect(dialog.getByText("Saved.")).toBeVisible();
+  });
+
+  test("the right name removes it forever, and a notice says so", async ({ page }) => {
+    const dialog = await openDialog(page);
+    await dialog.getByLabel("Type Gone Forever to confirm").fill("Gone Forever");
+    await dialog.getByRole("button", { name: "Delete forever" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole("status").filter({ hasText: "Gone Forever is deleted forever." })).toBeVisible();
+    await expect(page.getByText("Deleted characters")).toHaveCount(0);
+    const [call] = await rpc(page, "purge_character");
+    expect(call.body).toEqual({ p_character_id: GONE_ID });
+    expect((await storedMock(page)).characters.some((r) => r.id === GONE_ID)).toBe(false);
+  });
+
+  test("a refusal from the database is shown inside the dialog", async ({ page }) => {
+    const dialog = await openDialog(page);
+    await patchMock(page, { assignments: [assignmentRow(GONE_ID)] });
+    await dialog.getByLabel("Type Gone Forever to confirm").fill("Gone Forever");
+    await dialog.getByRole("button", { name: "Delete forever" }).click();
+    await expect(dialog.getByRole("alert")).toContainText("cannot be deleted forever right now");
+    await expect(dialog).toBeVisible();
   });
 });
 

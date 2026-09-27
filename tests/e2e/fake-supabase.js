@@ -116,6 +116,17 @@
     return json(200, (c.departed || []).filter(function (r) { return matches(u, r, ["campaign_id", "id"]); }).map(project));
   }
   function characterById(c, id) { return (c.characters || []).filter(function (r) { return r.id === id; })[0]; }
+  // The signed-in user's id, decoded from the fake access token (real auth.uid()
+  // comes from the same JWT), or null when signed out or using the anon key.
+  function currentUserId(input, init) {
+    var headers = new Headers((init && init.headers) || (input && input.headers) || {});
+    var auth = headers.get("Authorization") || "";
+    var token = auth.indexOf("Bearer fake.") === 0 ? auth.slice(7) : null;
+    if (!token) return null;
+    var payload = token.split(".")[1] || "";
+    while (payload.length % 4) payload += "=";
+    try { return JSON.parse(atob(payload)).sub || null; } catch (e) { return null; }
+  }
   function chooseCharacter(c, body) {
     var row = characterById(c, body.p_character_id);
     if (!row || row.deleted_at) return pgError("that character was not found");
@@ -128,19 +139,40 @@
     c.assignments = list; save(c);
     return new Response(null, { status: 204 });
   }
-  function deleteCharacter(c, body) {
+  function deleteCharacter(c, body, input, init) {
+    var uid = currentUserId(input, init);
+    if (!uid) return pgError("must be signed in");
     var row = characterById(c, body.p_character_id);
-    if (!row) return pgError("that character was not found");
+    if (!row || row.owner_id !== uid) return pgError("that character was not found");
     if ((c.assignments || []).some(function (a) { return a.character_id === row.id; })) return pgError("that character is active in a campaign. Choose a different character there first");
     row.deleted_at = new Date().toISOString(); row.updated_at = stamp(c); save(c);
     return new Response(null, { status: 204 });
   }
-  function undeleteCharacter(c, body) {
+  function undeleteCharacter(c, body, input, init) {
+    var uid = currentUserId(input, init);
+    if (!uid) return pgError("must be signed in");
     var row = characterById(c, body.p_character_id);
-    if (!row) return pgError("that character was not found");
+    if (!row || row.owner_id !== uid) return pgError("that character was not found");
     var live = (c.characters || []).filter(function (r) { return r.owner_id === row.owner_id && !r.deleted_at; }).length;
     if (live >= MAX_LIVE) return pgError(FULL);
     row.deleted_at = null; row.updated_at = stamp(c); save(c);
+    return new Response(null, { status: 204 });
+  }
+
+  // Deleting an archived character forever (migration 0013): refused unless the
+  // caller is signed in, owns it, it is archived, and it is free of any campaign,
+  // like the real purge_character. Removes the row, its history and any departed
+  // copy, and logs who, when and its id, with no name and no data, in `c.purges`.
+  function purgeCharacter(c, body, input, init) {
+    var uid = currentUserId(input, init);
+    var row = characterById(c, body.p_character_id);
+    var assigned = (c.assignments || []).some(function (a) { return a.character_id === body.p_character_id; });
+    if (!uid || !row || row.owner_id !== uid || !row.deleted_at || assigned) return pgError("that character cannot be purged");
+    c.characters = (c.characters || []).filter(function (r) { return r.id !== row.id; });
+    c.history = (c.history || []).filter(function (h) { return h.character_id !== row.id; });
+    c.departed = (c.departed || []).filter(function (d) { return d.character_id !== row.id; });
+    c.purges = (c.purges || []).concat([{ purged_at: new Date().toISOString(), character_id: row.id, owner_name: (c.profile || {}).display_name || null }]);
+    save(c);
     return new Response(null, { status: 204 });
   }
 
@@ -234,7 +266,7 @@
   var MAX_WAITING = 20;
   var APPROVAL_MS = 7 * 86400 * 1000;
   var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  var ADMIN_RPCS = { is_site_admin: "GET", list_accounts: "GET", list_pending_approvals: "GET", approve_email: "POST", revoke_approval: "POST" };
+  var ADMIN_RPCS = { is_site_admin: "GET", list_accounts: "GET", list_pending_approvals: "GET", approve_email: "POST", revoke_approval: "POST", list_purges: "GET" };
   function anyAccount(c, email) { return (c.accounts || []).some(function (a) { return a.email === email; }); }
   function confirmedAccount(c, email) { return (c.accounts || []).some(function (a) { return a.email === email && a.email_confirmed_at; }); }
   function current(approval) { return new Date(approval.expires_at) > new Date(); }
@@ -274,6 +306,7 @@
     if (name === "is_site_admin") return c.adminCheckFails ? json(500, { code: "XX000", message: "fake-supabase: is_site_admin failed", details: null, hint: null }) : json(200, !!c.admin);
     if (name === "list_accounts") return adminOnly(c, "list the accounts") || json(200, c.accounts || []);
     if (name === "list_pending_approvals") return adminOnly(c, "list the approvals") || json(200, waiting(c));
+    if (name === "list_purges") return adminOnly(c, "list the purges") || json(200, c.purges || []);
     if (name === "approve_email") return adminOnly(c, "approve an email") || approveEmail(c, body);
     return adminOnly(c, "revoke an approval") || revokeApproval(c, body);
   }
@@ -414,8 +447,9 @@
     if (path === "/rest/v1/campaign_characters" && method === "GET") return assignments(c, u);
     if (path === "/rest/v1/departed_sheets" && method === "GET") return departed(c, u);
     if (path === "/rest/v1/rpc/choose_character" && method === "POST") return chooseCharacter(c, body);
-    if (path === "/rest/v1/rpc/delete_character" && method === "POST") return deleteCharacter(c, body);
-    if (path === "/rest/v1/rpc/undelete_character" && method === "POST") return undeleteCharacter(c, body);
+    if (path === "/rest/v1/rpc/delete_character" && method === "POST") return deleteCharacter(c, body, input, init);
+    if (path === "/rest/v1/rpc/undelete_character" && method === "POST") return undeleteCharacter(c, body, input, init);
+    if (path === "/rest/v1/rpc/purge_character" && method === "POST") return purgeCharacter(c, body, input, init);
     if (path === "/rest/v1/character_history" && method === "GET") return history(c, u);
     if (path === "/rest/v1/rpc/restore_character_version" && method === "POST") return restore(c, body);
 

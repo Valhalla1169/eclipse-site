@@ -640,18 +640,20 @@ export function dmView({ campaign, roster, loadInvites, createInvite, replaceInv
 
 // The site admin page (docs/adr/0014): approve an email so that its owner can make an
 // account, renew or revoke an approval that no confirmed account uses, and see every account.
-export function adminView({ loadAccounts, loadPending, approveEmail, revokeApproval, onCopy }) {
+// loadPurges lists characters deleted forever (docs/adr/0018), for the Admin page only.
+export function adminView({ loadAccounts, loadPending, approveEmail, revokeApproval, loadPurges, onCopy }) {
   const fresh = h("div", { class: "stack" });
   const problem = h("div", { class: "stack" });
   const pending = h("div", { class: "stack" });
   const accounts = h("div", { class: "stack" });
+  const purges = h("div", { class: "stack" });
   const pendingTitle = h("h2", {}, "Waiting for an account");
   const expired = (approval) => new Date(approval.expires_at).getTime() <= Date.now();
   const day = (iso) => new Date(iso).toLocaleDateString();
 
   async function refresh() {
     try {
-      const [waiting, people] = await Promise.all([loadPending(), loadAccounts()]);
+      const [waiting, people, purged] = await Promise.all([loadPending(), loadAccounts(), loadPurges()]);
       const current = waiting.filter((approval) => !expired(approval));
       const old = waiting.filter(expired);
       pendingTitle.textContent = `Waiting for an account (${current.length})`;
@@ -660,6 +662,7 @@ export function adminView({ loadAccounts, loadPending, approveEmail, revokeAppro
         ...(old.length ? [h("details", {}, h("summary", {}, `Expired approvals (${old.length})`), h("ul", { class: "invites" }, ...old.map(approvalRow)))] : []),
       );
       accounts.replaceChildren(h("ul", { class: "invites" }, ...people.map(accountRow)));
+      purges.replaceChildren(purged.length ? h("ul", { class: "invites" }, ...purged.map(purgeRow)) : h("p", { class: "muted" }, "Nobody has deleted a character forever."));
     } catch (err) {
       console.error(err);
       pending.replaceChildren(notice("error", friendlyError(err)));
@@ -730,6 +733,19 @@ export function adminView({ loadAccounts, loadPending, approveEmail, revokeAppro
       ),
     );
 
+  const purgeRow = (purge) =>
+    h(
+      "li",
+      { class: "invite" },
+      h(
+        "div",
+        { class: "invite-main" },
+        h("span", { class: "muted" }, day(purge.purged_at)),
+        h("strong", {}, purge.owner_name),
+        h("span", { class: "code" }, purge.character_id),
+      ),
+    );
+
   const approveForm = form({
     fields: [emailField("approveEmail", "Email address")],
     submitLabel: "Approve email",
@@ -769,6 +785,13 @@ export function adminView({ loadAccounts, loadPending, approveEmail, revokeAppro
         "Not confirmed means the account's email is not confirmed yet. If the person did not make that account, someone else did: the site owner deletes it in the Supabase dashboard (Authentication, Users), then approve the email again.",
       ),
       accounts,
+    ),
+    h(
+      "section",
+      { class: "card stack" },
+      h("h2", {}, "Deleted forever"),
+      h("p", { class: "muted" }, "A player can delete their own archived character forever. This is the log: who, when, and the character's id. No name and no sheet data are kept."),
+      purges,
     ),
   );
 }
