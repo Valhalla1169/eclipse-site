@@ -95,6 +95,9 @@ Database); nothing else uses it. The script prints the file, its size and the ro
 
 The file holds all the site's data and every account (`auth.users` and `auth.identities`), with
 emails and password hashes. **Keep it secret**: never put it in the repo, a chat or a shared folder.
+
+A backup taken before a player deleted a character forever (docs/adr/0018) still holds it: purging
+removes a character from the live database only, not from a backup already made.
 It has no schema; that comes from `supabase/migrations/`.
 
 Check a file. This loads it into a throwaway database, with the same Postgres and `PG*` variables as

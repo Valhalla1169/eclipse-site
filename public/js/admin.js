@@ -34,3 +34,7 @@ export const listAccounts = () => call("list_accounts", undefined, { read: true 
 // [{ email, approved_at, expires_at, approved_by_name }]: approvals that no confirmed account
 // uses, expired ones too.
 export const listPendingApprovals = () => call("list_pending_approvals", undefined, { read: true });
+
+// [{ purged_at, character_id, owner_name }]: characters deleted forever (docs/adr/0018),
+// newest first. No name and no sheet data leave the database.
+export const listPurges = () => call("list_purges", undefined, { read: true });

@@ -231,6 +231,7 @@ async function onRoute({ path, search, match, initial }) {
           loadPending: admin.listPendingApprovals,
           approveEmail: admin.approveEmail,
           revokeApproval: admin.revokeApproval,
+          loadPurges: admin.listPurges,
           onCopy: (text) => navigator.clipboard.writeText(text),
         }),
         "Site admin",
@@ -389,12 +390,13 @@ async function loadCharacterList(user) {
 
 // A person's characters, in or out of a campaign (ADR 0011).
 async function showCharacters({ user, alive, announce }) {
-  const draw = async (focus) => {
+  const draw = async (focus, notice) => {
     const list = await loadCharacterList(user);
     if (!alive()) return;
     show(
       charactersView({
         list,
+        notice,
         onCreate: async () => router.go(characterPath((await characters.createCharacter(user.id)).id)),
         onCreateFromFile: async (file) => {
           const sheet = await readSheetFile(file);
@@ -415,6 +417,11 @@ async function showCharacters({ user, alive, announce }) {
           await characters.undeleteCharacter(id);
           await draw(false);
         },
+        onPurge: async (id, name) => {
+          await characters.purgeCharacter(id);
+          await draw(false, `${name} is deleted forever.`);
+        },
+        onLoadSheet: characters.readCharacter,
       }),
       "Your characters",
       focus,

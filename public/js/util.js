@@ -110,6 +110,7 @@ export function friendlyError(err) {
   if (/active in a campaign/i.test(msg)) return "That character is active in a campaign. Choose a different character there first.";
   if (/character is deleted/i.test(msg)) return "That character is deleted. Bring it back first.";
   if (/character was not found/i.test(msg)) return "That character could not be found.";
+  if (/cannot be purged/i.test(msg)) return "That character cannot be deleted forever right now. Reload the page and try again.";
   if ((err && err.code === "PGRST301") || /jwt expired|invalid jwt/i.test(msg)) return "Your sign-in has ended. Sign in again.";
   if (/permission denied|row-level security|42501/i.test(msg)) return "You do not have access to that.";
   return "Something went wrong. Please try again.";

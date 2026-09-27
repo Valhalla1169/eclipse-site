@@ -46,12 +46,20 @@ for (const theme of ["latte", "mocha"]) {
         { email: "sam@example.com", approved_at: new Date(Date.now() - day).toISOString(), expires_at: new Date(Date.now() + 6 * day).toISOString(), approved_by_name: "Dana Voss" },
         { email: "kim@example.com", approved_at: new Date(Date.now() - 9 * day).toISOString(), expires_at: new Date(Date.now() - 2 * day).toISOString(), approved_by_name: "Dana Voss" },
       ];
-      await seed(page, { mock: { profile: players.dana.profile, admin: true, accounts, approvals, campaigns: [campaign], character: row, assignments: [assignmentRow()] }, user: players.dana });
+      const goneSheet = blank();
+      goneSheet.id.name = "Gone Forever";
+      const goneForever = characterRow(goneSheet, { id: "40000000-0000-4000-8000-0000000000e5", deleted_at: "2026-09-20T00:00:00.000000+00:00" });
+      await seed(page, { mock: { profile: players.dana.profile, admin: true, accounts, approvals, campaigns: [campaign], characters: [row, goneForever], assignments: [assignmentRow()] }, user: players.dana });
       await setTheme(page);
       for (const path of ["/", "/account", "/characters", `/campaign/${ids.campaign}/character`]) {
         await open(page, path);
         await expectClean(page, path);
       }
+      await open(page, "/characters");
+      await page.getByText("Deleted characters (1)").click();
+      await page.getByRole("button", { name: "Delete forever" }).click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await expectClean(page, "/characters, delete-forever dialog open");
       await open(page, "/admin");
       await expect(page.locator("li.invite")).toHaveCount(accounts.length + approvals.length);
       await page.getByText("Expired approvals (1)").click();

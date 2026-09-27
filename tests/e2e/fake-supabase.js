@@ -144,6 +144,22 @@
     return new Response(null, { status: 204 });
   }
 
+  // Deleting an archived character forever (migration 0013): refused unless it is
+  // archived and free of any campaign, like the real purge_character. Removes the
+  // row, its history and any departed copy, and logs who, when and its id, with no
+  // name and no data, in `c.purges`.
+  function purgeCharacter(c, body) {
+    var row = characterById(c, body.p_character_id);
+    var assigned = (c.assignments || []).some(function (a) { return a.character_id === body.p_character_id; });
+    if (!row || !row.deleted_at || assigned) return pgError("that character cannot be purged");
+    c.characters = (c.characters || []).filter(function (r) { return r.id !== row.id; });
+    c.history = (c.history || []).filter(function (h) { return h.character_id !== row.id; });
+    c.departed = (c.departed || []).filter(function (d) { return d.character_id !== row.id; });
+    c.purges = (c.purges || []).concat([{ purged_at: new Date().toISOString(), character_id: row.id, owner_name: (c.profile || {}).display_name || null }]);
+    save(c);
+    return new Response(null, { status: 204 });
+  }
+
   // Realtime: a stand-in for the Phoenix websocket, so no network is opened. Tests
   // call window.__realtime.emit() (a sheet changed) and .drop() (the connection ends).
   // Only the messages the app needs: join, heartbeat and leave.
@@ -234,7 +250,7 @@
   var MAX_WAITING = 20;
   var APPROVAL_MS = 7 * 86400 * 1000;
   var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  var ADMIN_RPCS = { is_site_admin: "GET", list_accounts: "GET", list_pending_approvals: "GET", approve_email: "POST", revoke_approval: "POST" };
+  var ADMIN_RPCS = { is_site_admin: "GET", list_accounts: "GET", list_pending_approvals: "GET", approve_email: "POST", revoke_approval: "POST", list_purges: "GET" };
   function anyAccount(c, email) { return (c.accounts || []).some(function (a) { return a.email === email; }); }
   function confirmedAccount(c, email) { return (c.accounts || []).some(function (a) { return a.email === email && a.email_confirmed_at; }); }
   function current(approval) { return new Date(approval.expires_at) > new Date(); }
@@ -274,6 +290,7 @@
     if (name === "is_site_admin") return c.adminCheckFails ? json(500, { code: "XX000", message: "fake-supabase: is_site_admin failed", details: null, hint: null }) : json(200, !!c.admin);
     if (name === "list_accounts") return adminOnly(c, "list the accounts") || json(200, c.accounts || []);
     if (name === "list_pending_approvals") return adminOnly(c, "list the approvals") || json(200, waiting(c));
+    if (name === "list_purges") return adminOnly(c, "list the purges") || json(200, c.purges || []);
     if (name === "approve_email") return adminOnly(c, "approve an email") || approveEmail(c, body);
     return adminOnly(c, "revoke an approval") || revokeApproval(c, body);
   }
@@ -416,6 +433,7 @@
     if (path === "/rest/v1/rpc/choose_character" && method === "POST") return chooseCharacter(c, body);
     if (path === "/rest/v1/rpc/delete_character" && method === "POST") return deleteCharacter(c, body);
     if (path === "/rest/v1/rpc/undelete_character" && method === "POST") return undeleteCharacter(c, body);
+    if (path === "/rest/v1/rpc/purge_character" && method === "POST") return purgeCharacter(c, body);
     if (path === "/rest/v1/character_history" && method === "GET") return history(c, u);
     if (path === "/rest/v1/rpc/restore_character_version" && method === "POST") return restore(c, body);
 

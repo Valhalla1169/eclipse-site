@@ -44,6 +44,13 @@ export async function undeleteCharacter(id) {
   if (error) throw error;
 }
 
+// Removes an archived character forever: the row, its history, and any copy a
+// Keeper kept (docs/adr/0018). Only the owner, and only while it is archived.
+export async function purgeCharacter(id) {
+  const { error } = await sb.rpc("purge_character", { p_character_id: id });
+  if (error) throw error;
+}
+
 // ── Which character is active in which campaign (docs/adr/0011) ───────
 // A player has one active character per campaign, and a character is active in at
 // most one campaign at a time.

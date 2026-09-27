@@ -23,6 +23,7 @@ const section = (page, heading) => page.locator("section", { has: page.getByRole
 const pendingRows = (page) => section(page, /^Waiting for an account/).locator("div.stack > ul.invites > li");
 const expiredRows = (page) => section(page, /^Waiting for an account/).locator("details li.invite");
 const accountRows = (page) => section(page, "Accounts").locator("li.invite");
+const purgeRows = (page) => section(page, "Deleted forever").locator("li.invite");
 
 test.describe("a site admin", () => {
   test("sees the Admin link, styled like Characters, and it opens the page", async ({ page }) => {
@@ -121,6 +122,19 @@ test.describe("a site admin", () => {
     await expect(page.locator("code.linkbox")).toHaveCount(0);
   });
 
+  test("sees the log of characters deleted forever, with no name and no data", async ({ page }) => {
+    await openAdmin(page, { purges: [{ purged_at: "2026-09-25T10:00:00.000Z", character_id: "40000000-0000-4000-8000-0000000000d1", owner_name: "Dana Voss" }] });
+    await expect(page.getByRole("heading", { name: "Deleted forever" })).toBeVisible();
+    await expect(purgeRows(page)).toHaveCount(1);
+    await expect(purgeRows(page)).toContainText("Dana Voss");
+    await expect(purgeRows(page)).toContainText("40000000-0000-4000-8000-0000000000d1");
+  });
+
+  test("says so when nobody has deleted a character forever", async ({ page }) => {
+    await openAdmin(page, { purges: [] });
+    await expect(section(page, "Deleted forever").getByText("Nobody has deleted a character forever.")).toBeVisible();
+  });
+
   test("who stops being an admin is refused by the database, even with the page open", async ({ page }) => {
     await openAdmin(page);
     await patchMock(page, { admin: false });
@@ -140,6 +154,7 @@ test.describe("anyone else", () => {
     await expect(page.getByText("That page does not exist.")).toBeVisible();
     expect(await callsTo(page, "/rest/v1/rpc/list_accounts")).toHaveLength(0);
     expect(await callsTo(page, "/rest/v1/rpc/list_pending_approvals")).toHaveLength(0);
+    expect(await callsTo(page, "/rest/v1/rpc/list_purges")).toHaveLength(0);
   });
 
   test("who is signed out is asked to sign in first", async ({ page }) => {
