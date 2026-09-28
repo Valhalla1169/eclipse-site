@@ -48,6 +48,7 @@ describe("dropBookName", () => {
 
   it("leaves a title with no book-name prefix alone", () => {
     expect(dropBookName("# Skills\nText.")).toBe("# Skills\nText.");
+    expect(dropBookName("# Age of Eclipse\nText.")).toBe("# Age of Eclipse\nText.");
   });
 
   it("only touches the first \"# \" line, not a \"## \" line or a later one", () => {

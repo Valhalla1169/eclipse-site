@@ -41,12 +41,9 @@ export function chapterTitle(markdown) {
   return heading ? textOf(heading).replace(/\s+/g, " ").trim() : "";
 }
 
-// The book's own title already says "Age of Eclipse" (docs/adr/0016), so a chapter's own
-// heading needn't repeat it. Drops that name, case-insensitively, from the start of the
-// chapter's first "# " line: "# AGE OF ECLIPSE — SKILLS" -> "# SKILLS". Leaves a "##" line,
-// or a later "# " line, alone. The game's own name is not rulebook text, so it may appear
-// here and in tests.
-const BOOK_NAME = /^[ \t]*age of eclipse[ \t]*(?:[-–—:][ \t]*)?/i;
+// Drops the game's name and its separator from the start of a chapter's first "# " line:
+// "# AGE OF ECLIPSE — SKILLS" -> "# SKILLS". A title that is only the name keeps it.
+const BOOK_NAME = /^[ \t]*age of eclipse[ \t]*[-–—:][ \t]*/i;
 export function dropBookName(body) {
   return body.replace(/^#[ \t]+.*$/m, (line) => `# ${line.replace(/^#[ \t]+/, "").replace(BOOK_NAME, "")}`);
 }
