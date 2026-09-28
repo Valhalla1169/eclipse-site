@@ -1,12 +1,10 @@
 // Page 6, Log: the player's own notes. Page 5, Reference: the searchable rules cards.
 import { h, staticHtml } from "../dom.js";
-import { LOG_FIELDS, setListFields } from "./fields.js";
 import { REFERENCE, REF_CATS } from "./reference-data.js";
 import { tabPanel } from "./ui.js";
 
-export const logEntries = (sheet) => {
-  setListFields("log", sheet.log.length, LOG_FIELDS);
-  return sheet.log.map((_, i) =>
+export const logEntries = (sheet) =>
+  sheet.log.map((_, i) =>
     h(
       "article",
       { class: "entry", "data-entry": i },
@@ -24,7 +22,6 @@ export const logEntries = (sheet) => {
       ),
     ),
   );
-};
 
 export function buildLogPage(sheet) {
   return tabPanel(

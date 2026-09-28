@@ -3,7 +3,7 @@
 import { h } from "../dom.js";
 import { MASTER_BONUS, PROFESSION_BONUS, PROFS } from "../eclipse-content.js";
 import { ATTR_NAMES, chooseProfession, int, setCondition, setOverflow, toggleBox } from "../eclipse-rules.js";
-import { FIELD_BY_PATH, KINDS, pathSet } from "./fields.js";
+import { KINDS, lookupField, pathSet } from "./fields.js";
 import { LISTS } from "./testament-page.js";
 import { REFERENCE } from "./reference-data.js";
 import { growTextarea, renderSheet } from "./render.js";
@@ -174,7 +174,7 @@ export function bindSheet(ctx) {
   // list); a page not yet converted still carries one of the data-* attributes
   // fieldTable() knows.
   function writeGenericField(path, el) {
-    const field = FIELD_BY_PATH.get(path);
+    const field = lookupField(path);
     if (!field) return false;
     const kind = KINDS[field.kind];
     const stored = kind.toStored(el);
