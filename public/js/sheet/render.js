@@ -50,7 +50,7 @@ import {
   weights,
 } from "../eclipse-rules.js";
 import { CORONA_TICKS } from "./core-page.js";
-import { FIELD_BY_PATH, KINDS, pathGet } from "./fields.js";
+import { KINDS, lookupField, pathGet } from "./fields.js";
 
 const signed = (v) => (v > 0 ? `−${v}` : v < 0 ? `+${Math.abs(v)}` : "0");
 const plusMinus = (v) => (v > 0 ? `+${v}` : `${v}`);
@@ -108,10 +108,6 @@ export function fillInputs(root, sheet) {
     const [group, index, field] = key.split(".");
     set(el, (sheet[group][int(index)] || {})[field], true);
   });
-  each("lg", (el, key) => {
-    const [index, field] = key.split(".");
-    set(el, (sheet.log[int(index)] || {})[field], true);
-  });
 }
 
 // Puts stored values into every data-f input (fields.js), except the one
@@ -122,7 +118,7 @@ export function fillFields(root, sheet) {
   const active = document.activeElement;
   root.querySelectorAll("[data-f]").forEach((el) => {
     if (el === active) return;
-    const field = FIELD_BY_PATH.get(el.dataset.f);
+    const field = lookupField(el.dataset.f);
     if (!field) return;
     const kind = KINDS[field.kind];
     const raw = pathGet(sheet, field.path);

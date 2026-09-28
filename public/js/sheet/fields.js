@@ -110,3 +110,38 @@ export const CORE_FIELDS = [
 ].map((f) => ({ after: "render", ...f }));
 
 export const FIELD_BY_PATH = new Map(CORE_FIELDS.map((f) => [f.path, f]));
+
+// The Log page's entries (docs/adr/0019): one row's fields, relative to the
+// row (rows() joins them to a path once a row's index is known). Stored keys
+// never change: "t" (title), "d" (session or date), "b" (the entry's text).
+export const LOG_FIELDS = [
+  { path: "t", kind: "text", label: "Entry title", after: "log" },
+  { path: "d", kind: "text", label: "Entry session or date", after: "log" },
+  { path: "b", kind: "text", label: "Entry text", after: "log", grow: true },
+];
+
+// A page whose rows come and go describes its list once, here, instead of a
+// count anyone has to keep in sync: `list` is the array's path, `fields` is
+// one field per relative path in a row. A `#` segment in `list` stands for a
+// whole-number index the list itself doesn't name yet, for a list nested in
+// another (a container's own items, say).
+export const GROWING_LISTS = [{ list: "log", fields: LOG_FIELDS }];
+
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const patternSegment = (segment) => (segment === "#" ? "\\d+" : escapeRegExp(segment));
+const rowPattern = (list, fieldPath) =>
+  new RegExp(`^${list.split(".").map(patternSegment).join("\\.")}\\.\\d+\\.${fieldPath.split(".").map(escapeRegExp).join("\\.")}$`);
+
+const GROWING_FIELD_PATTERNS = GROWING_LISTS.flatMap(({ list, fields }) => fields.map((field) => ({ field, pattern: rowPattern(list, field.path) })));
+
+// Finds a field's definition by its exact path: a fixed field first (a Map
+// lookup, so "constructor" and the like find nothing), then a growing list's
+// row pattern (its list, a whole-number index, one of the row's own fields).
+// Neither reads a sheet, so an index with no row drawn yet still resolves,
+// and two sheets shown at once each resolve their own fields independently.
+export function lookupField(path) {
+  const fixed = FIELD_BY_PATH.get(path);
+  if (fixed) return fixed;
+  const hit = GROWING_FIELD_PATTERNS.find(({ pattern }) => pattern.test(path));
+  return hit && { ...hit.field, path };
+}

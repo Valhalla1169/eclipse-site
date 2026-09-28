@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { blank } from "../../public/js/eclipse-rules.js";
-import { CORE_FIELDS, FIELD_BY_PATH, KINDS, pathGet, pathSet } from "../../public/js/sheet/fields.js";
+import { CORE_FIELDS, FIELD_BY_PATH, KINDS, LOG_FIELDS, lookupField, pathGet, pathSet, rows } from "../../public/js/sheet/fields.js";
 
 // One sample input per kind: what a binder's input element would carry, and
 // the stored value it must produce.
@@ -24,6 +24,50 @@ describe("CORE_FIELDS", () => {
     if (field.apply) field.apply(sheet, stored);
     else pathSet(sheet, path, stored);
     expect(pathGet(sheet, path)).toBe(stored);
+  });
+});
+
+describe("LOG_FIELDS (a growing list)", () => {
+  test.each([0, 1, 3])("every field of every row round-trips through the binder, %i entries", (count) => {
+    const sheet = blank();
+    sheet.log = Array.from({ length: count }, () => ({ t: "", d: "", b: "" }));
+    for (const field of rows("log", count, LOG_FIELDS)) {
+      const sample = SAMPLE[field.kind];
+      const stored = KINDS[field.kind].toStored(sample.el);
+      pathSet(sheet, field.path, stored);
+      expect(pathGet(sheet, field.path)).toBe(stored);
+    }
+  });
+
+});
+
+describe("lookupField", () => {
+  test("resolves a growing list's field with no rows drawn", () => {
+    expect(lookupField("log.7.t")).toMatchObject({ path: "log.7.t", kind: "text" });
+  });
+
+  test.each(["log.x.t", "log.1.nope", "log.-1.t", "constructor", "__proto__.x"])("finds nothing for a bad path: %s", (path) => {
+    expect(lookupField(path)).toBeUndefined();
+  });
+
+  test("two sheets with different log lengths resolve their own fields, in either order", () => {
+    const short = blank();
+    short.log = [{ t: "Short A", d: "", b: "" }];
+    const long = blank();
+    long.log = [{ t: "1", d: "", b: "" }, { t: "2", d: "", b: "" }, { t: "3", d: "", b: "" }];
+
+    // Resolving the long sheet's rows first must not change what the short
+    // sheet's own path resolves to.
+    for (const field of rows("log", long.log.length, LOG_FIELDS)) lookupField(field.path);
+    const field0 = lookupField("log.0.t");
+    expect(pathGet(short, field0.path)).toBe("Short A");
+    expect(pathGet(long, field0.path)).toBe("1");
+
+    // A row past the short sheet's own length still resolves; it just reads
+    // as undefined there.
+    const field2 = lookupField("log.2.t");
+    expect(pathGet(short, field2.path)).toBeUndefined();
+    expect(pathGet(long, field2.path)).toBe("3");
   });
 });
 

@@ -3,7 +3,7 @@
 import { h } from "../dom.js";
 import { MASTER_BONUS, PROFESSION_BONUS, PROFS } from "../eclipse-content.js";
 import { ATTR_NAMES, chooseProfession, int, setCondition, setOverflow, toggleBox } from "../eclipse-rules.js";
-import { FIELD_BY_PATH, KINDS, pathSet } from "./fields.js";
+import { KINDS, lookupField, pathSet } from "./fields.js";
 import { LISTS } from "./testament-page.js";
 import { REFERENCE } from "./reference-data.js";
 import { growTextarea, renderSheet } from "./render.js";
@@ -18,8 +18,8 @@ function intoRow(list, index, field, text) {
 
 // One entry per data-* attribute an input can carry, for a page not yet moved
 // onto the field list (fields.js, docs/adr/0019). `write` puts the value in
-// the sheet. `after` says what to redraw: "render" every number, "log" the
-// log filter, or nothing more than saving. `grow` resizes a text area to its text.
+// the sheet. `after` says what to redraw: "render" every number, or nothing
+// more than saving. `grow` resizes a text area to its text.
 function fieldTable(sheet) {
   const listFor = (scope) => (scope === "we" ? sheet().wornExtra : sheet().containers[int(scope.slice(1))].items);
   return {
@@ -40,14 +40,6 @@ function fieldTable(sheet) {
       write: (k, el) => {
         const [group, field] = k.split(".");
         sheet()[group][field] = el.value;
-      },
-    },
-    lg: {
-      after: "log",
-      grow: true,
-      write: (k, el) => {
-        const [index, field] = k.split(".");
-        intoRow(sheet().log, index, field, el.value);
       },
     },
     lt: {
@@ -182,7 +174,7 @@ export function bindSheet(ctx) {
   // list); a page not yet converted still carries one of the data-* attributes
   // fieldTable() knows.
   function writeGenericField(path, el) {
-    const field = FIELD_BY_PATH.get(path);
+    const field = lookupField(path);
     if (!field) return false;
     const kind = KINDS[field.kind];
     const stored = kind.toStored(el);
@@ -190,6 +182,7 @@ export function bindSheet(ctx) {
     else pathSet(sheet(), field.path, stored);
     if (field.grow && el.tagName === "TEXTAREA") growTextarea(el);
     if (field.after === "render") redraw();
+    else if (field.after === "log") filterLog(root, sheet());
     edited();
     return true;
   }
@@ -203,7 +196,6 @@ export function bindSheet(ctx) {
       config.write(raw, el);
       if (config.grow && el.tagName === "TEXTAREA") growTextarea(el);
       if (config.after === "render") redraw();
-      else if (config.after === "log") filterLog(root, sheet());
       edited();
       return true;
     }
@@ -316,7 +308,7 @@ export function bindSheet(ctx) {
     sheet().log.unshift({ t: "", d: today, b: "" });
     rebuildLog(root, sheet());
     edited();
-    $('[data-lg="0.t"]')?.focus();
+    $('[data-f="log.0.t"]')?.focus();
   });
   $("#logSearch").addEventListener("input", () => filterLog(root, sheet()));
 

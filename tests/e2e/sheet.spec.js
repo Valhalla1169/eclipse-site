@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { SCHEMA_VERSION, blank } from "../../public/js/eclipse-rules.js";
-import { CORE_FIELDS } from "../../public/js/sheet/fields.js";
+import { CORE_FIELDS, LOG_FIELDS, rows } from "../../public/js/sheet/fields.js";
 import { anotherTab, callsTo, campaign, characterRow, expect, ids, open, otherDeviceSaves, patchMock, players, seed, sheetPath, storedCharacter, test } from "./helpers.js";
 
 const { dana, dm } = players;
@@ -641,12 +641,26 @@ test.describe("the sheet itself", () => {
     await openSheet(page, { character: characterRow(named("Marlo")) });
     await tab(page, "Log");
     await page.locator("#logAdd").click();
-    await page.locator('[data-lg="0.t"]').fill("The bridge");
-    await page.locator('[data-lg="0.b"]').fill("We owe Tomas a favour.");
+    await page.locator('[data-f="log.0.t"]').fill("The bridge");
+    await page.locator('[data-f="log.0.b"]').fill("We owe Tomas a favour.");
     await page.locator("#logSearch").fill("tomas");
     await expect(page.locator("#logCount")).toHaveText("1 of 2");
     await page.locator("#logSearch").fill("nobody");
     await expect(page.locator("#logEmpty")).toBeVisible();
+  });
+
+  test("adding a log entry focuses its title; entries can be added and removed", async ({ page }) => {
+    await openSheet(page, { character: characterRow(named("Marlo")) });
+    await tab(page, "Log");
+    await expect(page.locator(".entry")).toHaveCount(1);
+    await page.locator("#logAdd").click();
+    await expect(page.locator(".entry")).toHaveCount(2);
+    await expect(page.locator('[data-f="log.0.t"]')).toBeFocused();
+    await page.locator('[data-f="log.0.t"]').fill("The bridge");
+    await saved(page);
+    expect((await storedCharacter(page)).data.log[0]).toMatchObject({ t: "The bridge" });
+    for (let i = 0; i < 2; i += 1) await page.locator(".entry .rm").first().click();
+    await expect(page.locator(".entry")).toHaveCount(1);
   });
 
   test("encumbrance follows Lethality and the load", async ({ page }) => {
@@ -720,7 +734,7 @@ test.describe("hostile text", () => {
     await tab(page, "Equipment");
     await expect(page.locator(".fixed", { hasText: "onerror" })).toBeVisible();
     await tab(page, "Log");
-    await expect(page.locator('[data-lg="0.b"]')).toHaveValue(evil);
+    await expect(page.locator('[data-f="log.0.b"]')).toHaveValue(evil);
     expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
     expect(await page.locator("#main img, #main script").count()).toBe(0);
   });
@@ -731,6 +745,16 @@ test.describe("field list coverage (docs/adr/0019)", () => {
     await openSheet(page);
     const onPage = await page.locator("#page1 [data-f]").evaluateAll((els) => els.map((el) => el.dataset.f));
     const listed = CORE_FIELDS.map((f) => f.path);
+    expect([...onPage].sort()).toEqual([...listed].sort());
+  });
+
+  test("every input on the Log page is in the field list, and every field entry has an input", async ({ page }) => {
+    const data = named("Marlo");
+    data.log = [{ t: "", d: "", b: "" }, { t: "", d: "", b: "" }, { t: "", d: "", b: "" }];
+    await openSheet(page, { character: characterRow(data) });
+    await tab(page, "Log");
+    const onPage = await page.locator("#page5 [data-f]").evaluateAll((els) => els.map((el) => el.dataset.f));
+    const listed = rows("log", data.log.length, LOG_FIELDS).map((f) => f.path);
     expect([...onPage].sort()).toEqual([...listed].sort());
   });
 });

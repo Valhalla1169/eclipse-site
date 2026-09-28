@@ -11,14 +11,14 @@ export const logEntries = (sheet) =>
       h(
         "div",
         { class: "entry-head" },
-        h("input", { class: "etitle", "data-lg": `${i}.t`, "aria-label": `Entry ${i + 1} title` }),
-        h("input", { class: "edate", "data-lg": `${i}.d`, placeholder: "session / date", "aria-label": `Entry ${i + 1} session or date` }),
+        h("input", { class: "etitle", "data-f": `log.${i}.t`, "aria-label": `Entry ${i + 1} title` }),
+        h("input", { class: "edate", "data-f": `log.${i}.d`, placeholder: "session / date", "aria-label": `Entry ${i + 1} session or date` }),
         h("button", { class: "rm", type: "button", "data-rmlog": i, "aria-label": `Remove entry ${i + 1}` }, "×"),
       ),
       h(
         "div",
         { class: "entry-body" },
-        h("textarea", { "data-lg": `${i}.b`, placeholder: "Names, places, promises, debts, anything you want to remember.", "aria-label": `Entry ${i + 1} text` }),
+        h("textarea", { "data-f": `log.${i}.b`, placeholder: "Names, places, promises, debts, anything you want to remember.", "aria-label": `Entry ${i + 1} text` }),
       ),
     ),
   );
