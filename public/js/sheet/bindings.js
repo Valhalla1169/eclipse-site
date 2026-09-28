@@ -21,18 +21,7 @@ function intoRow(list, index, field, text) {
 // the sheet. `after` says what to redraw: "render" every number, or nothing
 // more than saving. `grow` resizes a text area to its text.
 function fieldTable(sheet) {
-  const listFor = (scope) => (scope === "we" ? sheet().wornExtra : sheet().containers[int(scope.slice(1))].items);
   return {
-    sup: { after: "render", write: (k, el) => (sheet().sup[k] = el.value) },
-    ww: { after: "render", write: (k, el) => (sheet().wornW[k] = el.value) },
-    wx: {
-      after: "render",
-      write: (k, el) => {
-        const [key, field] = k.split(".");
-        if (!sheet().wornX[key]) sheet().wornX[key] = {};
-        sheet().wornX[key][field] = el.value;
-      },
-    },
     cast: { after: "render", write: (k, el) => (sheet().cast[k] = value(el)) },
     cl: {
       after: "render",
@@ -42,24 +31,10 @@ function fieldTable(sheet) {
         intoRow(sheet()[kind], index, field, el.value);
       },
     },
-    it: {
-      after: "render",
-      write: (k, el) => {
-        const [scope, index, field] = k.split(".");
-        intoRow(listFor(scope), index, field, el.value);
-      },
-    },
     sc: {
       write: (k, el) => {
         const [which, index] = k.split(".");
         (which === "v" ? sheet().vSchools : sheet().pSchools)[int(index)] = el.value;
-      },
-    },
-    ct: {
-      after: "render",
-      write: (k, el) => {
-        const [index, field] = k.split(".");
-        sheet().containers[int(index)][field] = el.value;
       },
     },
   };
