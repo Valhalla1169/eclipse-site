@@ -69,3 +69,17 @@ next to their sheets. Its authors have not published it. The owner's decisions:
 - A Reference card on the sheet (`sheet/reference-data.js`) may name the chapter that covers it, by slug only,
   and the card then links to `/rules/<slug>` in a new tab. `npm run rulebook push` refuses to upload a book
   that is missing a chapter a card names, so a link on the sheet can never point at a page that does not exist.
+
+## 2026-09-28: one page, every chapter
+
+`/rules` now shows the whole book at once: a chapter list beside every chapter, each closed behind its
+own `<details>`, rendered all at once so the browser's own Find can search the whole book (Chromium
+already opens a closed `<details>` on a Find match). `/rules/<slug>` is the same page, with that chapter
+open and scrolled to; a chapter that does not exist shows the same page with a short notice instead of a
+bare "not found" page. Picking a chapter, in the list or from a link inside another chapter, opens it in
+place: the router is not asked to redraw the page for that, so re-reading the same 50-chapter book on
+every click is never a cost. `markdown.js` gained a `chapterSlug` option for this: a chapter's own first
+heading is dropped (its `<summary>` already shows the title) and the rest shift down a level, and every
+heading id is prefixed with the chapter's slug, so ids stay unique with every chapter on one page.
+Reasons: the owner wanted one scrollable page instead of clicking through chapters one at a time, and
+wanted the browser's own Find to reach the whole book, not just whichever chapter was open.
