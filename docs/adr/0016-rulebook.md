@@ -4,9 +4,11 @@ Status: **Accepted.** Built.
 Date: 2026-09-25
 Migration: `supabase/migrations/0012_rulebook.sql`.
 Files: `public/js/markdown.js` (the reader), `public/js/rulebook.js` (the reads), `public/js/rulebook-view.js`
-(the pages), `scripts/rulebook.mjs` (`npm run rulebook`).
+(the pages), `scripts/rulebook.mjs` (`npm run rulebook`), `public/js/sheet/reference-data.js` and
+`public/js/sheet/log-reference-pages.js` (a Reference card's link to a chapter).
 Tests: `supabase/tests/rulebook.test.sql`, the extended `grants.test.sql`, `tests/unit/markdown.test.js`,
-`tests/unit/rulebook.test.js`, `tests/e2e/rulebook.spec.js`, and `/rules` in `tests/e2e/a11y.spec.js`.
+`tests/unit/rulebook.test.js`, `tests/e2e/rulebook.spec.js`, `tests/e2e/reference.spec.js`, the extended
+`tests/unit/content.test.js`, and `/rules` in `tests/e2e/a11y.spec.js`.
 
 ## Context
 
@@ -64,3 +66,6 @@ next to their sheets. Its authors have not published it. The owner's decisions:
   pictures. The owner sees what is not read in the book's own words on the page, and can change the
   Markdown in the private repo.
 - An uploaded chapter keeps its address while its file keeps its name, so a link to it keeps working.
+- A Reference card on the sheet (`sheet/reference-data.js`) may name the chapter that covers it, by slug only,
+  and the card then links to `/rules/<slug>` in a new tab. `npm run rulebook push` refuses to upload a book
+  that is missing a chapter a card names, so a link on the sheet can never point at a page that does not exist.

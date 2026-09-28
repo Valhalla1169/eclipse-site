@@ -272,7 +272,7 @@ test.describe("a player's sheet, as the Keeper", () => {
     await live(page);
     await cards(page).nth(0).getByRole("link", { name: "Open sheet" }).click();
     await expect(page).toHaveURL(new RegExp(`${DANA_ROW.id}$`));
-    await expect(page.locator("#f_name")).toHaveValue("Marlo Vance");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo Vance");
     await expect(page.getByText("You are viewing Dana Voss's sheet as the Keeper.")).toBeVisible();
     await expect(page.locator("#saveState")).toHaveText("Read only");
     expect(await page.locator("#page1").evaluate((el) => el.inert)).toBe(true);
@@ -291,7 +291,7 @@ test.describe("a player's sheet, as the Keeper", () => {
   test("says so when the player chooses a different character, and stops updating", async ({ page }) => {
     await dmSeed(page, {});
     await open(page, sheetPath);
-    await expect(page.locator("#f_name")).toHaveValue("Marlo Vance");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo Vance");
     await patchMock(page, { characters: [RAVI_ROW], assignments: [RAVI_ACTIVE] });
     await page.evaluate(() => window.__realtime.emit());
     await expect(page.getByText("has chosen a different character, or has left")).toBeVisible();
@@ -317,14 +317,14 @@ test.describe("a player's sheet, as the Keeper", () => {
     await dmSeed(page, { characters: [{ ...DANA_ROW, data: { base: "nope" } }] });
     await open(page, sheetPath);
     await expect(page.getByRole("alert")).toContainText("could not be read");
-    await expect(page.locator("#f_name")).toHaveCount(0);
+    await expect(page.locator('[data-f="id.name"]')).toHaveCount(0);
   });
 
   test("only the campaign's Keeper can open it", async ({ page }) => {
     await seed(page, { mock: { profile: players.dana.profile, campaigns: [campaign], characters: [DANA_ROW], assignments: [DANA_ACTIVE] }, user: players.dana });
     await open(page, sheetPath);
     await expect(page.getByText("Only the Keeper of this campaign can open this page.")).toBeVisible();
-    await expect(page.locator("#f_name")).toHaveCount(0);
+    await expect(page.locator('[data-f="id.name"]')).toHaveCount(0);
   });
 });
 
@@ -334,7 +334,7 @@ test.describe("a sheet kept from a player who left", () => {
   test("opens read only, and says it does not change", async ({ page }) => {
     await seed(page, { mock: scenario({ departed: [ZED_COPY] }), user: dm });
     await open(page, leftPath);
-    await expect(page.locator("#f_name")).toHaveValue("Old hand");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Old hand");
     await expect(page.getByText("as it was when they left")).toBeVisible();
     await expect(page.getByText("It is read only and it does not change.")).toBeVisible();
     await expect(page.locator("#saveState")).toHaveText("Read only");

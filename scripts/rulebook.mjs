@@ -16,6 +16,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSyn
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseMarkdown, textOf } from "../public/js/markdown.js";
+import { REFERENCE } from "../public/js/sheet/reference-data.js";
 import { CliFailed, LOGIN_HINT, announce, isMain, readWords, runSqlFile } from "./account-lists.mjs";
 import { formatSize, isInside, publicCloneAround } from "./backup.mjs";
 import { root } from "./supabase-target.mjs";
@@ -103,6 +104,12 @@ export function readBook(folder, repo = root) {
   return { title, version, chapters };
 }
 
+// The Reference cards' chapter slugs that the book being pushed does not have.
+export function missingBookSlugs(cardSlugs, chapterSlugs) {
+  const have = new Set(chapterSlugs);
+  return [...new Set(cardSlugs)].filter((slug) => !have.has(slug)).sort();
+}
+
 // Text in base64, so nothing in a chapter can end the string or add a statement.
 export const sqlText = (value) => `convert_from(decode('${Buffer.from(value, "utf8").toString("base64")}', 'base64'), 'UTF8')`;
 
@@ -163,6 +170,11 @@ function upload(book, project) {
 function push({ folder, project }) {
   announce(project);
   const book = readBook(folder);
+  const missing = missingBookSlugs(
+    REFERENCE.map((card) => card.book).filter(Boolean),
+    book.chapters.map((chapter) => chapter.slug),
+  );
+  if (missing.length) throw new Error(`Nothing was uploaded. The Reference tab links to a chapter this folder does not have: ${missing.join(", ")}.`);
   console.log(`${book.title}, version ${book.version}: ${book.chapters.length} chapters.`);
   for (const chapter of book.chapters) console.log(`  ${String(chapter.position).padStart(4)}  /rules/${chapter.slug}  ${chapter.title}`);
   const stored = upload(book, project);

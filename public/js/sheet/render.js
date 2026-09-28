@@ -50,6 +50,7 @@ import {
   weights,
 } from "../eclipse-rules.js";
 import { CORONA_TICKS } from "./core-page.js";
+import { KINDS, lookupField, pathGet } from "./fields.js";
 
 const signed = (v) => (v > 0 ? `−${v}` : v < 0 ? `+${Math.abs(v)}` : "0");
 const plusMinus = (v) => (v > 0 ? `+${v}` : `${v}`);
@@ -62,79 +63,26 @@ export const growAll = (root) => root.querySelectorAll("textarea").forEach(growT
 
 const listOf = (sheet, scope) => (scope === "we" ? sheet.wornExtra : sheet.containers[int(scope.slice(1))]?.items || []);
 
-// Puts stored values into the inputs, except the one being typed in.
-export function fillInputs(root, sheet) {
+// Puts stored values into every data-f input (fields.js), except the one
+// being typed in. A field with a fallback (Race) or a select with no stored
+// value yet falls back the same way a stored "" would; hideZero (Oth) shows
+// a zero modifier as blank so an untouched row reads clean.
+export function fillFields(root, sheet) {
   const active = document.activeElement;
-  const set = (el, value, grow = false) => {
+  root.querySelectorAll("[data-f]").forEach((el) => {
     if (el === active) return;
-    el.value = value ?? "";
-    if (grow && el.tagName === "TEXTAREA") growTextarea(el);
-  };
-  const each = (attr, fn) =>
-    root.querySelectorAll(`[data-${attr}]`).forEach((el) => {
-      const raw = el.dataset[attr];
-      if (raw !== undefined) fn(el, raw);
-    });
-
-  each("it", (el, key) => {
-    const [scope, index, field] = key.split(".");
-    set(el, (listOf(sheet, scope)[int(index)] || {})[field]);
+    const field = lookupField(el.dataset.f);
+    if (!field) return;
+    const kind = KINDS[field.kind];
+    const raw = pathGet(sheet, field.path);
+    if (kind.isCheckbox) {
+      el.checked = kind.toDisplay(raw);
+      return;
+    }
+    let shown = raw === undefined || raw === null || raw === "" ? (field.fallback ?? (el.tagName === "SELECT" ? el.options[0]?.value : undefined) ?? "") : raw;
+    if (field.hideZero && shown === 0) shown = "";
+    el.value = shown;
   });
-  each("ww", (el, key) => set(el, sheet.wornW[key]));
-  each("wx", (el, key) => {
-    const [k, field] = key.split(".");
-    set(el, (sheet.wornX[k] || {})[field]);
-  });
-  each("ct", (el, key) => {
-    const [index, field] = key.split(".");
-    set(el, sheet.containers[int(index)]?.[field]);
-  });
-  each("sup", (el, key) => set(el, sheet.sup[key]));
-  each("vi", (el, key) => set(el, sheet.vitals[key]));
-  each("tx", (el, key) => {
-    const [group, field] = key.split(".");
-    set(el, sheet[group]?.[field], true);
-  });
-  each("cast", (el, key) => {
-    if (el.type === "checkbox") el.checked = !!sheet.cast[key];
-    else set(el, sheet.cast[key]);
-  });
-  each("cl", (el, key) => {
-    const [kind, index, field] = key.split(".");
-    set(el, (sheet[kind][int(index)] || {})[field], true);
-  });
-  each("lt", (el, key) => {
-    const [group, index, field] = key.split(".");
-    set(el, (sheet[group][int(index)] || {})[field], true);
-  });
-  each("lg", (el, key) => {
-    const [index, field] = key.split(".");
-    set(el, (sheet.log[int(index)] || {})[field], true);
-  });
-  each("w", (el, key) => {
-    const [row, field] = key.split(".");
-    const stored = (sheet.weapons[int(row)] || {})[field];
-    set(el, stored ?? (el.tagName === "SELECT" ? el.options[0].value : ""));
-  });
-  const aided = root.querySelector('[data-dy="aided"]');
-  if (aided) aided.checked = !!sheet.dy.aided;
-}
-
-export function fillIdentity(root, sheet) {
-  const active = document.activeElement;
-  const fields = { f_name: sheet.id.name, f_race: sheet.id.race, f_prof: sheet.id.prof, f_bg: sheet.id.bg, f_grit: sheet.id.grit, f_master: sheet.id.master };
-  for (const [id, value] of Object.entries(fields)) {
-    const el = root.querySelector(`#${id}`);
-    if (el !== active) el.value = value || (id === "f_race" ? "human" : "");
-  }
-  for (const f of ["name", "b", "i", "ap", "dp", "soaked"]) {
-    const el = root.querySelector(`#a_${f}`);
-    if (el && el !== active) el.value = sheet.armor[f] ?? "";
-  }
-  for (const f of ["name", "b", "i", "ap", "soaked"]) {
-    const el = root.querySelector(`#sh_${f}`);
-    if (el && el !== active) el.value = sheet.shield[f] ?? "";
-  }
 }
 
 export function renderSheet(root, sheet) {
@@ -142,16 +90,14 @@ export function renderSheet(root, sheet) {
   const text = (id, value) => {
     $(id).textContent = value;
   };
-  const active = document.activeElement;
   const P = penalties(sheet);
   const derived = derivedStats(sheet);
 
-  root.querySelector("#f_race").title = raceOf(sheet).abil;
+  fillFields(root, sheet);
+  root.querySelector('[data-f="id.race"]').title = raceOf(sheet).abil;
 
   // attributes
   for (const attr of [...ATTRS, ...SPECIALS]) {
-    const base = root.querySelector(`[data-base="${attr.k}"]`);
-    if (base !== active) base.value = sheet.base[attr.k];
     const race = racial(sheet, attr.k);
     const profession = profBonus(sheet, attr.k);
     const mod = race + profession;
@@ -159,8 +105,6 @@ export function renderSheet(root, sheet) {
     modEl.textContent = mod ? plusMinus(mod) : "·";
     modEl.title = mod ? [race ? `${plusMinus(race)} race` : "", profession ? `${plusMinus(profession)} profession` : ""].filter(Boolean).join(", ") : "";
     modEl.classList.toggle("prof", !!profession && !race);
-    const other = root.querySelector(`[data-oth="${attr.k}"]`);
-    if (other !== active) other.value = sheet.oth[attr.k] || "";
     root.querySelector(`[data-tot="${attr.k}"]`).textContent = total(sheet, attr.k);
   }
 
@@ -174,29 +118,14 @@ export function renderSheet(root, sheet) {
   text("d_mp", derived.magicPoints);
   text("d_pp", derived.psionicPoints);
 
-  renderSkills(root, sheet, P, active);
+  renderSkills(root, sheet, P);
   renderMonitors(root, sheet, P);
   renderStarvation(root, sheet, P);
   renderTracks(root, sheet);
   renderDying(root, sheet, P);
   renderDial(root, sheet, P);
 
-  // modifier rows
-  sheet.mods.forEach((mod, i) => {
-    const name = root.querySelector(`[data-mn="${i}"]`);
-    const value = root.querySelector(`[data-mv="${i}"]`);
-    if (name && name !== active) name.value = mod.n ?? "";
-    if (value && value !== active) value.value = mod.v ?? "";
-  });
-  sheet.soakMods.forEach((mod, i) => {
-    for (const [attr, field] of [["smn", "n"], ["smb", "b"], ["smi", "i"], ["smp", "p"]]) {
-      const el = root.querySelector(`[data-${attr}="${i}"]`);
-      if (el && el !== active) el.value = mod[field] ?? "";
-    }
-  });
   text("modTotal", signed(P.o));
-  $("applyPen").checked = sheet.applyPen;
-  $("useShieldSoak").checked = !!sheet.useShieldSoak;
   for (const [id, key] of [["bd_s", "s"], ["bd_t", "t"], ["bd_r", "r"], ["bd_v", "v"], ["bd_e", "e"], ["bd_o", "o"]]) text(id, signed(P[key]));
 
   // weapons
@@ -214,21 +143,18 @@ export function renderSheet(root, sheet) {
   renderDefense(root, sheet);
 }
 
-function renderSkills(root, sheet, P, active) {
+function renderSkills(root, sheet, P) {
   for (const [, attrKey] of SKILLS) {
     const cap = root.querySelector(`[data-cap="${attrKey}"]`);
     if (cap) cap.textContent = `max ${skillCap(sheet, attrKey)}`;
   }
   root.querySelectorAll(".srow").forEach((row) => {
     const name = row.dataset.skill;
-    const level = row.querySelector("[data-sk]");
-    const other = row.querySelector("[data-so]");
+    const level = row.querySelector('[data-f^="skills."]');
     const out = row.querySelector(".pool");
     const label = row.querySelector("label");
     const master = sheet.id.master === name;
     const pool = skillPool(sheet, name, P.total);
-    if (level !== active) level.value = sheet.skills[name] ?? "";
-    if (other !== active) other.value = sheet.sother[name] ?? "";
 
     const over = overSkillCap(sheet, name);
     level.classList.toggle("over", over);
@@ -271,9 +197,6 @@ function renderMonitors(root, sheet, P) {
       box.setAttribute("aria-pressed", String(i < sheet.cm[track]));
     });
   }
-  root.querySelectorAll("[data-note]").forEach((el) => {
-    if (el !== document.activeElement) el.value = sheet.notes[el.dataset.note] || "";
-  });
 }
 
 function renderStarvation(root, sheet, P) {
@@ -396,7 +319,6 @@ function renderDial(root, sheet, P) {
 }
 
 function renderEquipment(root, sheet) {
-  fillInputs(root, sheet);
   const tiers = encTiers(sheet);
   const load = weights(sheet);
   const enc = encPenalty(sheet);

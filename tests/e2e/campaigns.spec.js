@@ -43,7 +43,7 @@ test.describe("home", () => {
     await expect(page.locator("article .badge")).toHaveText("Player");
     await page.getByRole("link", { name: "Open my character sheet" }).click();
     await expect(page).toHaveURL(new RegExp(`${sheetPath()}$`));
-    await expect(page.locator("#f_name")).toBeVisible();
+    await expect(page.locator('[data-f="id.name"]')).toBeVisible();
   });
 
   test("a server failure shows a retry, and retry recovers", async ({ page }) => {

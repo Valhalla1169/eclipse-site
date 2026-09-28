@@ -33,7 +33,7 @@ const SNAPSHOTS = [
 async function openSheet(page, mock = {}) {
   await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], character: characterRow(CURRENT), history: SNAPSHOTS, ...mock }, user: dana });
   await open(page, sheetPath());
-  await expect(page.locator("#f_name")).toBeVisible();
+  await expect(page.locator('[data-f="id.name"]')).toBeVisible();
 }
 
 const items = (page) => page.locator(".history > li");
@@ -54,7 +54,7 @@ test.describe("the history list", () => {
 
   test("it saves what is waiting first, so the page never lists a stale sheet", async ({ page }) => {
     await openSheet(page);
-    await page.locator("#f_name").fill("Marlo Vance II");
+    await page.locator('[data-f="id.name"]').fill("Marlo Vance II");
     await page.getByRole("button", { name: "History" }).click();
     await expect(page).toHaveURL(new RegExp(`${HISTORY}$`));
     expect((await storedCharacter(page)).character_name).toBe("Marlo Vance II");
@@ -91,7 +91,7 @@ test.describe("looking at a copy", () => {
     await page.goto(HISTORY);
     await items(page).nth(1).getByRole("link", { name: "Look at it" }).click();
     await expect(page).toHaveURL(new RegExp(`${HISTORY}/2$`));
-    await expect(page.locator("#f_name")).toHaveValue("Marlo V.");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo V.");
     await expect(page.getByText("This is your sheet as it was just before")).toBeVisible();
     await expect(page.getByText("your current sheet has not changed")).toBeVisible();
     await expect(page.locator("#saveState")).toHaveText("Read only");
@@ -141,7 +141,7 @@ test.describe("putting a copy back", () => {
     page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "Put this version back" }).click();
     await expect(page).toHaveURL(new RegExp(`${sheetPath()}$`));
-    await expect(page.locator("#f_name")).toHaveValue("Marlo V.");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo V.");
     await expect(page.locator('[data-t="shock"].on')).toHaveCount(2);
     const [call] = await rpcCalls(page);
     expect(call.body).toEqual({ p_history_id: 2, p_expected: FIRST_STAMP });
@@ -153,16 +153,16 @@ test.describe("putting a copy back", () => {
     await lookAt(page, 2);
     page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "Put this version back" }).click();
-    await expect(page.locator("#f_name")).toHaveValue("Marlo V.");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo V.");
 
     await page.getByRole("button", { name: "History" }).click();
     await expect(items(page)).toHaveCount(4);
     await expect(items(page).nth(0)).toContainText("Kept before an earlier version was put back");
     await items(page).nth(0).getByRole("link", { name: "Look at it" }).click();
-    await expect(page.locator("#f_name")).toHaveValue("Marlo Vance");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo Vance");
     page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "Put this version back" }).click();
-    await expect(page.locator("#f_name")).toHaveValue("Marlo Vance");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo Vance");
     await expect(page.locator('[data-t="trauma"].on')).toHaveCount(5);
     expect((await storedCharacter(page)).data.cm.trauma).toBe(5);
   });
@@ -214,7 +214,7 @@ test.describe("the Keeper's history", () => {
     await open(page, `${DM_SHEET}/history`);
     await items(page).nth(1).getByRole("link", { name: "Look at it" }).click();
     await expect(page).toHaveURL(new RegExp(`${DM_SHEET}/history/2$`));
-    await expect(page.locator("#f_name")).toHaveValue("Marlo V.");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo V.");
     await expect(page.getByText("This is Dana Voss's sheet as it was just before")).toBeVisible();
     await expect(page.getByRole("button", { name: "Put this version back" })).toHaveCount(0);
     await expect(page.locator("#saveState")).toHaveText("Read only");

@@ -44,7 +44,7 @@ test.describe("the header and footer match deyderae.dev", () => {
     await page.setViewportSize({ width: 1280, height: 500 });
     await signedIn(page);
     await open(page, sheetPath());
-    await expect(page.locator("#f_name")).toBeVisible();
+    await expect(page.locator('[data-f="id.name"]')).toBeVisible();
     expect(await page.locator(".site-header").evaluate((el) => getComputedStyle(el).position)).toBe("sticky");
     await page.evaluate(() => window.scrollTo(0, 600));
     expect((await box(page.locator(".site-header"))).y).toBe(0);

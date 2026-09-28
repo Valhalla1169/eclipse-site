@@ -19,17 +19,18 @@ import { growAll } from "./render.js";
 const TABS = [
   { id: "1", name: "Core" },
   { id: "2", name: "Equipment" },
-  { id: "4", name: "Casting" },
-  { id: "3", name: "Testament" },
-  { id: "6", name: "Log" },
-  { id: "5", name: "Reference" },
+  { id: "3", name: "Casting" },
+  { id: "4", name: "Testament" },
+  { id: "5", name: "Log" },
+  { id: "6", name: "Reference" },
 ];
 
 const STOPPED_STATES = ["conflict", "blocked"];
 const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
-// A sheet that is still shown but never changed or saved.
-const LOCKED_PAGES = ["#page1", "#page2", "#page3", "#page4", "#page6"];
+// A sheet that is still shown but never changed or saved. Reference (page6) stays
+// interactive read only, so its search box still works.
+const LOCKED_PAGES = ["#page1", "#page2", "#page3", "#page4", "#page5"];
 
 // options: {
 //   opened (from openSheet), row ({ id, updated_at }),
@@ -181,7 +182,7 @@ export function createSheetView({ opened, row, persist, readOnlyNotice = null, o
     subtitle.textContent = `Survivor's Record  ·  ${TABS.find((t) => t.id === id).name}`;
     // Rows that depend on other pages are rebuilt when their page is shown.
     if (id === "2") rebuildWorn(pages, store.sheet);
-    if (id === "4") rebuildCasting(pages, store.sheet);
+    if (id === "3") rebuildCasting(pages, store.sheet);
     binding.redraw();
     growAll(pages);
   }

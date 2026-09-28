@@ -1,4 +1,4 @@
-// Page 4, Casting: Veil and Psyche pools, schools, the effect ladder, spells, powers, rituals.
+// Page 3, Casting: Veil and Psyche pools, schools, the effect ladder, spells, powers, rituals.
 import { h } from "../dom.js";
 import { CASTING, CAST_TYPES, EFFECT_SCALE, FULL_REST_HOURS, PSY_SCHOOLS, RITUAL_TIERS, VEIL_SCHOOLS } from "../eclipse-content.js";
 import { psyAP, schoolSlots, total, veilAP } from "../eclipse-rules.js";
@@ -13,13 +13,13 @@ function castRow(kind, index) {
   return h(
     "tr",
     {},
-    h("td", {}, h("input", { class: "iname", "data-cl": `${path}.n`, ...aria("name") })),
-    h("td", {}, h("select", { "data-cl": `${path}.s`, ...aria("school") }, h("option", { value: "" }), options(schools))),
-    h("td", { class: "c" }, h("input", { class: "num", "data-cl": `${path}.l`, inputmode: "numeric", ...aria("level") })),
+    h("td", {}, h("input", { class: "iname", "data-f": `${path}.n`, ...aria("name") })),
+    h("td", {}, h("select", { "data-f": `${path}.s`, ...aria("school") }, h("option", { value: "" }), options(schools))),
+    h("td", { class: "c" }, h("input", { class: "num", "data-f": `${path}.l`, inputmode: "numeric", ...aria("level") })),
     h("td", { class: "c" }, h("span", { class: "calc dim", "data-cc": path }, "0")),
     h("td", { class: "c" }, h("span", { class: "calc dim", "data-ca": path }, "0")),
-    h("td", { class: "c" }, h("select", { class: "ctr", "data-cl": `${path}.t`, ...aria("type") }, h("option", { value: "" }), options(CAST_TYPES))),
-    h("td", {}, h("textarea", { "data-cl": `${path}.e`, ...aria("effect") })),
+    h("td", { class: "c" }, h("select", { class: "ctr", "data-f": `${path}.t`, ...aria("type") }, h("option", { value: "" }), options(CAST_TYPES))),
+    h("td", {}, h("textarea", { "data-f": `${path}.e`, ...aria("effect") })),
     h("td", { class: "c" }, removeButton({ "data-rmc": path })),
   );
 }
@@ -30,14 +30,14 @@ function ritualRow(index) {
   return h(
     "tr",
     {},
-    h("td", {}, h("input", { class: "iname", "data-cl": `${path}.n`, ...aria("name") })),
-    h("td", {}, h("select", { "data-cl": `${path}.s`, ...aria("school") }, h("option", { value: "" }), options(VEIL_SCHOOLS))),
-    h("td", { class: "c" }, h("input", { class: "num", "data-cl": `${path}.l`, inputmode: "numeric", ...aria("level") })),
-    h("td", { class: "c" }, h("select", { class: "ctr", "data-cl": `${path}.tt`, ...aria("time invested") }, h("option", { value: "" }), options(RITUAL_TIERS.map((tier) => tier.t)))),
+    h("td", {}, h("input", { class: "iname", "data-f": `${path}.n`, ...aria("name") })),
+    h("td", {}, h("select", { "data-f": `${path}.s`, ...aria("school") }, h("option", { value: "" }), options(VEIL_SCHOOLS))),
+    h("td", { class: "c" }, h("input", { class: "num", "data-f": `${path}.l`, inputmode: "numeric", ...aria("level") })),
+    h("td", { class: "c" }, h("select", { class: "ctr", "data-f": `${path}.tt`, ...aria("time invested") }, h("option", { value: "" }), options(RITUAL_TIERS.map((tier) => tier.t)))),
     h("td", { class: "c" }, h("span", { class: "calc dim", "data-rdur": index }, "—")),
     h("td", { class: "c" }, h("span", { class: "calc dim", "data-rtv": index }, "0")),
     h("td", { class: "c" }, h("span", { class: "calc dim", "data-rshock": index }, "0")),
-    h("td", {}, h("textarea", { "data-cl": `${path}.e`, ...aria("notes") })),
+    h("td", {}, h("textarea", { "data-f": `${path}.e`, ...aria("notes") })),
     h("td", { class: "c" }, removeButton({ "data-rmc": path })),
   );
 }
@@ -59,10 +59,11 @@ export function schoolPickers(sheet, which) {
   const choices = isVeil ? VEIL_SCHOOLS : PSY_SCHOOLS;
   const known = isVeil ? sheet.vSchools : sheet.pSchools;
   if (!slots) return [h("span", { class: "noslots" }, rating ? `Rating ${rating} grants no school yet. One school per ${CASTING.pointsPerSchool} points.` : "Not a caster.")];
+  const list = isVeil ? "vSchools" : "pSchools";
   return Array.from({ length: slots }, (_, i) =>
     h(
       "select",
-      { "data-sc": `${which}.${i}`, "aria-label": `${isVeil ? "Veil" : "Psyche"} school ${i + 1}` },
+      { "data-f": `${list}.${i}`, "aria-label": `${isVeil ? "Veil" : "Psyche"} school ${i + 1}` },
       h("option", { value: "" }),
       choices.map((choice) => h("option", { selected: known[i] === choice }, choice)),
     ),
@@ -86,8 +87,7 @@ function disciplinePanel(sheet, { id, className, title, subtitle, prefix, spentK
       h(
         "div",
         {},
-        h("label", { class: "lbl", for: `${prefix}_spent` }, spentLabel),
-        h("input", { id: `${prefix}_spent`, "data-cast": spentKey, inputmode: "numeric" }),
+        h("label", { class: "lbl" }, spentLabel, h("input", { "data-f": `cast.${spentKey}`, inputmode: "numeric" })),
         h("div", { class: "fx" }, "of ", h("span", { id: `${prefix}_max` }, "0")),
       ),
       h("div", {}, h("div", { class: "lbl" }, "Remaining"), h("div", { class: "big", id: `${prefix}_left` }, "0"), h("div", { class: "fx" }, formula)),
@@ -119,8 +119,8 @@ function castTable(title, kind, bodyId, rows, pointsLabel, addLabel) {
 
 export function buildCastingPage(sheet) {
   return tabPanel(
-    "page4",
-    "tab4",
+    "page3",
+    "tab3",
     h(
       "div",
       { class: "pair match" },
@@ -172,7 +172,7 @@ export function buildCastingPage(sheet) {
             [`Both pools refresh only on a Full Rest of ${FULL_REST_HOURS} hours or more.`, "", ""],
           ].map(([before, bold, after]) => h("span", { class: "rule" }, before, bold ? h("b", {}, bold) : null, after || null)),
         ),
-        h("label", { class: "freecast" }, h("input", { type: "checkbox", "data-cast": "freeHeal" }), h("span", {}, "Free Veil healing cast used. Next one costs ", h("b", { id: "nextToll" }, "Rot"), ".")),
+        h("label", { class: "freecast" }, h("input", { type: "checkbox", "data-f": "cast.freeHeal" }), h("span", {}, "Free Veil healing cast used. Next one costs ", h("b", { id: "nextToll" }, "Rot"), ".")),
       ),
     ),
     castTable("Spells", "spells", "spellRows", spellRows(sheet), "MP", "+ add spell"),

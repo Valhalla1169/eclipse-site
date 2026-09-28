@@ -23,6 +23,7 @@ record on a topic first. The current state is in [`CLAUDE.md`](../../CLAUDE.md).
 | [0016](0016-rulebook.md) | The rulebook at `/rules`, for signed-in people only: stored in Supabase, uploaded by the owner with `npm run rulebook push`, read by a safe Markdown reader; its text is never in this repo | Accepted, built |
 | [0017](0017-sheet-follows-the-rulebook.md) | The sheet follows the rulebook: Morality runs from 1, selfless, to 10, monstrous (sheet version 2), a skill caps at twice its attribute, and a medical treatment attempt takes the book's time | Accepted, built |
 | [0018](0018-purge-a-character.md) | A player can delete their own archived character forever: the row, its history and any copy a Keeper kept, logged with no name and no data | Accepted, built |
+| [0019](0019-sheet-field-list.md) | One field list and one generic binder for the sheet's inputs, replacing four places per field | Accepted, built for the Core page |
 
 Add a record for any decision that would be hard to guess from the code, and update this table.
 
