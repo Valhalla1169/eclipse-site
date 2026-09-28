@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { SCHEMA_VERSION, blank } from "../../public/js/eclipse-rules.js";
-import { ADV_FIELDS, CORE_FIELDS, FLAW_FIELDS, LANG_FIELDS, LOG_FIELDS, PEOPLE_FIELDS, TESTAMENT_FIELDS, rows } from "../../public/js/sheet/fields.js";
+import { ADV_FIELDS, CONTAINER_FIELDS, CORE_FIELDS, EQUIPMENT_FIELDS, FLAW_FIELDS, ITEM_FIELDS, LANG_FIELDS, LOG_FIELDS, PEOPLE_FIELDS, TESTAMENT_FIELDS, rows } from "../../public/js/sheet/fields.js";
 import { anotherTab, callsTo, campaign, characterRow, expect, ids, open, otherDeviceSaves, patchMock, players, seed, sheetPath, storedCharacter, test } from "./helpers.js";
 
 const { dana, dm } = players;
@@ -666,12 +666,51 @@ test.describe("the sheet itself", () => {
   test("encumbrance follows Lethality and the load", async ({ page }) => {
     await openSheet(page, { character: characterRow(named("Marlo")) });
     await tab(page, "Equipment");
-    await page.locator('[data-sup="rations"]').fill("20");
+    await page.locator('[data-f="sup.rations"]').fill("20");
     await expect(page.locator("#enc_w")).toHaveText("20");
     await expect(page.locator("#enc_tier")).toHaveText("Light");
     await expect(page.locator("#enc_pen")).toHaveText("−1 dice to all checks");
     await tab(page, "Core");
     await expect(page.locator("#bd_e")).toHaveText("−1");
+  });
+
+  test("worn items can be added and removed, and one blank row always stays", async ({ page }) => {
+    await openSheet(page, { character: characterRow(named("Marlo")) });
+    await tab(page, "Equipment");
+    await expect(page.locator("#wornRows tr")).toHaveCount(2);
+    await page.locator('[data-add="worn"]').click();
+    await expect(page.locator("#wornRows tr")).toHaveCount(3);
+    await page.locator('[data-f="wornExtra.2.n"]').fill("Bedroll");
+    await saved(page);
+    expect((await storedCharacter(page)).data.wornExtra[2]).toMatchObject({ n: "Bedroll" });
+    for (let i = 0; i < 3; i += 1) await page.locator("#wornRows .rm").first().click();
+    await expect(page.locator("#wornRows tr")).toHaveCount(1);
+  });
+
+  test("a container's own items stay with that container when a row is added or removed", async ({ page }) => {
+    await openSheet(page, { character: characterRow(named("Marlo")) });
+    await tab(page, "Equipment");
+    await page.locator('[data-add="c1"]').click();
+    await expect(page.locator('[data-f="containers.1.items.3.n"]')).toBeVisible();
+    await page.locator('[data-f="containers.1.items.3.n"]').fill("Spare battery");
+    await saved(page);
+    const stored = await storedCharacter(page);
+    expect(stored.data.containers[1].items[3]).toMatchObject({ n: "Spare battery" });
+    expect(stored.data.containers[0].items).toHaveLength(6);
+    await page.locator('[data-rm="c1.3"]').click();
+    await expect(page.locator('[data-f="containers.1.items.3.n"]')).toHaveCount(0);
+  });
+
+  test("a container can be added and removed", async ({ page }) => {
+    await openSheet(page, { character: characterRow(named("Marlo")) });
+    await tab(page, "Equipment");
+    await page.getByRole("button", { name: "+ add container" }).click();
+    await expect(page.locator('[data-cload="2"]')).toBeVisible();
+    await page.locator('[data-f="containers.2.name"]').fill("Saddlebag");
+    await saved(page);
+    expect((await storedCharacter(page)).data.containers[2]).toMatchObject({ name: "Saddlebag" });
+    await page.locator('[data-rmcont="2"]').click();
+    await expect(page.locator('[data-cload="2"]')).toHaveCount(0);
   });
 
   test("casting tabs show pools and costs", async ({ page }) => {
@@ -769,6 +808,23 @@ test.describe("field list coverage (docs/adr/0019)", () => {
       ...rows("flaw", data.flaw.length, FLAW_FIELDS).map((f) => f.path),
       ...rows("lang", data.lang.length, LANG_FIELDS).map((f) => f.path),
       ...rows("people", data.people.length, PEOPLE_FIELDS).map((f) => f.path),
+    ];
+    expect([...onPage].sort()).toEqual([...listed].sort());
+  });
+
+  test("every input on the Equipment page is in the field list, and every field entry has an input", async ({ page }) => {
+    const data = named("Marlo");
+    data.armor.name = "Old Coat";
+    data.shield.name = "Buckler";
+    data.weapons = data.weapons.map((weapon, i) => ({ ...weapon, name: `Weapon ${i + 1}` }));
+    await openSheet(page, { character: characterRow(data) });
+    await tab(page, "Equipment");
+    const onPage = await page.locator("#page2 [data-f]").evaluateAll((els) => els.map((el) => el.dataset.f));
+    const listed = [
+      ...EQUIPMENT_FIELDS.map((f) => f.path),
+      ...rows("wornExtra", data.wornExtra.length, ITEM_FIELDS).map((f) => f.path),
+      ...rows("containers", data.containers.length, CONTAINER_FIELDS).map((f) => f.path),
+      ...data.containers.flatMap((container, i) => rows(`containers.${i}.items`, container.items.length, ITEM_FIELDS).map((f) => f.path)),
     ];
     expect([...onPage].sort()).toEqual([...listed].sort());
   });
