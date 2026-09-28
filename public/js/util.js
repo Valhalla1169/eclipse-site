@@ -81,10 +81,15 @@ export function isUnapprovedEmail(err) {
 // Turn an error from the network, Supabase Auth or Postgres into something a
 // player can act on. The raw message is never shown: it can name tables and
 // policies.
+//
+// Each `if` below matches the text of one `raise exception` in supabase/migrations/*.sql.
+// tests/unit/errors.test.js checks that every such message still has a match here.
 export function friendlyError(err) {
   const known = err && MESSAGE_BY_CODE[err.code];
   if (known) return known;
   const msg = String((err && err.message) || err || "");
+  if (/must be signed in/i.test(msg)) return "You are signed out. Sign in, then try again.";
+  if (/schema_version can only increase/i.test(msg)) return "This tab has an old copy of the app open. Reload the page and try again.";
   if (/invalid invite code/i.test(msg)) return "That invite code is not valid. Check it with your Keeper.";
   if (/you run this campaign/i.test(msg)) return "You are the Keeper of this campaign, so you cannot join it as a player.";
   if (/only the dm/i.test(msg)) return "Only the Keeper of this campaign can do that.";
