@@ -41,6 +41,16 @@ export function chapterTitle(markdown) {
   return heading ? textOf(heading).replace(/\s+/g, " ").trim() : "";
 }
 
+// The book's own title already says "Age of Eclipse" (docs/adr/0016), so a chapter's own
+// heading needn't repeat it. Drops that name, case-insensitively, from the start of the
+// chapter's first "# " line: "# AGE OF ECLIPSE — SKILLS" -> "# SKILLS". Leaves a "##" line,
+// or a later "# " line, alone. The game's own name is not rulebook text, so it may appear
+// here and in tests.
+const BOOK_NAME = /^[ \t]*age of eclipse[ \t]*(?:[-–—:][ \t]*)?/i;
+export function dropBookName(body) {
+  return body.replace(/^#[ \t]+.*$/m, (line) => `# ${line.replace(/^#[ \t]+/, "").replace(BOOK_NAME, "")}`);
+}
+
 const decoder = new TextDecoder("utf-8", { fatal: true });
 
 function readText(file) {
@@ -82,7 +92,8 @@ export function readBook(folder, repo = root) {
   const names = readdirSync(folder).filter((name) => name.toLowerCase().endsWith(".md") && statSync(join(folder, name)).isFile());
   for (const file of names.sort()) {
     const place = chapterFile(file);
-    const body = readText(join(folder, file));
+    const rawBody = readText(join(folder, file));
+    const body = rawBody === null ? null : dropBookName(rawBody);
     const heading = body === null ? "" : chapterTitle(body);
     if (!place) problems.push(`${file}: name it <number>_<words>.md, for example 05_combat_basics.md.`);
     else if (body === null) problems.push(`${file}: it is not UTF-8 text.`);

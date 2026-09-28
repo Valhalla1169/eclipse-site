@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CHAPTER_SLUG } from "../../public/js/markdown.js";
 import { PUBLIC_REPO, githubRepo } from "../../scripts/backup.mjs";
-import { LIMITS, chapterFile, chapterTitle, databaseError, missingBookSlugs, pushSql, readArgs, readBook, sqlText } from "../../scripts/rulebook.mjs";
+import { LIMITS, chapterFile, chapterTitle, databaseError, dropBookName, missingBookSlugs, pushSql, readArgs, readBook, sqlText } from "../../scripts/rulebook.mjs";
 
 // Made-up chapters only: the real rulebook is never in this repo (docs/adr/0016).
 describe("chapterFile: the file name gives the chapter's place and address", () => {
@@ -34,6 +34,24 @@ describe("chapterTitle", () => {
   it("is not a # line inside a code block, and is empty without a heading", () => {
     expect(chapterTitle("```\n# comment\n```\n\n# Real")).toBe("Real");
     expect(chapterTitle("## Only a smaller heading")).toBe("");
+  });
+});
+
+// Made-up titles only: the game's own name is not rulebook text (docs/adr/0016).
+describe("dropBookName", () => {
+  it("drops the game's name and its separator from the first # line, case-insensitively", () => {
+    expect(dropBookName("# AGE OF ECLIPSE — Skills\nText.")).toBe("# Skills\nText.");
+    expect(dropBookName("# Age of Eclipse: Combat")).toBe("# Combat");
+    expect(dropBookName("# age of eclipse - Gear")).toBe("# Gear");
+    expect(dropBookName("# AGE OF ECLIPSE–Log")).toBe("# Log");
+  });
+
+  it("leaves a title with no book-name prefix alone", () => {
+    expect(dropBookName("# Skills\nText.")).toBe("# Skills\nText.");
+  });
+
+  it("only touches the first \"# \" line, not a \"## \" line or a later one", () => {
+    expect(dropBookName("Intro\n\n## Age of Eclipse — Not this\n\n# Age of Eclipse — Real")).toBe("Intro\n\n## Age of Eclipse — Not this\n\n# Real");
   });
 });
 
