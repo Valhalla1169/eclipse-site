@@ -125,6 +125,79 @@ function passwordField({ id, label, hint, autocomplete }) {
   );
 }
 
+// The two boxes for setting a new password, plus one "Show passwords" toggle that
+// switches both together; the confirm box has no toggle of its own (issue #5).
+// checkMatch runs only after the first box passes validatePassword (rule first,
+// one message at a time): it shows "do not match" next to the confirm box, moves
+// focus there, and returns false, or clears that state and returns true.
+function newPasswordFields({ id, label, hint }) {
+  const confirmId = `${id}Confirm`;
+  const confirmLabel = label === "New password" ? "Confirm new password" : "Confirm password";
+  const input = h("input", {
+    id,
+    name: id,
+    type: "password",
+    autocomplete: "new-password",
+    spellcheck: "false",
+    autocapitalize: "none",
+    required: true,
+    "aria-describedby": hint ? `${id}-hint` : null,
+  });
+  const confirmInput = h("input", {
+    id: confirmId,
+    name: confirmId,
+    type: "password",
+    autocomplete: "new-password",
+    spellcheck: "false",
+    autocapitalize: "none",
+    required: true,
+  });
+  const confirmErrorId = `${confirmId}-error`;
+  const confirmError = h("p", { class: "notice notice-error", id: confirmErrorId, role: "alert", hidden: true });
+
+  const toggle = h(
+    "button",
+    { class: "btn btn-quiet btn-small", type: "button", "aria-pressed": "false", "aria-controls": `${id} ${confirmId}` },
+    "Show passwords",
+  );
+  toggle.addEventListener("click", () => {
+    const show = input.type === "password";
+    input.type = confirmInput.type = show ? "text" : "password";
+    toggle.setAttribute("aria-pressed", String(show));
+    toggle.textContent = show ? "Hide passwords" : "Show passwords";
+  });
+
+  function clearMismatch() {
+    confirmInput.removeAttribute("aria-invalid");
+    confirmInput.removeAttribute("aria-describedby");
+    confirmError.hidden = true;
+    confirmError.replaceChildren();
+  }
+
+  function checkMatch(values) {
+    if (values[id] === values[confirmId]) {
+      clearMismatch();
+      return true;
+    }
+    confirmInput.setAttribute("aria-invalid", "true");
+    confirmInput.setAttribute("aria-describedby", confirmErrorId);
+    confirmError.hidden = false;
+    confirmError.replaceChildren(h("strong", {}, "Error: "), "The two passwords do not match.");
+    confirmInput.focus();
+    return false;
+  }
+
+  return {
+    fields: [
+      h("div", { class: "field" }, h("label", { for: id }, label), hint ? h("p", { class: "hint", id: `${id}-hint` }, hint) : null, input),
+      h("div", { class: "field" }, h("label", { for: confirmId }, confirmLabel), confirmInput, confirmError),
+      h("p", { class: "toggle-row" }, toggle),
+    ],
+    clearMismatch,
+    checkMatch,
+  };
+}
+
 const emailField = (id, label = "Email address") =>
   field({ id, label, type: "email", autocomplete: "email", inputmode: "email", required: true });
 
@@ -174,6 +247,7 @@ export function loginView({ heading = "Sign in", intro, authNotice, next, onPass
 
 export function signupView({ next, intro, onSubmit }) {
   const query = next === "/" ? "" : `?next=${encodeURIComponent(next)}`;
+  const newPassword = newPasswordFields({ id: "password", label: "Password", hint: `At least ${PASSWORD_MIN_LENGTH} characters. A phrase of several words works well.` });
   return h(
     "section",
     { class: "card stack" },
@@ -184,15 +258,17 @@ export function signupView({ next, intro, onSubmit }) {
       fields: [
         field({ id: "displayName", label: "Display name", hint: "Your Keeper and the players in your campaigns see this name.", maxlength: 40, autocomplete: "nickname", required: true }),
         emailField("email"),
-        passwordField({ id: "password", label: "Password", hint: `At least ${PASSWORD_MIN_LENGTH} characters. A phrase of several words works well.`, autocomplete: "new-password" }),
+        ...newPassword.fields,
       ],
       submitLabel: "Create account",
       onSubmit: async (values) => {
+        newPassword.clearMismatch();
         const displayName = cleanDisplayName(values.displayName);
         if (!displayName) throw invalid("Enter a name between 1 and 40 characters.");
         const email = await requireEmail(values.email);
         const problem = validatePassword(values.password, { email, displayName });
         if (problem) throw invalid(problem);
+        if (!newPassword.checkMatch(values)) return;
         const { signedIn } = await onSubmit({ displayName, email, password: values.password });
         if (!signedIn) return `Check your email. If ${email} is approved and has no account yet, we sent a link to confirm it.`;
       },
@@ -231,16 +307,19 @@ export function linkExpiredView() {
 }
 
 export function resetPasswordView({ email, displayName, onSubmit }) {
+  const newPassword = newPasswordFields({ id: "password", label: "New password", hint: `At least ${PASSWORD_MIN_LENGTH} characters.` });
   return h(
     "section",
     { class: "card stack" },
     h("h1", {}, "Choose a new password"),
     form({
-      fields: [passwordField({ id: "password", label: "New password", hint: `At least ${PASSWORD_MIN_LENGTH} characters.`, autocomplete: "new-password" })],
+      fields: [...newPassword.fields],
       submitLabel: "Save new password",
       onSubmit: async (values) => {
+        newPassword.clearMismatch();
         const problem = validatePassword(values.password, { email, displayName });
         if (problem) throw invalid(problem);
+        if (!newPassword.checkMatch(values)) return;
         await onSubmit(values.password);
       },
     }),
@@ -252,6 +331,7 @@ export function resetPasswordView({ email, displayName, onSubmit }) {
 export function accountView({ profile, email, onRename, onChangeEmail, onChangePassword, onReauthenticate, onSignOutOthers, onSignOutEverywhere }) {
   const nonceField = field({ id: "nonce", label: "Code from your email", autocomplete: "one-time-code", inputmode: "numeric" });
   nonceField.hidden = true;
+  const newPassword = newPasswordFields({ id: "newPassword", label: "New password", hint: `At least ${PASSWORD_MIN_LENGTH} characters.` });
   const sessionStatus = h("div", { class: "status", "aria-live": "polite" });
   const sessionAction = (label, action, done) =>
     h("button", { class: "btn btn-quiet", type: "button", onclick: async (event) => {
@@ -308,12 +388,14 @@ export function accountView({ profile, email, onRename, onChangeEmail, onChangeP
       { class: "card stack" },
       h("h2", {}, "Password"),
       form({
-        fields: [passwordField({ id: "newPassword", label: "New password", hint: `At least ${PASSWORD_MIN_LENGTH} characters.`, autocomplete: "new-password" }), nonceField],
+        fields: [...newPassword.fields, nonceField],
         submitLabel: "Change password",
         primary: false,
         onSubmit: async (values) => {
+          newPassword.clearMismatch();
           const problem = validatePassword(values.newPassword, { email, displayName: profile.display_name });
           if (problem) throw invalid(problem);
+          if (!newPassword.checkMatch(values)) return;
           try {
             await onChangePassword(values.newPassword, String(values.nonce || "").trim() || undefined);
           } catch (err) {
