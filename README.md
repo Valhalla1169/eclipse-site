@@ -7,6 +7,9 @@ Cloudflare Workers static assets, with Supabase (Postgres, Auth, Realtime) as th
 This is one subdomain of `deyderae.dev`. The domain-wide design document lives in the
 `deyderae-site` repo (`DESIGN.md`); read it, and [`CLAUDE.md`](CLAUDE.md), before changing anything.
 
+New to this repo? Read [`docs/system.md`](docs/system.md) first: what the system does today, who
+can do what, and where everything lives.
+
 ## Development
 
 ```
