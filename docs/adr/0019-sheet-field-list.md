@@ -1,6 +1,6 @@
 # ADR 0019: One field list for the sheet's inputs
 
-Status: **Accepted.** Built for the Core page; the rest of the sheet is still on the old path.
+Status: **Accepted.** Built for the Core and Log pages; the rest of the sheet is still on the old path.
 Date: 2026-09-27
 Builds on: ADR 0008 (the sheet) and ADR 0013 (a rules change: additive is free, a shape change is
 versioned).
@@ -25,8 +25,10 @@ sheet on the same page would have two elements answering to the same id.
    its kind, and a label for tooling. A field whose row comes and goes (a list `rebuild.js` redraws)
    still gets one entry per row, built by `rows(listPath, count, subFields)`; `count` is the list's
    length at the time the rows are built; a page whose rows are fixed (Core's weapons, mods,
-   soakMods) passes `blank()`'s length once, and a page whose rows grow or shrink would pass the
-   live sheet's current length instead, each time it draws them.
+   soakMods) passes `blank()`'s length once, and a page whose rows grow or shrink (the Log page's
+   entries) passes the live sheet's current length instead, each time it draws them, calling
+   `setListFields` to match that page's slice of `FIELD_BY_PATH` to the count just drawn: a row not
+   drawn cannot be written into either.
 2. **Four kinds, not four files.** `text` (kept exactly as typed), `number` (always a whole number),
    `blankNumber` (blank stays blank, otherwise a whole number), and `checkbox`. `KINDS[kind].toStored`
    turns an input's value into a stored one; `pathGet`/`pathSet` read and write a sheet by path,
@@ -63,6 +65,10 @@ sheet on the same page would have two elements answering to the same id.
 - A field on the Core page: add one entry to `CORE_FIELDS` (`sheet/fields.js`) with its path, kind and
   label; add its default to `blank()` if the group needs one (`eclipse-rules.js`); tag its input
   `data-f="<path>"` in `core-page.js`. Nothing else changes.
+- A field in a growing list (the Log page's entries): add one entry to that page's row template
+  (`LOG_FIELDS`) with its relative path, kind and label; tag its input with the `data-f` path
+  `rows()` builds for it. Nothing else changes — `setListFields` keeps `FIELD_BY_PATH` matching the
+  row count each time the page draws its rows.
 - A field on a page not yet converted: for now, still four places, as before this ADR.
 - Converting a whole page: move its fields into `fields.js`, tag its inputs, delete its old
   `fieldTable` entries and `fillInputs`/`fillIdentity` reads, and extend the field-list coverage test
@@ -70,12 +76,13 @@ sheet on the same page would have two elements answering to the same id.
 
 ## Consequences
 
-- The Core page's field binding is one list plus one binder; the other five pages are unchanged and
-  still four places per field, until each is converted the same way.
-- `tests/unit/fields.test.js` fails if a Core field's path is duplicated, or if writing a sample value
-  through its kind and reading it back does not land at its own path.
-- `tests/e2e/sheet.spec.js`'s "field list coverage" test fails if the Core page ever draws an input
-  with no entry in `CORE_FIELDS`, or lists an entry with no input on the page.
+- The Core and Log pages' field binding is one list plus one binder; the other four pages are
+  unchanged and still four places per field, until each is converted the same way.
+- `tests/unit/fields.test.js` fails if a Core field's path is duplicated, if a Log entry's fields
+  don't round-trip at 0, 1 and several rows, or if writing a sample value through a field's kind and
+  reading it back does not land at its own path.
+- `tests/e2e/sheet.spec.js`'s "field list coverage" test fails if the Core or Log page ever draws an
+  input with no entry in its field list, or lists an entry with no input on the page.
 - `pathGet`/`pathSet` are plain dot-path helpers with no notion of "the sheet"; they would work for any
   nested object, which is what lets one binder cover every kind of field this sheet has, and the kinds
   it will need on the pages still to convert.
