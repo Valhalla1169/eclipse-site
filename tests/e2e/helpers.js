@@ -181,3 +181,13 @@ export const storedCharacter = (page, id = CHARACTER_ID) =>
   page.evaluate((id) => JSON.parse(localStorage.getItem("__mock")).characters.find((r) => r.id === id), id);
 
 export const storedMock = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("__mock")));
+
+// The shared "are you sure?" dialog (confirm-dialog.js), used everywhere a question
+// used to go through window.confirm. confirmLabel is the button that proceeds.
+export const confirmDialog = (page) => page.getByRole("dialog");
+export const confirmMessage = (page) => confirmDialog(page).locator("#confirm-message").innerText();
+export const confirmYes = (page, confirmLabel) => confirmDialog(page).getByRole("button", { name: confirmLabel }).click();
+// The button that proceeds, without checking its exact wording (a test that cares
+// about the wording uses confirmYes with the label it expects).
+export const confirmPrimary = (page) => confirmDialog(page).locator(".btn-primary").click();
+export const confirmNo = (page) => confirmDialog(page).getByRole("button", { name: "Cancel" }).click();

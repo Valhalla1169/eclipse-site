@@ -17,7 +17,7 @@ import {
   TESTAMENT_FIELDS,
   rows,
 } from "../../public/js/sheet/fields.js";
-import { anotherTab, callsTo, campaign, characterRow, expect, ids, open, otherDeviceSaves, patchMock, players, seed, sheetPath, storedCharacter, test } from "./helpers.js";
+import { anotherTab, callsTo, campaign, characterRow, confirmDialog, confirmMessage, confirmNo, confirmPrimary, expect, ids, open, otherDeviceSaves, patchMock, players, seed, sheetPath, storedCharacter, test } from "./helpers.js";
 
 const { dana, dm } = players;
 const play = sheetPath();
@@ -179,14 +179,9 @@ test.describe("saving", () => {
   test("signing out asks first when the changes cannot be saved, and stays if the player says no", async ({ page }) => {
     await openSheet(page, { character: characterRow(named("")), mock: { characterBlocked: true } });
     await page.locator('[data-f="id.name"]').fill("Marlo");
-    const messages = [];
-    page.once("dialog", (dialog) => {
-      messages.push(dialog.message());
-      dialog.dismiss();
-    });
     await page.getByRole("button", { name: "Sign out" }).click();
-    await expect.poll(() => messages.length).toBe(1);
-    expect(messages[0]).toContain("not saved yet");
+    await expect(confirmDialog(page)).toContainText("not saved yet");
+    await confirmNo(page);
     await expect(page).toHaveURL(new RegExp(play));
     await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo");
   });
@@ -278,24 +273,34 @@ test.describe("leaving the sheet", () => {
     await expect(page.getByRole("alert")).toContainText(alert, { timeout: 8000 });
   }
 
-  // Answers the next question, and resolves to what it asked.
-  const answerNext = (page, accept) =>
-    new Promise((resolve) =>
-      page.once("dialog", async (dialog) => {
-        await (accept ? dialog.accept() : dialog.dismiss());
-        resolve(dialog.message());
-      }),
-    );
+  // Waits for the leave-gate dialog, answers it, and resolves to what it asked.
+  async function answerNext(page, accept) {
+    await confirmDialog(page).waitFor({ state: "visible" });
+    const message = await confirmMessage(page);
+    await (accept ? confirmPrimary(page) : confirmNo(page));
+    return message;
+  }
 
-  // Answers every question the same way, and returns the list of what they asked.
-  const recordQuestions = (page, accept = true) => {
+  // Answers every question the same way as it appears, and returns the list of what
+  // they asked. The dialog is one shared node reused for each question, so this
+  // watches for it to open again rather than listening for a fresh one.
+  function recordQuestions(page, accept = true) {
     const questions = [];
-    page.on("dialog", (dialog) => {
-      questions.push(dialog.message());
-      return accept ? dialog.accept() : dialog.dismiss();
-    });
+    const deadline = Date.now() + 10_000;
+    (async () => {
+      while (Date.now() < deadline && !page.isClosed()) {
+        const visible = await confirmDialog(page).isVisible().catch(() => false);
+        if (!visible) {
+          await page.waitForTimeout(50).catch(() => {});
+          continue;
+        }
+        questions.push(await confirmMessage(page));
+        await (accept ? confirmPrimary(page) : confirmNo(page)).catch(() => {});
+        await confirmDialog(page).waitFor({ state: "hidden" }).catch(() => {});
+      }
+    })();
     return questions;
-  };
+  }
 
   const waysOut = [
     { way: "the link on the page", leave: (page) => backLink(page).click() },

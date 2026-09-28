@@ -1,5 +1,5 @@
 import { SCHEMA_VERSION, blank } from "../../public/js/eclipse-rules.js";
-import { CHARACTER_ID, assignmentRow, callsTo, campaign, characterRow, expect, ids, open, patchMock, players, seed, sheetPath, storedMock, test } from "./helpers.js";
+import { CHARACTER_ID, assignmentRow, callsTo, campaign, characterRow, confirmDialog, confirmNo, confirmYes, expect, ids, open, patchMock, players, seed, sheetPath, storedMock, test } from "./helpers.js";
 
 const { dana, dm } = players;
 const CHARACTERS = "/rest/v1/characters";
@@ -80,19 +80,15 @@ test.describe("the list of characters", () => {
 
   test("Delete asks first, then hides the character, which can be brought back", async ({ page }) => {
     await openList(page);
-    page.once("dialog", (dialog) => dialog.dismiss());
     await card(page, "Vex").getByRole("button", { name: "Delete" }).click();
+    await confirmNo(page);
     expect(await rpc(page, "delete_character")).toHaveLength(0);
     await expect(cards(page)).toHaveCount(2);
 
-    const messages = [];
-    page.once("dialog", (dialog) => {
-      messages.push(dialog.message());
-      dialog.accept();
-    });
     await card(page, "Vex").getByRole("button", { name: "Delete" }).click();
+    await expect(confirmDialog(page)).toContainText("It is hidden, not removed");
+    await confirmYes(page, "Delete character");
     await expect(cards(page)).toHaveCount(1);
-    expect(messages[0]).toContain("It is hidden, not removed");
     const [call] = await rpc(page, "delete_character");
     expect(call.body).toEqual({ p_character_id: VEX_ID });
     await expect(page.locator(".card-head .badge").first()).toHaveText("1 of 5");
