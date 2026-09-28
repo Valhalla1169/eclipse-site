@@ -39,8 +39,10 @@ emailed to you. Either way, only an email a site admin approved in the last 7 da
 account (section 4, `hook_require_approved_email`) — the sign-up and sign-in pages show the same
 message for an unapproved email as for any other failure, so a stranger cannot tell which emails are
 approved. A password must be at least 12 characters; anything past 72 bytes is ignored, because
-Supabase's hashing (bcrypt) ignores it too. A magic link must be opened in the browser that asked for
-it. Confirming your email is what makes an approval count as used; until then the account might
+Supabase's hashing (bcrypt) ignores it too. Wherever a person sets a password (sign-up, choosing a
+new password after a reset link, changing it on the account page), they type it twice; a mismatch is
+shown next to the second box and nothing is sent until the two agree. A magic link must be opened in
+the browser that asked for it. Confirming your email is what makes an approval count as used; until then the account might
 belong to someone else who knew the same email, so the approval still waits and can still be
 revoked.
 

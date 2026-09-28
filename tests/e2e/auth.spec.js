@@ -153,10 +153,11 @@ test.describe("sign in", () => {
 });
 
 test.describe("sign up", () => {
-  const fill = async (page, { name = "Dana Voss", email = "dana@example.com", password = GOOD_PASSWORD } = {}) => {
+  const fill = async (page, { name = "Dana Voss", email = "dana@example.com", password = GOOD_PASSWORD, confirmPassword = password } = {}) => {
     await page.locator("#displayName").fill(name);
     await page.locator("#email").fill(email);
     await page.locator("#password").fill(password);
+    await page.locator("#passwordConfirm").fill(confirmPassword);
     await submit(page, "Create account");
   };
 
@@ -222,6 +223,38 @@ test.describe("sign up", () => {
     await expect(page.getByRole("alert")).toContainText("We could not create that account. Try signing in instead.");
   });
 
+  test("a mismatched confirm box shows the error there and sends no request", async ({ page }) => {
+    await seed(page, { mock: approved("dana@example.com") });
+    await open(page, "/signup");
+    await fill(page, { confirmPassword: GOOD_PASSWORD + "x" });
+    await expect(page.locator("#passwordConfirm-error")).toHaveText("Error: The two passwords do not match.");
+    await expect(page.locator("#passwordConfirm")).toBeFocused();
+    expect(await callsTo(page, "/auth/v1/signup")).toHaveLength(0);
+  });
+
+  test("a short password with a mismatch shows only the rule message", async ({ page }) => {
+    await seed(page);
+    await open(page, "/signup");
+    await fill(page, { password: "short one", confirmPassword: "a different one" });
+    await expect(page.getByRole("alert")).toContainText("Use at least 12 characters.");
+    await expect(page.locator("#passwordConfirm-error")).toBeHidden();
+    expect(await callsTo(page, "/auth/v1/signup")).toHaveLength(0);
+  });
+
+  test("one toggle shows and hides both password boxes", async ({ page }) => {
+    await seed(page);
+    await open(page, "/signup");
+    const password = page.locator("#password");
+    const confirm = page.locator("#passwordConfirm");
+    const toggle = page.getByRole("button", { name: "Show passwords" });
+    await expect(password).toHaveAttribute("type", "password");
+    await expect(confirm).toHaveAttribute("type", "password");
+    await toggle.click();
+    await expect(password).toHaveAttribute("type", "text");
+    await expect(confirm).toHaveAttribute("type", "text");
+    await expect(page.getByRole("button", { name: "Hide passwords" })).toHaveAttribute("aria-pressed", "true");
+  });
+
   test("the sign-up link keeps the invite you were opening", async ({ page }) => {
     await seed(page);
     await open(page, "/join/ABCDEF0123");
@@ -262,16 +295,29 @@ test.describe("forgot and reset password", () => {
     await seed(page, { mock: { profile: dana.profile }, user: dana });
     await open(page, "/reset-password");
     await page.locator("#password").fill("short");
+    await page.locator("#passwordConfirm").fill("short");
     await submit(page, "Save new password");
     await expect(page.getByRole("alert")).toContainText("Use at least 12 characters.");
 
     await page.locator("#password").fill(GOOD_PASSWORD);
+    await page.locator("#passwordConfirm").fill(GOOD_PASSWORD);
     await submit(page, "Save new password");
     await expect(page).toHaveURL(/\/$/);
     const [update] = await callsTo(page, "/auth/v1/user", "PUT");
     expect(update.body.password).toBe(GOOD_PASSWORD);
     const [logout] = await callsTo(page, "/auth/v1/logout");
     expect(logout.query).toContain("scope=others");
+  });
+
+  test("a mismatched confirm box shows the error there and sends no request", async ({ page }) => {
+    await seed(page, { mock: { profile: dana.profile }, user: dana });
+    await open(page, "/reset-password");
+    await page.locator("#password").fill(GOOD_PASSWORD);
+    await page.locator("#passwordConfirm").fill(GOOD_PASSWORD + "x");
+    await submit(page, "Save new password");
+    await expect(page.locator("#passwordConfirm-error")).toHaveText("Error: The two passwords do not match.");
+    await expect(page.locator("#passwordConfirm")).toBeFocused();
+    expect(await callsTo(page, "/auth/v1/user", "PUT")).toHaveLength(0);
   });
 });
 
@@ -309,6 +355,7 @@ test.describe("account page", () => {
 
   test("changing password works right away when Auth does not need a code", async ({ page }) => {
     await page.locator("#newPassword").fill(GOOD_PASSWORD);
+    await page.locator("#newPasswordConfirm").fill(GOOD_PASSWORD);
     await submit(page, "Change password");
     await expect(page.getByRole("status").filter({ hasText: "Your password is changed." })).toBeVisible();
     await expect(page.locator("#nonce")).toBeHidden();
@@ -317,6 +364,7 @@ test.describe("account page", () => {
   test("changing password asks for the emailed code when Auth requires one", async ({ page }) => {
     await patchMock(page, { reauthRequired: true });
     await page.locator("#newPassword").fill(GOOD_PASSWORD);
+    await page.locator("#newPasswordConfirm").fill(GOOD_PASSWORD);
     await submit(page, "Change password");
     await expect(page.getByRole("alert")).toContainText("we emailed you a code");
     await expect(page.locator("#nonce")).toBeVisible();
@@ -333,6 +381,7 @@ test.describe("account page", () => {
   test("a new password equal to the old one is refused in plain words", async ({ page }) => {
     await patchMock(page, { samePassword: true });
     await page.locator("#newPassword").fill(GOOD_PASSWORD);
+    await page.locator("#newPasswordConfirm").fill(GOOD_PASSWORD);
     await submit(page, "Change password");
     await expect(page.getByRole("alert")).toContainText("must be different");
   });
@@ -340,9 +389,27 @@ test.describe("account page", () => {
   test("a weak new password never reaches the server", async ({ page }) => {
     await clearCalls(page);
     await page.locator("#newPassword").fill("weak");
+    await page.locator("#newPasswordConfirm").fill("weak");
     await submit(page, "Change password");
     await expect(page.getByRole("alert")).toContainText("Use at least 12 characters.");
     expect(await callsTo(page, "/auth/v1/user", "PUT")).toHaveLength(0);
+  });
+
+  test("a mismatched confirm box shows the error there and sends no request", async ({ page }) => {
+    await page.locator("#newPassword").fill(GOOD_PASSWORD);
+    await page.locator("#newPasswordConfirm").fill(GOOD_PASSWORD + "x");
+    await submit(page, "Change password");
+    await expect(page.locator("#newPasswordConfirm-error")).toHaveText("Error: The two passwords do not match.");
+    await expect(page.locator("#newPasswordConfirm")).toBeFocused();
+    expect(await callsTo(page, "/auth/v1/user", "PUT")).toHaveLength(0);
+  });
+
+  test("a short new password with a mismatch shows only the rule message", async ({ page }) => {
+    await page.locator("#newPassword").fill("short one");
+    await page.locator("#newPasswordConfirm").fill("a different one");
+    await submit(page, "Change password");
+    await expect(page.getByRole("alert")).toContainText("Use at least 12 characters.");
+    await expect(page.locator("#newPasswordConfirm-error")).toBeHidden();
   });
 
   test("sign out my other devices keeps this session", async ({ page }) => {
