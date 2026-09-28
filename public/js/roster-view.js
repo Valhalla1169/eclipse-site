@@ -1,11 +1,13 @@
 // The DM's roster: one card per player with the numbers a DM needs, kept up to date
 // by a live subscription and a slow timer, plus a "download all sheets" backup.
 // Read only in every way (ADR 0001, 0009): nothing here writes to the database.
+import { confirmAction } from "./confirm-dialog.js";
 import { h } from "./dom.js";
 import { MONITOR_BOXES, TRACK_MAX } from "./eclipse-content.js";
 import { backupFile, buildRoster } from "./roster.js";
 import { fileNameForName, serializeStored } from "./sheet/files.js";
 import { friendlyError, timeAgo } from "./util.js";
+import { notice } from "./views.js";
 
 export const FALLBACK_REFRESH_MS = 30_000;
 const EVENT_DELAY_MS = 250;
@@ -70,7 +72,7 @@ export function createRosterPanel({ campaign, api, download, actions = {} }) {
       character && character.copyId
         ? h("p", { class: "muted" }, `This is their sheet as it was when ${character.reason === "removed" ? "you removed them" : "they left"}. It does not change.`)
         : null,
-      character && character.unreadable ? h("p", { class: "notice notice-error" }, h("strong", {}, "Error: "), "This sheet could not be read. It is safe in the database and in the backup file.") : null,
+      character && character.unreadable ? notice("error", "This sheet could not be read. It is safe in the database and in the backup file.", { role: null }) : null,
       character && character.newerVersion ? h("p", { class: "muted" }, "Saved by a newer version of the app. Some fields may not show.") : null,
       summary
         ? [
@@ -95,9 +97,10 @@ export function createRosterPanel({ campaign, api, download, actions = {} }) {
   };
 
   async function removePlayer(event, entry) {
-    const message = `Remove ${entry.playerName} from ${campaign.name}? You keep a copy of their active sheet as it is now, and they keep their characters. They need a new invite to come back.`;
-    if (!window.confirm(message)) return;
+    // Read before the await: currentTarget is null once the click has dispatched.
     const button = event.currentTarget;
+    const message = `Remove ${entry.playerName} from ${campaign.name}? You keep a copy of their active sheet as it is now, and they keep their characters. They need a new invite to come back.`;
+    if (!(await confirmAction(message, "Remove player"))) return;
     button.disabled = true;
     status.textContent = "";
     try {
@@ -138,7 +141,7 @@ export function createRosterPanel({ campaign, api, download, actions = {} }) {
       paint();
     } catch (error) {
       console.error(error);
-      problem.replaceChildren(h("p", { class: "notice notice-error", role: "alert" }, h("strong", {}, "Error: "), `The roster could not be updated. ${friendlyError(error)}`));
+      problem.replaceChildren(notice("error", `The roster could not be updated. ${friendlyError(error)}`));
     } finally {
       busy = false;
       if (again) {

@@ -380,7 +380,7 @@ article.card:hover, article.card:focus-within,
 .player-card:hover h3, .player-card:focus-within h3,
 article.card:hover h3, article.card:focus-within h3 { color: var(--hover-title); }
 
-/* ---- Confirm dialog (delete a character forever) ---- */
+/* ---- Confirm dialogs (an "are you sure?" question, and delete a character forever) ---- */
 dialog.confirm-dialog {
   width: min(30rem, calc(100vw - 2rem));
   max-height: calc(100vh - 3rem);

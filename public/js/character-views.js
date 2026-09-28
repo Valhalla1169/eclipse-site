@@ -1,10 +1,12 @@
 // The pages about a person's characters: the list of them, and choosing which one is
 // active in a campaign (docs/adr/0011). Text only ever goes in as text nodes (dom.js).
 import { FULL_NOTE, MAX_CHARACTERS } from "./character-list.js";
+import { confirmAction } from "./confirm-dialog.js";
 import { h } from "./dom.js";
 import { SheetFormatError } from "./eclipse-rules.js";
 import { FILE_EXTENSION, downloadText, fileNameForName, serializeStored } from "./sheet/files.js";
 import { friendlyError, timeAgo } from "./util.js";
+import { notice as buildNotice } from "./views.js";
 
 // At the limit the "new character" buttons are off, and this note says why and what to do.
 const FULL_NOTE_ID = "characters-full";
@@ -26,7 +28,7 @@ function guarded(status, action) {
     } catch (error) {
       if (!(error instanceof CancelledError)) {
         console.error(error);
-        status.replaceChildren(h("p", { class: "notice notice-error", role: "alert" }, h("strong", {}, "Error: "), error instanceof SheetFormatError ? error.message : friendlyError(error)));
+        status.replaceChildren(buildNotice("error", error instanceof SheetFormatError ? error.message : friendlyError(error)));
       }
       button.disabled = false;
     }
@@ -90,7 +92,7 @@ function purgeDialog(entry, { row, loadFailed, onPurge }) {
       dialog.close("confirmed");
     } catch (error) {
       console.error(error);
-      dialogStatus.replaceChildren(h("p", { class: "notice notice-error", role: "alert" }, h("strong", {}, "Error: "), friendlyError(error)));
+      dialogStatus.replaceChildren(buildNotice("error", friendlyError(error)));
       confirmButton.disabled = nameField.value !== entry.name;
     }
   });
@@ -135,7 +137,8 @@ export function charactersView({ list, notice, onCreate, onCreateFromFile, onCop
             type: "button",
             disabled: Boolean(entry.campaign),
             onclick: guarded(status, async () => {
-              if (!window.confirm(`Delete ${entry.name}? It is hidden, not removed. You can bring it back from the deleted characters below.`)) throw new CancelledError();
+              const message = `Delete ${entry.name}? It is hidden, not removed. You can bring it back from the deleted characters below.`;
+              if (!(await confirmAction(message, "Delete character"))) throw new CancelledError();
               await onDelete(entry.id);
             }),
           },
@@ -189,7 +192,7 @@ export function charactersView({ list, notice, onCreate, onCreateFromFile, onCop
     h("p", { class: "muted" }, "These characters are yours. You choose which one you play in each campaign. Deleting hides a character, and you can bring it back. An archived character can also be deleted forever, with no way back."),
     h("div", { class: "actions" }, h("button", { class: "btn btn-primary", type: "button", disabled: list.full, "aria-describedby": describedIfFull(list), onclick: guarded(status, onCreate) }, "New character"), fromFile, fileInput),
     fullNote(list),
-    notice ? h("p", { class: "notice notice-success", role: "status" }, notice) : null,
+    notice ? buildNotice("success", notice) : null,
     status,
     list.live.length ? h("ul", { class: "characters" }, ...list.live.map(card)) : h("p", { class: "muted" }, "You have no characters yet. Make your first one."),
     list.deleted.length

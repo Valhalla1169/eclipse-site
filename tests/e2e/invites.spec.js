@@ -1,5 +1,5 @@
 import { SCHEMA_VERSION, blank } from "../../public/js/eclipse-rules.js";
-import { assignmentRow, callsTo, campaign, characterRow, expect, ids, open, patchMock, players, seed, test } from "./helpers.js";
+import { assignmentRow, callsTo, campaign, characterRow, confirmDialog, confirmNo, confirmYes, expect, ids, open, patchMock, players, seed, test } from "./helpers.js";
 
 const { dana, dm } = players;
 const DM_PAGE = `/campaign/${ids.campaign}/keeper`;
@@ -65,8 +65,8 @@ const rpc = (page, name) => callsTo(page, `/rest/v1/rpc/${name}`, "POST");
 test.describe("replacing a lost link", () => {
   test("ends the old invite, makes a new one like it, and shows the link once", async ({ page }) => {
     await openDmPage(page);
-    page.once("dialog", (dialog) => dialog.accept());
     await page.locator("li.invite", { hasText: "for Pia" }).getByRole("button", { name: "Replace link" }).click();
+    await confirmYes(page, "Replace link");
     await expect(page.locator("code.linkbox")).toHaveText(/\/join\/REPLACED0123456789ABCDEF012345$/);
     await expect(page.getByText("New link made. The old one no longer works.")).toBeVisible();
     const [call] = await rpc(page, "replace_invite");
@@ -79,21 +79,16 @@ test.describe("replacing a lost link", () => {
 
   test("asks first, and does nothing if the Keeper says no", async ({ page }) => {
     await openDmPage(page);
-    const messages = [];
-    page.once("dialog", (dialog) => {
-      messages.push(dialog.message());
-      dialog.dismiss();
-    });
     await page.locator("li.invite", { hasText: "for Pia" }).getByRole("button", { name: "Replace link" }).click();
-    await expect.poll(() => messages.length).toBe(1);
-    expect(messages[0]).toContain("end the old one");
+    await expect(confirmDialog(page)).toContainText("end the old one");
+    await confirmNo(page);
     expect(await rpc(page, "replace_invite")).toHaveLength(0);
   });
 
   test("a refusal is shown in plain words, and the old link stays", async ({ page }) => {
     await openDmPage(page, { replaceError: "that invite is not active, or is not yours" });
-    page.once("dialog", (dialog) => dialog.accept());
     await page.locator("li.invite", { hasText: "for Pia" }).getByRole("button", { name: "Replace link" }).click();
+    await confirmYes(page, "Replace link");
     await expect(page.getByRole("alert")).toContainText("That invite is no longer active.");
     await expect(page.locator("code.linkbox")).toHaveCount(0);
   });
@@ -153,15 +148,11 @@ test.describe("removing a player", () => {
 
   test("asks first, then moves the player to former players with a copy of their sheet", async ({ page }) => {
     await openDmPage(page);
-    const messages = [];
-    page.once("dialog", (dialog) => {
-      messages.push(dialog.message());
-      dialog.accept();
-    });
     await removeButton(page, 1).click();
+    await expect(confirmDialog(page)).toContainText("You keep a copy of their active sheet as it is now");
+    await expect(confirmDialog(page)).toContainText("They need a new invite to come back");
+    await confirmYes(page, "Remove player");
     await expect(page.getByText("Ravi was removed. Their sheet is kept under Former players.")).toBeVisible();
-    expect(messages[0]).toContain("You keep a copy of their active sheet as it is now");
-    expect(messages[0]).toContain("They need a new invite to come back");
     const [call] = await rpc(page, "remove_player");
     expect(call.body).toEqual({ p_campaign_id: ids.campaign, p_player_id: RAVI });
     await expect(cards(page)).toHaveCount(2);
@@ -172,16 +163,16 @@ test.describe("removing a player", () => {
 
   test("does nothing if the Keeper says no", async ({ page }) => {
     await openDmPage(page);
-    page.once("dialog", (dialog) => dialog.dismiss());
     await removeButton(page, 1).click();
+    await confirmNo(page);
     expect(await rpc(page, "remove_player")).toHaveLength(0);
     await expect(cards(page)).toHaveCount(2);
   });
 
   test("a refusal is shown, and the player stays", async ({ page }) => {
     await openDmPage(page, { removeError: "only the DM of this campaign can remove a player" });
-    page.once("dialog", (dialog) => dialog.accept());
     await removeButton(page, 1).click();
+    await confirmYes(page, "Remove player");
     await expect(page.getByText("Ravi was not removed. Only the Keeper of this campaign can do that.")).toBeVisible();
     await expect(removeButton(page, 1)).toBeEnabled();
   });
@@ -223,16 +214,12 @@ test.describe("leaving a campaign", () => {
   test("asks first, explains what the Keeper keeps, and then the campaign is gone from the home page", async ({ page }) => {
     await seed(page, { mock: playerScenario(), user: dana });
     await open(page, "/");
-    const messages = [];
-    page.once("dialog", (dialog) => {
-      messages.push(dialog.message());
-      dialog.accept();
-    });
     await leave(page).click();
+    await expect(confirmDialog(page)).toContainText("Your Keeper keeps a copy of your active character's sheet as it is now");
+    await expect(confirmDialog(page)).toContainText("Your characters stay yours");
+    await expect(confirmDialog(page)).toContainText("You need a new invite to come back");
+    await confirmYes(page, "Leave campaign");
     await expect(page.getByText("You are not in a campaign yet.")).toBeVisible();
-    expect(messages[0]).toContain("Your Keeper keeps a copy of your active character's sheet as it is now");
-    expect(messages[0]).toContain("Your characters stay yours");
-    expect(messages[0]).toContain("You need a new invite to come back");
     const [call] = await rpc(page, "leave_campaign");
     expect(call.body).toEqual({ p_campaign_id: ids.campaign });
     await page.getByRole("link", { name: "Open my characters" }).click();
@@ -242,8 +229,8 @@ test.describe("leaving a campaign", () => {
   test("does nothing if the player says no", async ({ page }) => {
     await seed(page, { mock: playerScenario(), user: dana });
     await open(page, "/");
-    page.once("dialog", (dialog) => dialog.dismiss());
     await leave(page).click();
+    await confirmNo(page);
     expect(await rpc(page, "leave_campaign")).toHaveLength(0);
     await expect(page.getByText("Your character: Marlo Vance")).toBeVisible();
   });
@@ -251,8 +238,8 @@ test.describe("leaving a campaign", () => {
   test("is there before a character is chosen, and a refusal is shown", async ({ page }) => {
     await seed(page, { mock: playerScenario({ assignments: [], leaveError: "not signed in" }), user: dana });
     await open(page, "/");
-    page.once("dialog", (dialog) => dialog.accept());
     await leave(page).click();
+    await confirmYes(page, "Leave campaign");
     await expect(page.getByRole("alert")).toBeVisible();
     await expect(leave(page)).toBeEnabled();
   });
@@ -261,5 +248,24 @@ test.describe("leaving a campaign", () => {
     await seed(page, { mock: { profile: dm.profile, campaigns: [campaign] }, user: dm });
     await open(page, "/");
     await expect(page.getByRole("button", { name: "Leave campaign" })).toHaveCount(0);
+  });
+
+  test("the dialog is labelled, moves focus in and back, and Escape cancels like Cancel", async ({ page }) => {
+    await seed(page, { mock: playerScenario(), user: dana });
+    await open(page, "/");
+    await leave(page).click();
+    const dialog = confirmDialog(page);
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAccessibleName(/Leave Age of Eclipse\?/);
+    await expect(dialog.locator(":focus")).toHaveCount(1);
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(leave(page)).toBeFocused();
+    expect(await rpc(page, "leave_campaign")).toHaveLength(0);
+
+    await leave(page).click();
+    await confirmYes(page, "Leave campaign");
+    await expect(page.getByText("You are not in a campaign yet.")).toBeVisible();
   });
 });
