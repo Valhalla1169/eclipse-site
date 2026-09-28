@@ -34,21 +34,6 @@ function fieldTable(sheet) {
       },
     },
     cast: { after: "render", write: (k, el) => (sheet().cast[k] = value(el)) },
-    vi: { write: (k, el) => (sheet().vitals[k] = el.value) },
-    tx: {
-      grow: true,
-      write: (k, el) => {
-        const [group, field] = k.split(".");
-        sheet()[group][field] = el.value;
-      },
-    },
-    lt: {
-      grow: true,
-      write: (k, el) => {
-        const [key, index, field] = k.split(".");
-        intoRow(sheet()[key], index, field, el.value);
-      },
-    },
     cl: {
       after: "render",
       grow: true,

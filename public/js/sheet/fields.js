@@ -109,7 +109,34 @@ export const CORE_FIELDS = [
   // feed a computed total somewhere); one that only feeds itself says so.
 ].map((f) => ({ after: "render", ...f }));
 
-export const FIELD_BY_PATH = new Map(CORE_FIELDS.map((f) => [f.path, f]));
+// Testament page (docs/adr/0019): vitals, the profession and background prose,
+// personality and the four-part story. None of it feeds a computed number
+// elsewhere, so a write only needs saving (after: null), same as the old vi/tx
+// writers it replaces.
+export const TESTAMENT_FIELDS = [
+  { path: "vitals.age", kind: "text", label: "Age" },
+  { path: "vitals.height", kind: "text", label: "Height" },
+  { path: "vitals.weight", kind: "text", label: "Weight" },
+  { path: "vitals.visual", kind: "text", label: "Visual description" },
+  { path: "prof.kit", kind: "text", label: "Starting kit item", grow: true },
+  { path: "prof.knowledge", kind: "text", label: "Professional knowledge", grow: true },
+  { path: "prof.contact", kind: "text", label: "Professional contact", grow: true },
+  { path: "bg.gear", kind: "text", label: "Background starting gear", grow: true },
+  { path: "bg.benefit", kind: "text", label: "Background mechanical benefit", grow: true },
+  { path: "bg.connection", kind: "text", label: "Background connection", grow: true },
+  { path: "persona.traits", kind: "text", label: "Personality traits", grow: true },
+  { path: "persona.drives", kind: "text", label: "Personality drives", grow: true },
+  { path: "persona.fears", kind: "text", label: "Personality fears", grow: true },
+  { path: "persona.manner", kind: "text", label: "Mannerisms and voice", grow: true },
+  { path: "story.before", kind: "text", label: "Testament: before", grow: true },
+  { path: "story.eclipse", kind: "text", label: "Testament: the first year", grow: true },
+  { path: "story.now", kind: "text", label: "Testament: now", grow: true },
+  { path: "story.threads", kind: "text", label: "Testament: loose threads", grow: true },
+].map((f) => ({ after: null, ...f }));
+
+// Every fixed field the generic binder knows by its exact path, across every
+// converted page.
+export const FIELD_BY_PATH = new Map([...CORE_FIELDS, ...TESTAMENT_FIELDS].map((f) => [f.path, f]));
 
 // The Log page's entries (docs/adr/0019): one row's fields, relative to the
 // row (rows() joins them to a path once a row's index is known). Stored keys
@@ -120,12 +147,40 @@ export const LOG_FIELDS = [
   { path: "b", kind: "text", label: "Entry text", after: "log", grow: true },
 ];
 
+// The Testament page's growing lists: advantages, flaws, languages, the people
+// a survivor knows. Stored keys never change (they predate this ADR).
+export const ADV_FIELDS = [
+  { path: "n", kind: "text", label: "Advantage name", after: null },
+  { path: "t", kind: "text", label: "Advantage tier", after: null },
+  { path: "e", kind: "text", label: "Advantage effect", after: null, grow: true },
+];
+export const FLAW_FIELDS = [
+  { path: "n", kind: "text", label: "Flaw name", after: null },
+  { path: "t", kind: "text", label: "Flaw severity", after: null },
+  { path: "e", kind: "text", label: "Flaw effect", after: null, grow: true },
+];
+export const LANG_FIELDS = [
+  { path: "n", kind: "text", label: "Language name", after: null },
+  { path: "e", kind: "text", label: "Language origin", after: null, grow: true },
+];
+export const PEOPLE_FIELDS = [
+  { path: "n", kind: "text", label: "Person name", after: null },
+  { path: "r", kind: "text", label: "Person, to you", after: null },
+  { path: "e", kind: "text", label: "Person, last known", after: null, grow: true },
+];
+
 // A page whose rows come and go describes its list once, here, instead of a
 // count anyone has to keep in sync: `list` is the array's path, `fields` is
 // one field per relative path in a row. A `#` segment in `list` stands for a
 // whole-number index the list itself doesn't name yet, for a list nested in
 // another (a container's own items, say).
-export const GROWING_LISTS = [{ list: "log", fields: LOG_FIELDS }];
+export const GROWING_LISTS = [
+  { list: "log", fields: LOG_FIELDS },
+  { list: "adv", fields: ADV_FIELDS },
+  { list: "flaw", fields: FLAW_FIELDS },
+  { list: "lang", fields: LANG_FIELDS },
+  { list: "people", fields: PEOPLE_FIELDS },
+];
 
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const patternSegment = (segment) => (segment === "#" ? "\\d+" : escapeRegExp(segment));
