@@ -12,9 +12,6 @@
 // It replaces the whole book in one transaction, so a reader sees the old book or the
 // new one, never part of each. It prints counts and titles, never the text. How it
 // reaches the project: account-lists.mjs.
-//
-// It also refuses the push if a Reference card (public/js/sheet/reference-data.js) links to
-// a chapter slug this folder does not have, so the sheet can never link to a missing page.
 import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -107,9 +104,7 @@ export function readBook(folder, repo = root) {
   return { title, version, chapters };
 }
 
-// Every Reference card's `book` slug (public/js/sheet/reference-data.js) that `chapterSlugs`
-// does not have, sorted and de-duplicated. Empty when every card's slug is in the folder
-// being pushed, so a card can never link to a chapter that does not exist.
+// The Reference cards' chapter slugs that the book being pushed does not have.
 export function missingBookSlugs(cardSlugs, chapterSlugs) {
   const have = new Set(chapterSlugs);
   return [...new Set(cardSlugs)].filter((slug) => !have.has(slug)).sort();

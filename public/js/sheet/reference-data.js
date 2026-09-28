@@ -3,9 +3,8 @@
 // inserts it with staticHtml(). An object is a table, { head?, rows }, whose cells
 // are text, or { n } for a number cell. A table or a number that the sheet also
 // uses comes from eclipse-content.js, so the card and the sheet cannot disagree.
-// A card's `book` is the slug of the rulebook chapter (docs/adr/0016) that covers it,
-// nothing more: never a chapter title, heading or quote, because the book's own words
-// must never be in this public repo. A card with no good chapter leaves `book` off.
+// A card's `book` is the slug of the rulebook chapter that covers it: only the slug,
+// never the book's own words (docs/adr/0016).
 import {
   ACTIONS,
   ADVANTAGE_GRIT,
