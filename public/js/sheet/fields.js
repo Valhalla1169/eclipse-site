@@ -134,9 +134,43 @@ export const TESTAMENT_FIELDS = [
   { path: "story.threads", kind: "text", label: "Testament: loose threads", grow: true },
 ].map((f) => ({ after: null, ...f }));
 
+// Equipment page (docs/adr/0019): supplies, and the fixed set of carried slots
+// (armor, shield, the four weapons from Core) that the Worn table shows a row
+// for once named. wornW holds each slot's unit weight; wornX holds the rest
+// (quantity, quality, trade value, notes) a player fills in here.
+const SUP_FIELDS = [
+  { path: "sup.rations", kind: "text", label: "Rations quantity" },
+  { path: "sup.medQ", kind: "text", label: "Medical supplies quantity" },
+  { path: "sup.medW", kind: "text", label: "Medical supplies unit weight" },
+  { path: "sup.cmpQ", kind: "text", label: "Components quantity" },
+  { path: "sup.cmpW", kind: "text", label: "Components unit weight" },
+  { path: "sup.ammoQ", kind: "text", label: "Ammunition quantity" },
+  { path: "sup.ammoW", kind: "text", label: "Ammunition unit weight" },
+  { path: "sup.tv", kind: "text", label: "Supplies trade value" },
+];
+// Stored keys never change: "armor", "shield", "w0".."w3" (the Core weapon rows).
+const CARRIED_SLOTS = [
+  { key: "armor", label: "Armor" },
+  { key: "shield", label: "Shield" },
+  { key: "w0", label: "Weapon 1" },
+  { key: "w1", label: "Weapon 2" },
+  { key: "w2", label: "Weapon 3" },
+  { key: "w3", label: "Weapon 4" },
+];
+export const EQUIPMENT_FIELDS = [
+  ...SUP_FIELDS,
+  ...CARRIED_SLOTS.map(({ key, label }) => ({ path: `wornW.${key}`, kind: "text", label: `${label} unit weight` })),
+  ...CARRIED_SLOTS.flatMap(({ key, label }) => [
+    { path: `wornX.${key}.q`, kind: "text", label: `${label} quantity` },
+    { path: `wornX.${key}.ql`, kind: "text", label: `${label} quality` },
+    { path: `wornX.${key}.tv`, kind: "text", label: `${label} trade value` },
+    { path: `wornX.${key}.note`, kind: "text", label: `${label} notes` },
+  ]),
+].map((f) => ({ after: "render", ...f }));
+
 // Every fixed field the generic binder knows by its exact path, across every
 // converted page.
-export const FIELD_BY_PATH = new Map([...CORE_FIELDS, ...TESTAMENT_FIELDS].map((f) => [f.path, f]));
+export const FIELD_BY_PATH = new Map([...CORE_FIELDS, ...TESTAMENT_FIELDS, ...EQUIPMENT_FIELDS].map((f) => [f.path, f]));
 
 // The Log page's entries (docs/adr/0019): one row's fields, relative to the
 // row (rows() joins them to a path once a row's index is known). Stored keys
@@ -169,17 +203,39 @@ export const PEOPLE_FIELDS = [
   { path: "e", kind: "text", label: "Person, last known", after: null, grow: true },
 ];
 
+// The Equipment page's growing lists: an item a player types in directly (a
+// worn extra, or one of a container's own items — the same shape either way),
+// and the containers themselves. Stored keys never change.
+export const ITEM_FIELDS = [
+  { path: "n", kind: "text", label: "Item name" },
+  { path: "q", kind: "text", label: "Item quantity" },
+  { path: "w", kind: "text", label: "Item unit weight" },
+  { path: "ql", kind: "text", label: "Item quality" },
+  { path: "tv", kind: "text", label: "Item trade value" },
+  { path: "note", kind: "text", label: "Item notes" },
+].map((f) => ({ after: "render", ...f }));
+export const CONTAINER_FIELDS = [
+  { path: "name", kind: "text", label: "Container name" },
+  { path: "type", kind: "text", label: "Container type" },
+  { path: "empty", kind: "text", label: "Container empty weight" },
+  { path: "cap", kind: "text", label: "Container capacity" },
+  { path: "ap", kind: "text", label: "Container AP" },
+].map((f) => ({ after: "render", ...f }));
+
 // A page whose rows come and go describes its list once, here, instead of a
 // count anyone has to keep in sync: `list` is the array's path, `fields` is
 // one field per relative path in a row. A `#` segment in `list` stands for a
 // whole-number index the list itself doesn't name yet, for a list nested in
-// another (a container's own items, say).
+// another (a container's own items).
 export const GROWING_LISTS = [
   { list: "log", fields: LOG_FIELDS },
   { list: "adv", fields: ADV_FIELDS },
   { list: "flaw", fields: FLAW_FIELDS },
   { list: "lang", fields: LANG_FIELDS },
   { list: "people", fields: PEOPLE_FIELDS },
+  { list: "wornExtra", fields: ITEM_FIELDS },
+  { list: "containers", fields: CONTAINER_FIELDS },
+  { list: "containers.#.items", fields: ITEM_FIELDS },
 ];
 
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
