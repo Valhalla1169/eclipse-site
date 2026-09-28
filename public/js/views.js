@@ -97,81 +97,42 @@ export function notFoundView(message = "That page does not exist.") {
   );
 }
 
-function passwordField({ id, label, hint, autocomplete }) {
-  const input = h("input", {
-    id,
-    name: id,
-    type: "password",
-    autocomplete,
-    spellcheck: "false",
-    autocapitalize: "none",
-    required: true,
-    "aria-describedby": hint ? `${id}-hint` : null,
-  });
-  const toggle = h("button", { class: "btn btn-quiet btn-small", type: "button", "aria-pressed": "false", "aria-controls": id }, "Show password");
+const passwordInput = (id, autocomplete, describedBy = null) =>
+  h("input", { id, name: id, type: "password", autocomplete, spellcheck: "false", autocapitalize: "none", required: true, "aria-describedby": describedBy });
+
+// One "Show password" button that shows or hides every input given.
+function showToggle(inputs, noun) {
+  const toggle = h("button", { class: "btn btn-quiet btn-small", type: "button", "aria-pressed": "false", "aria-controls": inputs.map((input) => input.id).join(" ") }, `Show ${noun}`);
   toggle.addEventListener("click", () => {
-    const show = input.type === "password";
-    input.type = show ? "text" : "password";
+    const show = inputs[0].type === "password";
+    for (const input of inputs) input.type = show ? "text" : "password";
     toggle.setAttribute("aria-pressed", String(show));
-    toggle.textContent = show ? "Hide password" : "Show password";
+    toggle.textContent = `${show ? "Hide" : "Show"} ${noun}`;
   });
-  return h(
-    "div",
-    { class: "field" },
-    h("label", { for: id }, label),
-    hint ? h("p", { class: "hint", id: `${id}-hint` }, hint) : null,
-    input,
-    h("p", { class: "toggle-row" }, toggle),
-  );
+  return h("p", { class: "toggle-row" }, toggle);
 }
 
-// The two boxes for setting a new password, plus one "Show passwords" toggle that
-// switches both together; the confirm box has no toggle of its own (issue #5).
-// checkMatch runs only after the first box passes validatePassword (rule first,
-// one message at a time): it shows "do not match" next to the confirm box, moves
-// focus there, and returns false, or clears that state and returns true.
-function newPasswordFields({ id, label, hint }) {
-  const confirmId = `${id}Confirm`;
-  const confirmLabel = label === "New password" ? "Confirm new password" : "Confirm password";
-  const input = h("input", {
-    id,
-    name: id,
-    type: "password",
-    autocomplete: "new-password",
-    spellcheck: "false",
-    autocapitalize: "none",
-    required: true,
-    "aria-describedby": hint ? `${id}-hint` : null,
-  });
-  const confirmInput = h("input", {
-    id: confirmId,
-    name: confirmId,
-    type: "password",
-    autocomplete: "new-password",
-    spellcheck: "false",
-    autocapitalize: "none",
-    required: true,
-  });
-  const confirmErrorId = `${confirmId}-error`;
-  const confirmError = h("p", { class: "notice notice-error", id: confirmErrorId, role: "alert", hidden: true });
+const hintOf = (id, hint) => (hint ? h("p", { class: "hint", id: `${id}-hint` }, hint) : null);
 
-  const toggle = h(
-    "button",
-    { class: "btn btn-quiet btn-small", type: "button", "aria-pressed": "false", "aria-controls": `${id} ${confirmId}` },
-    "Show passwords",
-  );
-  toggle.addEventListener("click", () => {
-    const show = input.type === "password";
-    input.type = confirmInput.type = show ? "text" : "password";
-    toggle.setAttribute("aria-pressed", String(show));
-    toggle.textContent = show ? "Hide passwords" : "Show passwords";
-  });
+function passwordField({ id, label, hint, autocomplete }) {
+  const input = passwordInput(id, autocomplete, hint ? `${id}-hint` : null);
+  return h("div", { class: "field" }, h("label", { for: id }, label), hintOf(id, hint), input, showToggle([input], "password"));
+}
+
+// A new password typed twice, with one button that shows both. Call checkMatch(values)
+// after validatePassword passes, so a person sees one problem at a time: when the two
+// differ it marks the second box, moves focus there and returns false.
+function newPasswordFields({ id, label, confirmLabel, hint }) {
+  const confirmId = `${id}Confirm`;
+  const errorId = `${confirmId}-error`;
+  const input = passwordInput(id, "new-password", hint ? `${id}-hint` : null);
+  const confirmInput = passwordInput(confirmId, "new-password");
+  const error = h("div", { id: errorId });
 
   function clearMismatch() {
     confirmInput.removeAttribute("aria-invalid");
     confirmInput.removeAttribute("aria-describedby");
-    confirmError.hidden = true;
-    confirmError.replaceChildren();
+    error.replaceChildren();
   }
 
   function checkMatch(values) {
@@ -180,18 +141,17 @@ function newPasswordFields({ id, label, hint }) {
       return true;
     }
     confirmInput.setAttribute("aria-invalid", "true");
-    confirmInput.setAttribute("aria-describedby", confirmErrorId);
-    confirmError.hidden = false;
-    confirmError.replaceChildren(h("strong", {}, "Error: "), "The two passwords do not match.");
+    confirmInput.setAttribute("aria-describedby", errorId);
+    error.replaceChildren(notice("error", "The two passwords do not match."));
     confirmInput.focus();
     return false;
   }
 
   return {
     fields: [
-      h("div", { class: "field" }, h("label", { for: id }, label), hint ? h("p", { class: "hint", id: `${id}-hint` }, hint) : null, input),
-      h("div", { class: "field" }, h("label", { for: confirmId }, confirmLabel), confirmInput, confirmError),
-      h("p", { class: "toggle-row" }, toggle),
+      h("div", { class: "field" }, h("label", { for: id }, label), hintOf(id, hint), input),
+      h("div", { class: "field" }, h("label", { for: confirmId }, confirmLabel), confirmInput, error),
+      showToggle([input, confirmInput], "passwords"),
     ],
     clearMismatch,
     checkMatch,
@@ -247,7 +207,7 @@ export function loginView({ heading = "Sign in", intro, authNotice, next, onPass
 
 export function signupView({ next, intro, onSubmit }) {
   const query = next === "/" ? "" : `?next=${encodeURIComponent(next)}`;
-  const newPassword = newPasswordFields({ id: "password", label: "Password", hint: `At least ${PASSWORD_MIN_LENGTH} characters. A phrase of several words works well.` });
+  const newPassword = newPasswordFields({ id: "password", label: "Password", confirmLabel: "Confirm password", hint: `At least ${PASSWORD_MIN_LENGTH} characters. A phrase of several words works well.` });
   return h(
     "section",
     { class: "card stack" },
@@ -307,7 +267,7 @@ export function linkExpiredView() {
 }
 
 export function resetPasswordView({ email, displayName, onSubmit }) {
-  const newPassword = newPasswordFields({ id: "password", label: "New password", hint: `At least ${PASSWORD_MIN_LENGTH} characters.` });
+  const newPassword = newPasswordFields({ id: "password", label: "New password", confirmLabel: "Confirm new password", hint: `At least ${PASSWORD_MIN_LENGTH} characters.` });
   return h(
     "section",
     { class: "card stack" },
@@ -331,7 +291,7 @@ export function resetPasswordView({ email, displayName, onSubmit }) {
 export function accountView({ profile, email, onRename, onChangeEmail, onChangePassword, onReauthenticate, onSignOutOthers, onSignOutEverywhere }) {
   const nonceField = field({ id: "nonce", label: "Code from your email", autocomplete: "one-time-code", inputmode: "numeric" });
   nonceField.hidden = true;
-  const newPassword = newPasswordFields({ id: "newPassword", label: "New password", hint: `At least ${PASSWORD_MIN_LENGTH} characters.` });
+  const newPassword = newPasswordFields({ id: "newPassword", label: "New password", confirmLabel: "Confirm new password", hint: `At least ${PASSWORD_MIN_LENGTH} characters.` });
   const sessionStatus = h("div", { class: "status", "aria-live": "polite" });
   const sessionAction = (label, action, done) =>
     h("button", { class: "btn btn-quiet", type: "button", onclick: async (event) => {
