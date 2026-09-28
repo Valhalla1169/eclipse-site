@@ -229,7 +229,7 @@
 }
 .idf { background: var(--slab); padding: 7px 10px; }
 .idf.wide { grid-column: span 2; }
-.idf label { display: block; font-size: 12.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--bone-dim); margin-bottom: 2px; }
+.idf label { display: block; font-size: 12.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--bone-dim); }
 .idf input, .idf select {
   width: 100%; background: transparent; color: var(--bone);
   font-family: "Chakra Petch", sans-serif; font-size: 17px; font-weight: 500; padding: 1px 0;
@@ -537,7 +537,8 @@ td select.tier { font-size: 13px; }
 .degrade-grid .val.state { font-family: "IBM Plex Sans Condensed", sans-serif; font-size: 13px; font-weight: 600; line-height: 1.3; }
 .degrade-grid .val.state.damaged { color: var(--blood-t); }
 .degrade-grid input { width: 100%; text-align: center; font-family: "IBM Plex Mono", monospace; font-size: 17px; color: var(--bone); border-bottom: 1px solid var(--field); }
-.af label { display: block; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--bone-dim); margin-bottom: 2px; }
+.af label { display: block; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--bone-dim); }
+.idf label :is(input, select), .af label input { margin-top: 2px; }
 .af input { width: 100%; background: var(--well); border: 1px solid var(--field); border-radius: 2px; color: var(--bone); font-family: "IBM Plex Mono", monospace; font-size: 14.5px; padding: 3px 6px; }
 .af.name input { font-family: "IBM Plex Sans Condensed", sans-serif; text-align: left; }
 
