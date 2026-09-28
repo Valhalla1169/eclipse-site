@@ -97,9 +97,7 @@ export function createRosterPanel({ campaign, api, download, actions = {} }) {
   };
 
   async function removePlayer(event, entry) {
-    // event.currentTarget is only valid while the click is still dispatching, so it
-    // is captured before confirmAction's await, not after (unlike window.confirm,
-    // which blocked synchronously and never let the event finish dispatching).
+    // Read before the await: currentTarget is null once the click has dispatched.
     const button = event.currentTarget;
     const message = `Remove ${entry.playerName} from ${campaign.name}? You keep a copy of their active sheet as it is now, and they keep their characters. They need a new invite to come back.`;
     if (!(await confirmAction(message, "Remove player"))) return;

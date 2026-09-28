@@ -1,6 +1,5 @@
 // A character's sheet shown read only: the player's own history, and every view
-// the Keeper gets (ADR 0009, 0010, 0011). Four route handlers open a stored sheet,
-// read who it belongs to, and show it the same way, so that shape lives here once.
+// the Keeper gets (ADR 0009, 0010, 0011).
 import { h } from "./dom.js";
 import { SheetFormatError, openSheet } from "./eclipse-rules.js";
 import { createSheetView } from "./sheet/index.js";
@@ -22,23 +21,12 @@ export function openStored(row, { ownSheet, title, announce }) {
   }
 }
 
-// Opens `source` read only and shows it with a back bar: the shape every read-only
-// sheet page shares (check an id, load, open the sheet, read whose it is, show it
-// with a back bar) once the id has been checked and the row has been loaded.
-//
-// sheetRow is what createSheetView stamps saves with; for a live character it is
-// `source` itself, but a history or departed copy has no `updated_at` of its own, so
-// the caller gives it one built from when the copy was saved or kept.
-//
-// describe(opened) runs only once the sheet has opened (it may read the player's
-// name first, as the original code did) and returns:
-//   readOnlyNotice: the sentence shown above the sheet,
-//   back: { href, label, more: [...] } for the back bar,
-//   extra: more nodes between the back bar and the sheet (a status line),
-//   dispose(view): the view's dispose(), wrapped with anything else to clean up
-//     (a live subscription).
-// alive() is rechecked after describe() awaits, in case the route changed underneath
-// it. Returns the sheet view, or null when nothing was shown.
+// Opens a loaded row read only and shows it under a back bar. Returns the view, or null.
+// sheetRow: the row the view reads `updated_at` from; a history or departed copy has
+// none of its own, so its caller builds one.
+// describe(opened) runs after the sheet opens and returns { readOnlyNotice,
+// back: { href, label, more }, extra (nodes above the sheet), dispose(view) }.
+// alive() is checked again after describe(), in case the route changed meanwhile.
 export async function showReadOnlySheet(source, { ownSheet, title, announce, alive, sheetRow = source, describe }) {
   const opened = openStored(source, { ownSheet, title, announce });
   if (!opened) return null;
