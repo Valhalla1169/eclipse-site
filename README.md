@@ -7,6 +7,9 @@ Cloudflare Workers static assets, with Supabase (Postgres, Auth, Realtime) as th
 This is one subdomain of `deyderae.dev`. The domain-wide design document lives in the
 `deyderae-site` repo (`DESIGN.md`); read it, and [`CLAUDE.md`](CLAUDE.md), before changing anything.
 
+New to this repo? Read [`docs/system.md`](docs/system.md) first: what the system does today, who
+can do what, and where everything lives.
+
 ## Development
 
 ```
@@ -96,6 +99,9 @@ Database); nothing else uses it. The script prints the file, its size and the ro
 The file holds all the site's data and every account (`auth.users` and `auth.identities`), with
 emails and password hashes. **Keep it secret**: never put it in the repo, a chat or a shared folder.
 It has no schema; that comes from `supabase/migrations/`.
+
+A backup taken before a player deleted a character forever (docs/adr/0018) still holds it: purging
+removes a character from the live database only, not from a backup already made.
 
 Check a file. This loads it into a throwaway database, with the same Postgres and `PG*` variables as
 `npm run test:db`, and compares the rows in each table:

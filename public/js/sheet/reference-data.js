@@ -3,6 +3,8 @@
 // inserts it with staticHtml(). An object is a table, { head?, rows }, whose cells
 // are text, or { n } for a number cell. A table or a number that the sheet also
 // uses comes from eclipse-content.js, so the card and the sheet cannot disagree.
+// A card's `book` is the slug of the rulebook chapter that covers it: only the slug,
+// never the book's own words (docs/adr/0016).
 import {
   ACTIONS,
   ADVANTAGE_GRIT,
@@ -136,15 +138,15 @@ const sellPrices = [...QUALITY].reverse().map((band) => `${band.q} gives ${band.
 
 export const REF_CATS = ['Checks','Combat','Damage','Recovery','Survival','Social','Casting','Grit','Gear'];
 export const REFERENCE = [
-{c:'Checks',t:'Making a check',k:'roll dice pool success target number explode',body:[`
+{c:'Checks',t:'Making a check',book:'difficulty-and-resolution-system',k:'roll dice pool success target number explode',body:[`
 <p>Pool is <b>Attribute + Skill</b>, then apply difficulty, condition penalties, and any bonuses.</p>
 <p><b>7 or higher on a d10 is a success.</b> A 10 counts as a success <em>and</em> rerolls, and can keep exploding.</p>
 <p>You always roll <b>at least 1 die</b>, no matter how deep the penalties go.</p>`]},
 
-{c:'Checks',t:'Difficulty stages',k:'easy moderate challenging difficult formidable near impossible',body:[T.difficulty,`
+{c:'Checks',t:'Difficulty stages',book:'difficulty-and-resolution-system',k:'easy moderate challenging difficult formidable near impossible',body:[T.difficulty,`
 <p>Difficulty removes dice. It never changes what counts as a success.</p>`]},
 
-{c:'Checks',t:'Reading the result',k:'margin outcome marginal clean exceptional legendary failure',body:[`
+{c:'Checks',t:'Reading the result',book:'difficulty-and-resolution-system',k:'margin outcome marginal clean exceptional legendary failure',body:[`
 <table><tr><td>0</td><td>Failure</td></tr>
 <tr><td>1</td><td>Marginal, it works but it costs you</td></tr>
 <tr><td>2</td><td>Clean success</td></tr>
@@ -152,51 +154,51 @@ export const REFERENCE = [
 <tr><td>4+</td><td>Legendary</td></tr></table>
 <p><b>Quantity checks</b> are the exception: scavenging, healing, and crafting count each success as a unit found, box healed, or quality step.</p>`]},
 
-{c:'Checks',t:'Botch',k:'botch ones critical failure complication severity',body:[`
+{c:'Checks',t:'Botch',book:'difficulty-and-resolution-system',k:'botch ones critical failure complication severity',body:[`
 <p>A botch is <b>zero successes and at least one 1</b>. Severity scales with how many 1s.</p>
 <table><tr><td>One 1</td><td>Minor, narrative only</td></tr>
 <tr><td>Two 1s</td><td>Moderate, a real mechanical cost</td></tr>
 <tr><td>Three or more</td><td>Major, roll d10 on the Botch Severity table</td></tr></table>
 <p>Casting botch at two 1s: <b>Shock equal to the Effect Level</b> and a permanent cosmetic scar.</p>`]},
 
-{c:'Checks',t:'Helping and retrying',k:'help assist teamwork retry anti spam',body:[`
+{c:'Checks',t:'Helping and retrying',book:'difficulty-and-resolution-system',k:'help assist teamwork retry anti spam',body:[`
 <p>One character rolls. Each helper adds <em>+2 dice</em> and must have at least 1 rank in the skill. Everyone spends the same time.</p>
 <p>No help on willpower tests, personal attacks and defences, or one-voice social checks.</p>
 <p><b>Retries cost.</b> Time passes, materials burn, and failure usually makes the next attempt harder.</p>`]},
 
-{c:'Checks',t:'Untrained use',k:'untrained no skill rank penalty',body:[`
+{c:'Checks',t:'Untrained use',book:'skills',k:'untrained no skill rank penalty',body:[`
 <p>Roll the <b>attribute alone</b> and add <em>+${UNTRAINED_STAGES} difficulty stages</em>. ${untrainedExample}.</p>
 <p>Sorcery, Ritual Casting, and Psionics cannot be attempted untrained.</p>`]},
 
-{c:'Combat',t:'The round',k:'initiative order round seconds turn',body:[`
+{c:'Combat',t:'The round',book:'combat-basics',k:'initiative order round seconds turn',body:[`
 <p>A round is <b>6 seconds</b>. Initiative is <em>Instinct + 1d10</em>, highest first, rolled <b>once at the top of the fight</b> — it holds every round after unless something in the fiction disrupts it.</p>
 <p>AP refreshes each round. Your AP is <em>(E+C+L+I+P+S) / ${DERIVED_DIVISOR.actionPoints}</em>, rounded down.</p>`]},
 
-{c:'Combat',t:'What actions cost',k:'AP action points move aim reload draw item cost',body:[T.actions,`
+{c:'Combat',t:'What actions cost',book:'action-points-ap-system',k:'AP action points move aim reload draw item cost',body:[T.actions,`
 <p>One free action per round. Any more cost 1 AP each.</p>`]},
 
-{c:'Combat',t:'Aiming',k:'aim bypass armor precision',body:[`
+{c:'Combat',t:'Aiming',book:'action-points-ap-system',k:'aim bypass armor precision',body:[`
 <p>Each AP spent aiming gives <em>+${AIM.dice} die</em> and <b>ignores ${AIM.armorIgnored} point of armor AV</b>.</p>
 <p>Maximum aims equals the attacking attribute: Instinct for ranged, Lethality for melee. Aiming does not bypass personnel soak.</p>`]},
 
-{c:'Combat',t:'Defending',k:'block dodge defense no defense reaction',body:[T.defending,`
+{c:'Combat',t:'Defending',book:'defense-and-damage-flow-corrected-final',k:'block dodge defense no defense reaction',body:[T.defending,`
 <p><b>One defence per attack.</b> Never both.</p>`]},
 
-{c:'Combat',t:'Fire modes',k:'SA BF FA burst full auto semi ammo',body:[T.fireModes]},
+{c:'Combat',t:'Fire modes',book:'fire-modes-deep-dive',k:'SA BF FA burst full auto semi ammo',body:[T.fireModes]},
 
-{c:'Combat',t:'Full auto, three uses',k:'suppression spray pray wall of lead pinned kill zone',body:[`
+{c:'Combat',t:'Full auto, three uses',book:'fire-modes-deep-dive',k:'suppression spray pray wall of lead pinned kill zone',body:[`
 <p><b>Suppression.</b> Base AP, 10 rounds, cone 10m by 5m. Everyone inside rolls Steadfast vs Difficulty 3 or is Pinned. No damage.</p>
 <p><b>Spray and pray.</b> Base AP +1, 5 rounds per target, targets within 5m of each other, <em>&minus;1 die per extra target</em>.</p>
 <p><b>Wall of lead.</b> Base AP doubled, 20+ rounds, 10m by 10m kill zone. Anyone entering is hit automatically on Instinct + Firearms vs Difficulty 5, base damage only.</p>`]},
 
-{c:'Combat',t:'Reloading',k:'reload magazine drum belt vulnerable',body:[T.reloads,`
+{c:'Combat',t:'Reloading',book:'fire-modes-deep-dive',k:'reload magazine drum belt vulnerable',body:[T.reloads,`
 <p>Ejecting is free. You cannot shoot while reloading. Reload before you are dry if you can spare the AP.</p>`]},
 
-{c:'Combat',t:'Dual wielding',k:'dual wield two weapons offhand ambidexterity',body:[`
+{c:'Combat',t:'Dual wielding',book:'dual-wield-and-rot-healing-rules',k:'dual wield two weapons offhand ambidexterity',body:[`
 <p>Requires the <b>Ambidexterity Talent</b>. Without it you cannot effectively dual wield at all.</p>
 <p>Both weapons attack for the <em>higher weapon's AP cost only</em>, not each separately, at <b>&minus;2 dice</b> to each attack.</p>`]},
 
-{c:'Damage',t:'Resolving an attack',k:'damage flow steps net successes soak order',body:[`
+{c:'Damage',t:'Resolving an attack',book:'defense-and-damage-flow-corrected-final',k:'damage flow steps net successes soak order',body:[`
 <ol><li>Attacker rolls Attribute + Skill.</li>
 <li>Defender Blocks or Dodges, or the attacker rolls unopposed vs Difficulty ${UNOPPOSED_DIFFICULTY}.</li>
 <li><b>Net successes</b> = attacker minus defender. 1 or more is a hit.</li>
@@ -204,7 +206,7 @@ export const REFERENCE = [
 <li>Subtract cover, then shield, then armor, then personnel soak.</li>
 <li>Whatever is left fills that many boxes.</li></ol>`]},
 
-{c:'Damage',t:'Which soak applies',k:'ballistic impact armor rating B I type',body:[`
+{c:'Damage',t:'Which soak applies',book:'defense-and-damage-flow-corrected-final',k:'ballistic impact armor rating B I type',body:[`
 <p><b>Ballistic</b> stops bullets, shrapnel, arrows, and piercing. <b>Impact</b> stops melee, blunt, slashing, crushing, and falls.</p>
 <table><tr><th>Damage</th><th>Cover</th><th>Shield</th><th>Armor</th><th>Pers.</th></tr>
 <tr><td>Bullets</td><td>yes</td><td>B</td><td>B</td><td>yes</td></tr>
@@ -213,49 +215,49 @@ export const REFERENCE = [
 <tr><td>Rot</td><td>no</td><td>no</td><td>no</td><td>no</td></tr></table>
 <p>Rot and Sanity bypass everything. Resist with Endurance or Steadfast instead.</p>`]},
 
-{c:'Damage',t:'Cover',k:'cover barrier hard soft partial hide',body:[`
+{c:'Damage',t:'Cover',book:'defense-and-damage-flow-corrected-final',k:'cover barrier hard soft partial hide',body:[`
 <table><tr><td>Partial</td><td class="n">&minus;1</td></tr>
 <tr><td>Soft</td><td class="n">&minus;2</td></tr>
 <tr><td>Hard</td><td class="n">&minus;4</td></tr></table>
 <p>Cover is subtracted first, before any shield or armor.</p>`]},
 
-{c:'Damage',t:'Condition monitors',k:'shock trauma rot boxes threshold penalty stacking',body:[T.monitors,`
+{c:'Damage',t:'Condition monitors',book:'condition-monitors',k:'shock trauma rot boxes threshold penalty stacking',body:[T.monitors,`
 <p>Each threshold crossed is <em>&minus;1 die to everything</em>, and the three <b>stack globally</b>.</p>`]},
 
-{c:'Damage',t:`Hitting ${MONITOR_BOXES} boxes`,k:'unconscious dying overflow death corruption',body:[`
+{c:'Damage',t:`Hitting ${MONITOR_BOXES} boxes`,book:'condition-monitors',k:'unconscious dying overflow death corruption',body:[`
 <p><b>Shock ${MONITOR_BOXES}:</b> unconscious. Overflow of <em>Essence / ${DERIVED_DIVISOR.overflow}</em> converts to Trauma at 1 per round.</p>
 <p><b>Trauma ${MONITOR_BOXES}:</b> unconscious and dying. Same overflow, then death. Survive and stabilize, then roll on the Lasting Injury table.</p>
 <p><b>Rot ${MONITOR_BOXES}:</b> permanent corruption. Lose ${FULL_ROT_ESSENCE_PER_HOUR} Essence per hour until Essence hits 0.</p>`]},
 
-{c:'Damage',t:'Stabilizing',k:'stabilize dying first aid bleeding out unconscious',body:[`
+{c:'Damage',t:'Stabilizing',book:'healing-and-recovery',k:'stabilize dying first aid bleeding out unconscious',body:[`
 <p><b>An ally:</b> ${ACTIONS.stabilizeAlly.ap} AP and ${DYING.allySupplies} medical supply unit. Automatic, no roll.</p>
 <p><b>Yourself:</b> roll Endurance + Steadfast at a fixed <em>${selfStabilize.name} (&minus;${selfStabilize.dice})</em> each round. Condition penalties never apply to this roll. Accumulate successes equal to your current Trauma dice penalty. A round with no successes adds an overflow box.</p>
 <p>Stabilized means no longer dying. Still unconscious.</p>`]},
 
-{c:'Damage',t:'Sanity',k:'sanity madness insanity narrative rating',body:[`
+{c:'Damage',t:'Sanity',book:'attributes-and-derived-stats',k:'sanity madness insanity narrative rating',body:[`
 <p>Sanity is a <b>0 to ${TRACK_MAX} rating, not a monitor</b>. It never subtracts dice.</p>
 <p>Below 5 the Keeper rolls forced roleplay. At 0 the character is permanently mad and becomes an NPC.</p>
 <p>It cannot be raised with Grit. It takes safe havens, professional help, or Emily.</p>`]},
 
-{c:'Recovery',t:'How healing works',k:'heal recovery rest medicine natural rate',body:[T.healing,`
+{c:'Recovery',t:'How healing works',book:'healing-and-recovery',k:'heal recovery rest medicine natural rate',body:[T.healing,`
 <p><b>One healing method per patient per 24 hours.</b> Natural, medical, Veil, and Psyche do not stack. Shock recovery, Rot healing, and stabilization are exempt.</p>`]},
 
-{c:'Recovery',t:'Natural recovery',k:'natural recovery self heal rest quality sleep',body:[`
+{c:'Recovery',t:'Natural recovery',book:'healing-and-recovery',k:'natural recovery self heal rest quality sleep',body:[`
 <p>Once per ${RECOVERY.naturalHours} hours, roll <b>Endurance + Steadfast</b> at ${DIFFICULTY[RECOVERY.naturalStage].name}. Each success heals 1 Trauma.</p>`,T.rest]},
 
-{c:'Recovery',t:'Medical treatment',k:'medicine kit treat wounds surgery supplies',body:[`
+{c:'Recovery',t:'Medical treatment',book:'healing-and-recovery',k:'medicine kit treat wounds surgery supplies',body:[`
 <p>Roll <b>Clarity + Medicine</b>. ${RECOVERY.medicalMinutes} minutes, ${RECOVERY.medicalSupplies} supply unit consumed whether or not it works. Each success heals 1 Trauma. On zero successes the patient takes 1 Shock.</p>
 <p>Wound severity sets difficulty; kit quality is a separate bonus &mdash; they don't pair off row by row.</p>`,T.medicalDifficulty,T.medicalKits]},
 
-{c:'Survival',t:'Starvation',k:'starving hunger rations food water days thirst',body:[`
+{c:'Survival',t:'Starvation',book:'rations-and-sustenance',k:'starving hunger rations food water days thirst',body:[`
 <p>1 ration is one day of food and water, and weighs ${RATION_LB} lb.</p>`,T.starvation,`
 <p>Eating <b>lowers the counter by one day</b>. It does not reset it.</p>`]},
 
-{c:'Survival',t:'Encumbrance',k:'weight carry load heavy burdened lift',body:[`
+{c:'Survival',t:'Encumbrance',book:'tools-and-non-combat-gear',k:'weight carry load heavy burdened lift',body:[`
 <p>Thresholds come from Lethality. Steps of ${encumbranceStep.lb} lb up to Lethality ${encumbranceStep.upToLethality}, then ${encumbranceStep.lbAbove} lb.</p>`,T.encumbrance,`
 <p>Everything worn, held, slung, or packed counts. <b>Max lift</b> is <em>Lethality &times; ${ENCUMBRANCE.liftPerLethality} lb</em> on a Lethality + Athletics roll.</p>`]},
 
-{c:'Survival',t:'Questionable food',k:'edible not edible spoiled contaminated purify rot',body:[`
+{c:'Survival',t:'Questionable food',book:'rations-and-sustenance',k:'edible not edible spoiled contaminated purify rot',body:[`
 <p>Test before eating with <b>Clarity + Survival</b>. Visibly spoiled is Difficulty 3, questionable 5, subtle 7, invisible 9.</p>
 <table><tr><td>Stale</td><td>no effect</td></tr>
 <tr><td>Spoiled</td><td>Endurance 5 or 1 to 2 Rot</td></tr>
@@ -263,7 +265,7 @@ export const REFERENCE = [
 <tr><td>Poisonous</td><td>3 to 5 Rot, no save</td></tr></table>
 <p>Bad rations <b>do not count</b> against starvation.</p>`]},
 
-{c:'Social',t:'NPC attitude',k:'attitude hostile wary neutral friendly loyal reaction',body:[`
+{c:'Social',t:'NPC attitude',book:'social-interaction',k:'attitude hostile wary neutral friendly loyal reaction',body:[`
 <table><tr><td>Hostile</td><td class="n">&minus;7</td></tr>
 <tr><td>Wary</td><td class="n">&minus;5</td></tr>
 <tr><td>Neutral</td><td class="n">&minus;3</td></tr>
@@ -271,7 +273,7 @@ export const REFERENCE = [
 <tr><td>Loyal</td><td class="n">0</td></tr></table>
 <p>Neutral is the default for strangers. Players are only ever told outright when someone is Loyal.</p>`]},
 
-{c:'Social',t:'Social checks',k:'persuade deceive intimidate barter leadership opposed insight',body:[`
+{c:'Social',t:'Social checks',book:'social-interaction',k:'persuade deceive intimidate barter leadership opposed insight',body:[`
 <p>Roll <b>Presence + your social skill</b> against their defence.</p>
 <table><tr><th>You use</th><th>They roll</th></tr>
 <tr><td>Persuasion</td><td>Steadfast + Insight</td></tr>
@@ -281,58 +283,58 @@ export const REFERENCE = [
 <tr><td>Leadership</td><td>Steadfast + Composure</td></tr></table>
 <p>No roll makes an NPC act against their own survival or character.</p>`]},
 
-{c:'Casting',t:'Effect levels',k:'spell power cost MP PP AP effect level magic psionics',body:[`
+{c:'Casting',t:'Effect levels',book:'veil-and-psyche-casting',k:'spell power cost MP PP AP effect level magic psionics',body:[`
 <p>MP and PP cost equals the Effect Level. <b>Points are spent before the roll</b> and are lost even on a failure.</p>
 <p>Veil AP equals the level. Psyche AP is roughly half, capped at ${CASTING.psycheApCap}.</p>
 <p>Pools are <em>Veil &times; ${CASTING.pointsPerRating}</em> and <em>Psyche &times; ${CASTING.pointsPerRating}</em>, refreshed only by a full rest.</p>
 <p>Roll <b>Veil + Sorcery</b> or <b>Psyche + Psionics</b>. One school per ${CASTING.pointsPerSchool} points in the attribute.</p>`]},
 
-{c:'Casting',t:'What casting costs you',k:'backlash rot shock healing toll corruption',body:[`
+{c:'Casting',t:'What casting costs you',book:'veil-and-psyche-casting',k:'backlash rot shock healing toll corruption',body:[`
 <p><b>Veil healing.</b> First cast after a full rest costs Shock equal to the level. Every cast after that costs <em>Rot equal to level / ${CASTING.veilHealRotDivisor}</em>, rounded up.</p>
 <p><b>Psyche healing.</b> Always Shock equal to <em>level / ${CASTING.psycheHealShockDivisor}</em>, rounded up.</p>
 <p>Veil corrodes the body. Psyche fractures the mind. Neither is free.</p>`]},
 
-{c:'Casting',t:'Rituals',k:'ritual duration time invested materials TV permanent veil only',body:[`
+{c:'Casting',t:'Rituals',book:'veil-and-psyche-casting',k:'ritual duration time invested materials TV permanent veil only',body:[`
 <p><b>Veil only.</b> Psionics are instant mental acts, not ceremonial workings — Psyche cannot perform rituals.</p>
 <p>Time invested sets the duration <b>and</b> the cost. More care, more time, more lasting.</p>`,T.rituals,`
 <p>Materials still need to make narrative sense: chalk and herbs for a 10-minute working, a consumed rift crystal for anything permanent. The TV is what those components cost, not a flat abstract fee.</p>`]},
 
-{c:'Casting',t:'The Ritual Toll',k:'exertion shock rift scar rushing permanent',body:[`
+{c:'Casting',t:'The Ritual Toll',book:'veil-and-psyche-casting',k:'exertion shock rift scar rushing permanent',body:[`
 <p><b>Exertion Shock.</b> Every ritual costs <em>Effect Level minus how much time you took</em>, minimum 1. Rushing a high level ritual is brutal; taking it slow softens the blow.</p>`,T.ritualToll,`
 <p><b>Recovery delay.</b> This Shock cannot begin healing until time equal to what you invested has passed since the ritual ended. An 8-hour ritual leaves you compromised for a full 8 hours afterward.</p>
 <p><b>The Rift Scar.</b> A 24-hour, Permanent-tier ritual also costs every caster involved <em>+${RITUAL.riftScarShock} Shock, permanently</em>. It never heals — not rest, not Medicine, not Veil or Psyche healing, ever.</p>`]},
 
-{c:'Grit',t:'Spending Grit in the moment',k:'grit reroll add success negate heroic surge tactical',body:[`
+{c:'Grit',t:'Spending Grit in the moment',book:'grit-and-advancement-system',k:'grit reroll add success negate heroic surge tactical',body:[`
 <table><tr><td class="n">1</td><td>Reroll one failed die</td></tr>
 <tr><td class="n">1</td><td>Add one success, declared after the roll</td></tr>
 <tr><td class="n">2</td><td>Negate one condition box</td></tr>
 <tr><td class="n">3</td><td>Heroic Surge: +3 AP now, +2 next, +1 after, then take 2 Shock</td></tr></table>
 <p>There is no separate pool. This is the same Grit you would spend on advancement.</p>`]},
 
-{c:'Grit',t:'Advancement costs',k:'raise skill attribute talent advantage cost xp experience mastery',body:[T.advancement,`
+{c:'Grit',t:'Advancement costs',book:'grit-and-advancement-system',k:'raise skill attribute talent advantage cost xp experience mastery',body:[T.advancement,`
 <p>Non-humans pay <em>+6 Grit</em> on every Talent. Raising anything needs a one-line narrative justification.</p>
 <p>During play a skill's rating, with the Master Skill bonus, is at most <b>${SKILL_CAP.perAttribute} &times; the linked attribute</b>, and never more than ${SKILL_CAP.max}. Sanity cannot be bought with Grit at all.</p>`]},
 
-{c:'Grit',t:'Earning Grit',k:'award session milestone rift enclave',body:[`
+{c:'Grit',t:'Earning Grit',book:'grit-and-advancement-system',k:'award session milestone rift enclave',body:[`
 <p>1 to 5 per session by how much was at stake. Milestones add <em>+5</em>: closing a rift, destroying an AI node, saving an enclave, ending a major antagonist.</p>
 <p>Grit never resets or refreshes. What you save, you keep.</p>`]},
 
-{c:'Gear',t:'Quality',k:'quality Q1 Q10 condition pristine broken gear',body:[T.quality,`
+{c:'Gear',t:'Quality',book:'quality-system',k:'quality Q1 Q10 condition pristine broken gear',body:[T.quality,`
 <p><b>Armor:</b> Q1 to 3 is &minus;1 to both ratings, Q7 to 9 is +1, Q10 is +2.</p>
 <p><b>Weapons:</b> Q1 to 3 is &minus;1 damage and jams on a botch. Q7+ is +1 damage.</p>`]},
 
-{c:'Gear',t:'Trading',k:'trade value TV buy sell barter haggle price',body:[`
+{c:'Gear',t:'Trading',book:'trade-value-and-the-barter-economy',k:'trade value TV buy sell barter haggle price',body:[`
 <p><b>Buying</b> is the listed TV, swung <em>&plusmn;15%</em> by your Bartering result. A bad roll raises the price.</p>
 <p><b>Selling</b> returns a fraction by quality: ${sellPrices}.</p>
 <p>A trader takes only about 5 identical common items a week before rates halve. TV has nothing to do with Grit.</p>`]},
 
-{c:'Gear',t:'Tool kits',k:'tool kit partial full advanced facility bonus dice',body:[T.toolKits,`
+{c:'Gear',t:'Tool kits',book:'tools-and-non-combat-gear',k:'tool kit partial full advanced facility bonus dice',body:[T.toolKits,`
 <p>Kits degrade one quality step every 10 uses, and immediately on a botch.</p>`]},
 
-{c:'Gear',t:'Gear wears out',k:'degradation armor shield repair scrap field workshop',body:[`
+{c:'Gear',t:'Gear wears out',book:'armor',k:'degradation armor shield repair scrap field workshop',body:[`
 <p>Track the damage a piece of armor has soaked. Each time it reaches the item's <b>degradation pool</b>, both B and I drop by 1. Shields degrade every ${SHIELD_DEGRADE_STEP} damage. Neither goes below 0.</p>
 <p><b>Field repair</b> restores half the original rating. <b>Workshop repair</b> restores all of it. Both take an hour and a scrap unit.</p>`]},
 
-{c:'Gear',t:'Why you cannot just retry',k:'anti spam time material consequence lockpick hack',body:[`
+{c:'Gear',t:'Why you cannot just retry',book:'anti-spam-rules-repeated-skill-attempts',k:'anti spam time material consequence lockpick hack',body:[`
 <p>Every attempt costs <b>time</b>, most cost <b>materials</b>, and failure usually makes it <b>worse</b>.</p>`,T.retries]},
 ];

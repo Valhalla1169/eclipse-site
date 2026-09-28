@@ -2,131 +2,26 @@
 // The sheet object is only ever changed here (and by eclipse-rules.js mutations).
 import { h } from "../dom.js";
 import { MASTER_BONUS, PROFESSION_BONUS, PROFS } from "../eclipse-content.js";
-import { ATTR_NAMES, chooseProfession, chooseRace, int, intOrBlank, setCondition, setOverflow, toggleBox } from "../eclipse-rules.js";
+import { ATTR_NAMES, chooseProfession, int, setCondition, setOverflow, toggleBox } from "../eclipse-rules.js";
+import { KINDS, lookupField, pathSet } from "./fields.js";
 import { LISTS } from "./testament-page.js";
 import { REFERENCE } from "./reference-data.js";
-import { fillIdentity, growTextarea, renderSheet } from "./render.js";
+import { growTextarea, renderSheet } from "./render.js";
 import { filterLog, rebuildCasting, rebuildContainers, rebuildList, rebuildLog, rebuildWorn } from "./rebuild.js";
-
-const IDENTITY_FIELDS = { f_name: "name", f_race: "race", f_prof: "prof", f_master: "master", f_bg: "bg", f_grit: "grit" };
-const ARMOR_FIELDS = { a_name: "name", a_b: "b", a_i: "i", a_ap: "ap", a_dp: "dp", a_soaked: "soaked" };
-const SHIELD_FIELDS = { sh_name: "name", sh_b: "b", sh_i: "i", sh_ap: "ap", sh_soaked: "soaked" };
-
-const value = (el) => (el.type === "checkbox" ? el.checked : el.value);
-const intField = (text) => (text === "" ? 0 : int(text));
-
-function intoRow(list, index, field, text) {
-  if (!list[int(index)]) list[int(index)] = {};
-  list[int(index)][field] = text;
-}
-
-// One entry per data-* attribute an input can carry. `write` puts the value in the
-// sheet. `after` says what to redraw: "render" every number, "log" the log filter,
-// or nothing more than saving. `grow` resizes a text area to its text.
-function fieldTable(sheet) {
-  const listFor = (scope) => (scope === "we" ? sheet().wornExtra : sheet().containers[int(scope.slice(1))].items);
-  return {
-    base: { after: "render", write: (k, el) => (sheet().base[k] = intField(el.value)) },
-    oth: { after: "render", write: (k, el) => (sheet().oth[k] = intField(el.value)) },
-    sk: { after: "render", write: (k, el) => (sheet().skills[k] = el.value === "" ? "" : int(el.value)) },
-    so: { after: "render", write: (k, el) => (sheet().sother[k] = intOrBlank(el.value)) },
-    sup: { after: "render", write: (k, el) => (sheet().sup[k] = el.value) },
-    ww: { after: "render", write: (k, el) => (sheet().wornW[k] = el.value) },
-    wx: {
-      after: "render",
-      write: (k, el) => {
-        const [key, field] = k.split(".");
-        if (!sheet().wornX[key]) sheet().wornX[key] = {};
-        sheet().wornX[key][field] = el.value;
-      },
-    },
-    cast: { after: "render", write: (k, el) => (sheet().cast[k] = value(el)) },
-    dy: { after: "render", write: (k, el) => (sheet().dy[k] = value(el)) },
-    vi: { write: (k, el) => (sheet().vitals[k] = el.value) },
-    note: { write: (k, el) => (sheet().notes[k] = el.value) },
-    mn: { write: (k, el) => (sheet().mods[int(k)].n = el.value) },
-    mv: { after: "render", write: (k, el) => (sheet().mods[int(k)].v = intOrBlank(el.value)) },
-    smn: { write: (k, el) => (sheet().soakMods[int(k)].n = el.value) },
-    smb: { after: "render", write: (k, el) => (sheet().soakMods[int(k)].b = intOrBlank(el.value)) },
-    smi: { after: "render", write: (k, el) => (sheet().soakMods[int(k)].i = intOrBlank(el.value)) },
-    smp: { after: "render", write: (k, el) => (sheet().soakMods[int(k)].p = intOrBlank(el.value)) },
-    tx: {
-      grow: true,
-      write: (k, el) => {
-        const [group, field] = k.split(".");
-        sheet()[group][field] = el.value;
-      },
-    },
-    lg: {
-      after: "log",
-      grow: true,
-      write: (k, el) => {
-        const [index, field] = k.split(".");
-        intoRow(sheet().log, index, field, el.value);
-      },
-    },
-    lt: {
-      grow: true,
-      write: (k, el) => {
-        const [key, index, field] = k.split(".");
-        intoRow(sheet()[key], index, field, el.value);
-      },
-    },
-    cl: {
-      after: "render",
-      grow: true,
-      write: (k, el) => {
-        const [kind, index, field] = k.split(".");
-        intoRow(sheet()[kind], index, field, el.value);
-      },
-    },
-    it: {
-      after: "render",
-      write: (k, el) => {
-        const [scope, index, field] = k.split(".");
-        intoRow(listFor(scope), index, field, el.value);
-      },
-    },
-    w: {
-      after: "render",
-      write: (k, el) => {
-        const [row, field] = k.split(".");
-        intoRow(sheet().weapons, row, field, el.value);
-      },
-    },
-    sc: {
-      write: (k, el) => {
-        const [which, index] = k.split(".");
-        (which === "v" ? sheet().vSchools : sheet().pSchools)[int(index)] = el.value;
-      },
-    },
-    ct: {
-      after: "render",
-      write: (k, el) => {
-        const [index, field] = k.split(".");
-        sheet().containers[int(index)][field] = el.value;
-      },
-    },
-  };
-}
 
 // ctx: { root, sheet() returns the current sheet, edited() tells the caller to save }
 export function bindSheet(ctx) {
   const { root, sheet, edited } = ctx;
-  const fields = fieldTable(sheet);
   const $ = (selector) => root.querySelector(selector);
 
-  const redraw = () => {
-    fillIdentity(root, sheet());
-    renderSheet(root, sheet());
-  };
+  const redraw = () => renderSheet(root, sheet());
   const commit = () => {
     redraw();
     edited();
   };
 
   /* ── profession combobox ─────────────────────────────── */
-  const profInput = $("#f_prof");
+  const profInput = $('[data-f="id.prof"]');
   const profList = $("#profList");
   let profOpen = false;
   let profMark = -1;
@@ -202,64 +97,31 @@ export function bindSheet(ctx) {
     if (profOpen && !event.target.closest(".combo")) hideProfessions();
   });
 
-  /* ── identity, armor and shield ──────────────────────── */
-  const identityChange = (event) => {
-    const key = IDENTITY_FIELDS[event.target.id];
-    if (!key) return false;
-    const text = event.target.value;
-    if (key === "race") chooseRace(sheet(), text);
-    else if (key === "prof") {
-      chooseProfession(sheet(), text);
-      if (profOpen) paintProfessions();
-    } else sheet().id[key] = text;
-    commit();
-    return true;
-  };
-  const gearChange = (event) => {
-    const armor = ARMOR_FIELDS[event.target.id];
-    const shield = SHIELD_FIELDS[event.target.id];
-    if (!armor && !shield) return false;
-    (armor ? sheet().armor : sheet().shield)[armor || shield] = event.target.value;
-    commit();
-    return true;
-  };
-
-  /* ── every data-* input ───────────────────────────────── */
+  /* ── every data-f input (fields.js) ───────────────────── */
   function writeField(el) {
-    for (const [key, config] of Object.entries(fields)) {
-      const raw = el.dataset[key];
-      if (raw === undefined || raw === "") continue;
-      config.write(raw, el);
-      if (config.grow && el.tagName === "TEXTAREA") growTextarea(el);
-      if (config.after === "render") redraw();
-      else if (config.after === "log") filterLog(root, sheet());
-      edited();
-      return true;
-    }
-    return false;
+    const path = el.dataset.f;
+    if (path === undefined) return false;
+    const field = lookupField(path);
+    if (!field) return false;
+    const kind = KINDS[field.kind];
+    const stored = kind.toStored(el);
+    if (field.apply) field.apply(sheet(), stored);
+    else pathSet(sheet(), field.path, stored);
+    if (field.grow && el.tagName === "TEXTAREA") growTextarea(el);
+    if (field.after === "render") redraw();
+    else if (field.after === "log") filterLog(root, sheet());
+    edited();
+    return true;
   }
 
   root.addEventListener("input", (event) => {
     if (event.target.matches("#logSearch, #refSearch")) return;
-    if (identityChange(event) || gearChange(event)) return;
-    if (event.target.id === "applyPen" || event.target.id === "useShieldSoak") return;
-    writeField(event.target);
+    if (writeField(event.target) && event.target === profInput && profOpen) paintProfessions();
   });
   // Selects and checkboxes fire change; text boxes already fired input.
   root.addEventListener("change", (event) => {
     const el = event.target;
-    if (el.id === "applyPen") {
-      sheet().applyPen = el.checked;
-      return commit();
-    }
-    if (el.id === "useShieldSoak") {
-      sheet().useShieldSoak = el.checked;
-      return commit();
-    }
-    if (el.tagName === "SELECT" || el.type === "checkbox") {
-      if (identityChange(event)) return;
-      writeField(el);
-    }
+    if (el.tagName === "SELECT" || el.type === "checkbox") writeField(el);
   });
 
   /* ── boxes, dots and days ─────────────────────────────── */
@@ -358,7 +220,7 @@ export function bindSheet(ctx) {
     sheet().log.unshift({ t: "", d: today, b: "" });
     rebuildLog(root, sheet());
     edited();
-    $('[data-lg="0.t"]')?.focus();
+    $('[data-f="log.0.t"]')?.focus();
   });
   $("#logSearch").addEventListener("input", () => filterLog(root, sheet()));
 

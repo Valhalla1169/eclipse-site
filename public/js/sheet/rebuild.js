@@ -5,11 +5,15 @@ import { containerPanels, wornRows } from "./equipment-page.js";
 import { ladderRows, powerRows, ritualRows, schoolPickers, schoolSlotNote, spellRows } from "./casting-page.js";
 import { logEntries } from "./log-reference-pages.js";
 import { LISTS, listRows } from "./testament-page.js";
-import { fillInputs, growAll } from "./render.js";
+import { fillFields, growAll } from "./render.js";
 
 export const rebuildWorn = (root, sheet) => root.querySelector("#wornRows").replaceChildren(...wornRows(sheet));
 export const rebuildContainers = (root, sheet) => root.querySelector("#containers").replaceChildren(...containerPanels(sheet));
-export const rebuildList = (root, sheet, key) => root.querySelector(`#${LISTS[key].body}`).replaceChildren(...listRows(sheet, key));
+export function rebuildList(root, sheet, key) {
+  root.querySelector(`#${LISTS[key].body}`).replaceChildren(...listRows(sheet, key));
+  fillFields(root, sheet);
+  growAll(root);
+}
 export const rebuildLists = (root, sheet) => Object.keys(LISTS).forEach((key) => rebuildList(root, sheet, key));
 
 export function rebuildCasting(root, sheet) {
@@ -25,7 +29,7 @@ export function rebuildCasting(root, sheet) {
 
 export function rebuildLog(root, sheet) {
   root.querySelector("#logEntries").replaceChildren(...logEntries(sheet));
-  fillInputs(root, sheet);
+  fillFields(root, sheet);
   growAll(root);
   filterLog(root, sheet);
 }

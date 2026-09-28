@@ -1,10 +1,12 @@
 // The pages about a person's characters: the list of them, and choosing which one is
 // active in a campaign (docs/adr/0011). Text only ever goes in as text nodes (dom.js).
 import { FULL_NOTE, MAX_CHARACTERS } from "./character-list.js";
+import { confirmAction } from "./confirm-dialog.js";
 import { h } from "./dom.js";
 import { SheetFormatError } from "./eclipse-rules.js";
-import { FILE_EXTENSION } from "./sheet/files.js";
+import { FILE_EXTENSION, downloadText, fileNameForName, serializeStored } from "./sheet/files.js";
 import { friendlyError, timeAgo } from "./util.js";
+import { notice as buildNotice } from "./views.js";
 
 // At the limit the "new character" buttons are off, and this note says why and what to do.
 const FULL_NOTE_ID = "characters-full";
@@ -26,16 +28,83 @@ function guarded(status, action) {
     } catch (error) {
       if (!(error instanceof CancelledError)) {
         console.error(error);
-        status.replaceChildren(h("p", { class: "notice notice-error", role: "alert" }, h("strong", {}, "Error: "), error instanceof SheetFormatError ? error.message : friendlyError(error)));
+        status.replaceChildren(buildNotice("error", error instanceof SheetFormatError ? error.message : friendlyError(error)));
       }
       button.disabled = false;
     }
   };
 }
 
-// list: { live, deleted, full } from describeCharacters. Actions: onCreate(),
-// onCreateFromFile(file), onCopy(id), onDelete(id), onUndelete(id).
-export function charactersView({ list, onCreate, onCreateFromFile, onCopy, onDelete, onUndelete }) {
+// A confirmation dialog for deleting an archived character forever (docs/adr/0018):
+// it names what is lost, offers a backup download when `row` could be read (or
+// says reading it failed, when `loadFailed`), and keeps the confirm button off
+// until the character's name is typed exactly.
+function purgeDialog(entry, { row, loadFailed, onPurge }) {
+  const titleId = `purgeTitle-${entry.id}`;
+  const nameId = `purgeName-${entry.id}`;
+  const dialogStatus = h("div", { class: "stack" });
+  const saveStatus = h("span", { class: "status" });
+  const nameField = h("input", { id: nameId, autocomplete: "off", spellcheck: "false", autofocus: true });
+  const confirmButton = h("button", { class: "btn btn-primary", type: "button", disabled: true }, "Delete forever");
+  const cancelButton = h("button", { class: "btn btn-quiet", type: "button" }, "Cancel");
+  nameField.addEventListener("input", () => {
+    confirmButton.disabled = nameField.value !== entry.name;
+  });
+
+  const dialog = h(
+    "dialog",
+    { class: "confirm-dialog", "aria-labelledby": titleId },
+    h("h2", { id: titleId }, `Delete ${entry.name} forever?`),
+    h("p", {}, "This removes the character, its saved history, and any copy your Keeper kept from when you left a campaign. Nothing can bring it back."),
+    row
+      ? h(
+          "p",
+          { class: "actions" },
+          h(
+            "button",
+            {
+              class: "btn btn-quiet btn-small",
+              type: "button",
+              onclick: () => {
+                downloadText(fileNameForName(row.character_name), serializeStored(row));
+                saveStatus.textContent = "Saved.";
+              },
+            },
+            "Save a copy",
+          ),
+          saveStatus,
+        )
+      : loadFailed
+        ? h("p", { class: "notice notice-error", role: "alert" }, "Could not load the sheet, so it cannot be saved as a copy here.")
+        : null,
+    h("div", { class: "field" }, h("label", { for: nameId }, `Type ${entry.name} to confirm`), nameField),
+    dialogStatus,
+    h("div", { class: "actions" }, confirmButton, cancelButton),
+  );
+
+  cancelButton.addEventListener("click", () => dialog.close("cancel"));
+
+  confirmButton.addEventListener("click", async () => {
+    confirmButton.disabled = true;
+    dialogStatus.replaceChildren();
+    try {
+      await onPurge();
+      dialog.close("confirmed");
+    } catch (error) {
+      console.error(error);
+      dialogStatus.replaceChildren(buildNotice("error", friendlyError(error)));
+      confirmButton.disabled = nameField.value !== entry.name;
+    }
+  });
+
+  return dialog;
+}
+
+// list: { live, deleted, full } from describeCharacters. notice: a one-shot success
+// message shown once, such as after deleting a character forever. Actions: onCreate(),
+// onCreateFromFile(file), onCopy(id), onDelete(id), onUndelete(id), onPurge(id, name),
+// onLoadSheet(id) (resolves to the stored row, or null, for the purge dialog's backup).
+export function charactersView({ list, notice, onCreate, onCreateFromFile, onCopy, onDelete, onUndelete, onPurge, onLoadSheet }) {
   const status = h("div", { class: "stack" });
   const fileInput = h("input", { type: "file", accept: `${FILE_EXTENSION},.json,application/json`, hidden: true, "aria-label": "Character file to make a character from" });
   fileInput.addEventListener("change", () => {
@@ -68,7 +137,8 @@ export function charactersView({ list, onCreate, onCreateFromFile, onCopy, onDel
             type: "button",
             disabled: Boolean(entry.campaign),
             onclick: guarded(status, async () => {
-              if (!window.confirm(`Delete ${entry.name}? It is hidden, not removed. You can bring it back from the deleted characters below.`)) throw new CancelledError();
+              const message = `Delete ${entry.name}? It is hidden, not removed. You can bring it back from the deleted characters below.`;
+              if (!(await confirmAction(message, "Delete character"))) throw new CancelledError();
               await onDelete(entry.id);
             }),
           },
@@ -78,21 +148,51 @@ export function charactersView({ list, onCreate, onCreateFromFile, onCopy, onDel
       entry.campaign ? h("p", { class: "muted small" }, `To delete it, first choose a different character in ${entry.campaign.name}.`) : null,
     );
 
-  const deletedCard = (entry) =>
-    h(
+  const deletedCard = (entry) => {
+    const purgeButton = h("button", { class: "btn btn-quiet btn-small", type: "button" }, "Delete forever");
+    const item = h(
       "li",
       { class: "character-card card stack" },
       h("h2", {}, entry.name),
-      h("div", { class: "actions" }, h("button", { class: "btn btn-quiet btn-small", type: "button", disabled: list.full, onclick: guarded(status, () => onUndelete(entry.id)) }, "Bring back")),
+      h(
+        "div",
+        { class: "actions" },
+        h("button", { class: "btn btn-quiet btn-small", type: "button", disabled: list.full, onclick: guarded(status, () => onUndelete(entry.id)) }, "Bring back"),
+        purgeButton,
+      ),
     );
+
+    purgeButton.addEventListener("click", async () => {
+      purgeButton.disabled = true;
+      let row = null;
+      let loadFailed = false;
+      try {
+        row = onLoadSheet ? await onLoadSheet(entry.id) : null;
+      } catch (error) {
+        console.error(error);
+        loadFailed = true;
+      }
+      const dialog = purgeDialog(entry, { row, loadFailed, onPurge: () => onPurge(entry.id, entry.name) });
+      item.append(dialog);
+      dialog.addEventListener("close", () => {
+        dialog.remove();
+        purgeButton.disabled = false;
+        if (dialog.returnValue !== "confirmed") purgeButton.focus();
+      });
+      dialog.showModal();
+    });
+
+    return item;
+  };
 
   return h(
     "div",
     { class: "stack" },
     h("div", { class: "card-head" }, h("h1", {}, "Your characters"), h("span", { class: "badge" }, `${list.live.length} of ${MAX_CHARACTERS}`)),
-    h("p", { class: "muted" }, "These characters are yours. You choose which one you play in each campaign. Nothing you delete is removed: you can bring it back."),
+    h("p", { class: "muted" }, "These characters are yours. You choose which one you play in each campaign. Deleting hides a character, and you can bring it back. An archived character can also be deleted forever, with no way back."),
     h("div", { class: "actions" }, h("button", { class: "btn btn-primary", type: "button", disabled: list.full, "aria-describedby": describedIfFull(list), onclick: guarded(status, onCreate) }, "New character"), fromFile, fileInput),
     fullNote(list),
+    notice ? buildNotice("success", notice) : null,
     status,
     list.live.length ? h("ul", { class: "characters" }, ...list.live.map(card)) : h("p", { class: "muted" }, "You have no characters yet. Make your first one."),
     list.deleted.length

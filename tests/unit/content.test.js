@@ -146,6 +146,14 @@ describe("the Reference tables", () => {
   it("Sanity gives the book's 0 to 10 range, not 1 to 10", () => {
     expect(cardText("Sanity")).toMatch(new RegExp(`0 to ${TRACK_MAX} rating`));
   });
+
+  // A card's `book` is a chapter slug (docs/adr/0016), never the book's own words: lower-case
+  // words joined by single hyphens, the same shape scripts/rulebook.mjs gives every chapter.
+  it("gives each card's book, when it has one, a well-formed chapter slug", () => {
+    const withBook = REFERENCE.filter((card) => card.book);
+    expect(withBook.length).toBeGreaterThan(0);
+    for (const card of withBook) expect(card.book, card.t).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+  });
 });
 
 describe("the Core page", () => {

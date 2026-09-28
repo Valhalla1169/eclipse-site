@@ -6,20 +6,26 @@ import { addRow, headRow, heading, note, panel, removeButton, tabPanel } from ".
 const itemHead = () =>
   headRow(["Item", "w34"], ["Qty", "w9", true], ["Unit lb", "w10", true], ["Weight", "w10", true], ["Q", "w7", true], ["TV", "w9", true], ["Notes", "w19"], ["", "w2"]);
 
+// An item row's field path: a worn extra ("we") is its own list; a container
+// item ("c0", "c1"...) is that container's own nested list (fields.js's
+// "containers.#.items", docs/adr/0019).
+const itemPath = (scope, index, field) => (scope === "we" ? `wornExtra.${index}.${field}` : `containers.${scope.slice(1)}.items.${index}.${field}`);
+
 // A row for something the player types in: a worn extra ("we") or a container item ("c0", "c1").
 function itemRow(scope, index) {
   const key = `${scope}.${index}`;
-  const number = (field, props = {}) => h("td", { class: "c" }, h("input", { class: "num", "data-it": `${key}.${field}`, "aria-label": `${field} of item ${index + 1}`, ...props }));
+  const path = (field) => itemPath(scope, index, field);
+  const number = (field, props = {}) => h("td", { class: "c" }, h("input", { class: "num", "data-f": path(field), "aria-label": `${field} of item ${index + 1}`, ...props }));
   return h(
     "tr",
     {},
-    h("td", {}, h("input", { class: "iname", "data-it": `${key}.n`, "aria-label": `Name of item ${index + 1}` })),
+    h("td", {}, h("input", { class: "iname", "data-f": path("n"), "aria-label": `Name of item ${index + 1}` })),
     number("q", { inputmode: "numeric" }),
     number("w", { inputmode: "decimal" }),
     h("td", { class: "c" }, h("span", { class: "calc dim", "data-iw": key }, "0")),
     number("ql", { inputmode: "numeric", placeholder: "5" }),
     number("tv", { inputmode: "numeric" }),
-    h("td", {}, h("input", { class: "wnote", "data-it": `${key}.note`, "aria-label": `Notes for item ${index + 1}` })),
+    h("td", {}, h("input", { class: "wnote", "data-f": path("note"), "aria-label": `Notes for item ${index + 1}` })),
     h("td", { class: "c" }, removeButton({ "data-rm": key })),
   );
 }
@@ -31,12 +37,12 @@ function carriedRow(key, label) {
     "tr",
     {},
     h("td", {}, h("span", { class: "fixed", title: "Named on the Core sheet" }, label)),
-    number({ "data-wx": `${key}.q`, inputmode: "numeric", "aria-label": `Quantity of ${label}` }),
-    number({ "data-ww": key, inputmode: "decimal", "aria-label": `Unit weight of ${label}` }),
+    number({ "data-f": `wornX.${key}.q`, inputmode: "numeric", "aria-label": `Quantity of ${label}` }),
+    number({ "data-f": `wornW.${key}`, inputmode: "decimal", "aria-label": `Unit weight of ${label}` }),
     h("td", { class: "c" }, h("span", { class: "calc dim", "data-wwt": key }, "0")),
-    number({ "data-wx": `${key}.ql`, inputmode: "numeric", "aria-label": `Quality of ${label}` }),
-    number({ "data-wx": `${key}.tv`, inputmode: "numeric", "aria-label": `Trade value of ${label}` }),
-    h("td", {}, h("input", { class: "wnote", "data-wx": `${key}.note`, "aria-label": `Notes for ${label}` })),
+    number({ "data-f": `wornX.${key}.ql`, inputmode: "numeric", "aria-label": `Quality of ${label}` }),
+    number({ "data-f": `wornX.${key}.tv`, inputmode: "numeric", "aria-label": `Trade value of ${label}` }),
+    h("td", {}, h("input", { class: "wnote", "data-f": `wornX.${key}.note`, "aria-label": `Notes for ${label}` })),
     h("td"),
   );
 }
@@ -52,10 +58,9 @@ export function wornRows(sheet) {
   return rows;
 }
 
-const containerField = (index, field, label, props = {}, wide = false) => {
-  const id = `ct_${index}_${field}`;
-  return h("div", { class: `f${wide ? " nm" : ""}` }, h("label", { for: id }, label), h("input", { id, "data-ct": `${index}.${field}`, ...props }));
-};
+// The label wraps the input instead of pairing by id (docs/adr/0019).
+const containerField = (index, field, label, props = {}, wide = false) =>
+  h("div", { class: `f${wide ? " nm" : ""}` }, h("label", {}, label, h("input", { "data-f": `containers.${index}.${field}`, ...props })));
 
 function containerPanel(container, index, removable) {
   return panel(
@@ -87,7 +92,7 @@ export function containerPanels(sheet) {
 }
 
 const supplyRow = (name, ...cells) => h("div", { class: "sup" }, h("span", { class: "nm" }, name), ...cells);
-const supplyInput = (key, mode, label) => h("input", { "data-sup": key, inputmode: mode, "aria-label": label });
+const supplyInput = (key, mode, label) => h("input", { "data-f": `sup.${key}`, inputmode: mode, "aria-label": label });
 
 // Each mark on the bar is where that tier starts.
 const tierName = (index) => ENCUMBRANCE.tiers[index].name.toLowerCase();

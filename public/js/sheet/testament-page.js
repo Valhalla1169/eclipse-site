@@ -25,32 +25,25 @@ export function listRows(sheet, key) {
       cols.map((col) => {
         const path = `${key}.${i}.${col.f}`;
         const aria = { "aria-label": `${label} ${i + 1} ${col.f}` };
-        if (col.sel) return h("td", {}, h("select", { class: "tier", "data-lt": path, ...aria }, h("option", { value: "" }), ...col.sel.map((option) => h("option", {}, option))));
-        if (col.tx) return h("td", {}, h("textarea", { "data-lt": path, placeholder: col.ph, ...aria }));
-        return h("td", {}, h("input", { class: "iname", "data-lt": path, placeholder: col.ph, ...aria }));
+        if (col.sel) return h("td", {}, h("select", { class: "tier", "data-f": path, ...aria }, h("option", { value: "" }), ...col.sel.map((option) => h("option", {}, option))));
+        if (col.tx) return h("td", {}, h("textarea", { "data-f": path, placeholder: col.ph, ...aria }));
+        return h("td", {}, h("input", { class: "iname", "data-f": path, placeholder: col.ph, ...aria }));
       }),
       h("td", { class: "c" }, removeButton({ "data-rml": `${key}.${i}` })),
     ),
   );
 }
 
-const textId = (path) => `tx_${path.replace(/\W/g, "_")}`;
-
-// A labelled growing text area stored at `path` (for example "prof.kit").
+// A labelled growing text area stored at `path` (for example "prof.kit"). The
+// label wraps the text area instead of pairing with it by id (docs/adr/0019).
 function prose(label, hint, path, placeholder, className) {
-  return h(
-    "div",
-    { class: "prose" },
-    h("label", { for: textId(path) }, label, hint ? h("span", { class: "hint" }, hint) : null),
-    h("textarea", { id: textId(path), class: className || null, "data-tx": path, placeholder }),
-  );
+  return h("div", { class: "prose" }, h("label", {}, label, hint ? h("span", { class: "hint" }, hint) : null, h("textarea", { class: className || null, "data-f": path, placeholder })));
 }
 
 const carried = (label, id) => h("div", { class: "prose carried" }, h("label", {}, label), h("span", { class: "carry", id }));
 
 function vitalField(field, label, placeholder) {
-  const id = `vi_${field}`;
-  return h("div", { class: "idf" }, h("label", { for: id }, label), h("input", { id, "data-vi": field, placeholder }));
+  return h("div", { class: "idf" }, h("label", {}, label, h("input", { "data-f": `vitals.${field}`, placeholder })));
 }
 
 function listPanel(sheet, key, title, noteText, columns, addLabel) {
@@ -64,8 +57,8 @@ function listPanel(sheet, key, title, noteText, columns, addLabel) {
 
 export function buildTestamentPage(sheet) {
   return tabPanel(
-    "page3",
-    "tab3",
+    "page4",
+    "tab4",
     panel(
       {},
       heading("Who You Are"),
@@ -76,8 +69,13 @@ export function buildTestamentPage(sheet) {
         h(
           "div",
           { class: "org-field" },
-          h("label", { for: "vi_visual" }, "Visual description", h("span", { class: "hint" }, "build, colouring, marks, scars")),
-          h("input", { id: "vi_visual", "data-vi": "visual", placeholder: "Wiry, grey at the temples, a rift burn along the jaw" }),
+          h(
+            "label",
+            {},
+            "Visual description",
+            h("span", { class: "hint" }, "build, colouring, marks, scars"),
+            h("input", { "data-f": "vitals.visual", placeholder: "Wiry, grey at the temples, a rift burn along the jaw" }),
+          ),
         ),
       ),
       h("div", { class: "vitals" }, vitalField("age", "Age", "35"), vitalField("height", "Height", "5'6\""), vitalField("weight", "Weight", "140 lb")),

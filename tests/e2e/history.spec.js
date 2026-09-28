@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { SCHEMA_VERSION, blank } from "../../public/js/eclipse-rules.js";
-import { CHARACTER_ID, FIRST_STAMP, assignmentRow, calls, callsTo, campaign, characterRow, expect, ids, open, otherDeviceSaves, players, seed, sheetPath, storedCharacter, test } from "./helpers.js";
+import { CHARACTER_ID, FIRST_STAMP, assignmentRow, calls, callsTo, campaign, characterRow, confirmDialog, confirmNo, confirmYes, expect, ids, open, otherDeviceSaves, players, seed, sheetPath, storedCharacter, test } from "./helpers.js";
 
 const { dana, dm } = players;
 const HISTORY = `${sheetPath()}/history`;
@@ -33,7 +33,7 @@ const SNAPSHOTS = [
 async function openSheet(page, mock = {}) {
   await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], character: characterRow(CURRENT), history: SNAPSHOTS, ...mock }, user: dana });
   await open(page, sheetPath());
-  await expect(page.locator("#f_name")).toBeVisible();
+  await expect(page.locator('[data-f="id.name"]')).toBeVisible();
 }
 
 const items = (page) => page.locator(".history > li");
@@ -54,7 +54,7 @@ test.describe("the history list", () => {
 
   test("it saves what is waiting first, so the page never lists a stale sheet", async ({ page }) => {
     await openSheet(page);
-    await page.locator("#f_name").fill("Marlo Vance II");
+    await page.locator('[data-f="id.name"]').fill("Marlo Vance II");
     await page.getByRole("button", { name: "History" }).click();
     await expect(page).toHaveURL(new RegExp(`${HISTORY}$`));
     expect((await storedCharacter(page)).character_name).toBe("Marlo Vance II");
@@ -91,7 +91,7 @@ test.describe("looking at a copy", () => {
     await page.goto(HISTORY);
     await items(page).nth(1).getByRole("link", { name: "Look at it" }).click();
     await expect(page).toHaveURL(new RegExp(`${HISTORY}/2$`));
-    await expect(page.locator("#f_name")).toHaveValue("Marlo V.");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo V.");
     await expect(page.getByText("This is your sheet as it was just before")).toBeVisible();
     await expect(page.getByText("your current sheet has not changed")).toBeVisible();
     await expect(page.locator("#saveState")).toHaveText("Read only");
@@ -123,14 +123,9 @@ test.describe("putting a copy back", () => {
   test("asks first, and the sheet stays as it was if the player says no", async ({ page }) => {
     await openSheet(page);
     await lookAt(page, 2);
-    const messages = [];
-    page.once("dialog", (dialog) => {
-      messages.push(dialog.message());
-      dialog.dismiss();
-    });
     await page.getByRole("button", { name: "Put this version back" }).click();
-    await expect.poll(() => messages.length).toBe(1);
-    expect(messages[0]).toContain("Your current sheet is kept in the history");
+    await expect(confirmDialog(page)).toContainText("Your current sheet is kept in the history");
+    await confirmNo(page);
     expect((await rpcCalls(page)).length).toBe(0);
     expect((await storedCharacter(page)).character_name).toBe("Marlo Vance");
   });
@@ -138,10 +133,10 @@ test.describe("putting a copy back", () => {
   test("restores it, sends the updated_at it saw, and opens the restored sheet", async ({ page }) => {
     await openSheet(page);
     await lookAt(page, 2);
-    page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "Put this version back" }).click();
+    await confirmYes(page, "Put version back");
     await expect(page).toHaveURL(new RegExp(`${sheetPath()}$`));
-    await expect(page.locator("#f_name")).toHaveValue("Marlo V.");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo V.");
     await expect(page.locator('[data-t="shock"].on')).toHaveCount(2);
     const [call] = await rpcCalls(page);
     expect(call.body).toEqual({ p_history_id: 2, p_expected: FIRST_STAMP });
@@ -151,18 +146,18 @@ test.describe("putting a copy back", () => {
   test("the sheet it replaced is in the history, and putting that back undoes the restore", async ({ page }) => {
     await openSheet(page);
     await lookAt(page, 2);
-    page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "Put this version back" }).click();
-    await expect(page.locator("#f_name")).toHaveValue("Marlo V.");
+    await confirmYes(page, "Put version back");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo V.");
 
     await page.getByRole("button", { name: "History" }).click();
     await expect(items(page)).toHaveCount(4);
     await expect(items(page).nth(0)).toContainText("Kept before an earlier version was put back");
     await items(page).nth(0).getByRole("link", { name: "Look at it" }).click();
-    await expect(page.locator("#f_name")).toHaveValue("Marlo Vance");
-    page.once("dialog", (dialog) => dialog.accept());
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo Vance");
     await page.getByRole("button", { name: "Put this version back" }).click();
-    await expect(page.locator("#f_name")).toHaveValue("Marlo Vance");
+    await confirmYes(page, "Put version back");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo Vance");
     await expect(page.locator('[data-t="trauma"].on')).toHaveCount(5);
     expect((await storedCharacter(page)).data.cm.trauma).toBe(5);
   });
@@ -171,8 +166,8 @@ test.describe("putting a copy back", () => {
     await openSheet(page);
     await lookAt(page, 2);
     await otherDeviceSaves(page, sheetOf("Saved on the phone"));
-    page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "Put this version back" }).click();
+    await confirmYes(page, "Put version back");
     await expect(page.getByText("was changed somewhere else since you opened this page")).toBeVisible();
     await expect(page).toHaveURL(new RegExp(`${HISTORY}/2$`));
     expect((await storedCharacter(page)).character_name).toBe("Saved on the phone");
@@ -182,8 +177,8 @@ test.describe("putting a copy back", () => {
   test("a deleted character has to be brought back first, and nothing changes", async ({ page }) => {
     await seed(page, { mock: { profile: dana.profile, campaigns: [campaign], character: characterRow(CURRENT, { deleted_at: "2026-09-19T11:30:00.000000+00:00" }), history: SNAPSHOTS }, user: dana });
     await lookAt(page, 2);
-    page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "Put this version back" }).click();
+    await confirmYes(page, "Put version back");
     await expect(page.getByText("That character is deleted. Bring it back first.")).toBeVisible();
     expect((await storedCharacter(page)).character_name).toBe("Marlo Vance");
   });
@@ -214,7 +209,7 @@ test.describe("the Keeper's history", () => {
     await open(page, `${DM_SHEET}/history`);
     await items(page).nth(1).getByRole("link", { name: "Look at it" }).click();
     await expect(page).toHaveURL(new RegExp(`${DM_SHEET}/history/2$`));
-    await expect(page.locator("#f_name")).toHaveValue("Marlo V.");
+    await expect(page.locator('[data-f="id.name"]')).toHaveValue("Marlo V.");
     await expect(page.getByText("This is Dana Voss's sheet as it was just before")).toBeVisible();
     await expect(page.getByRole("button", { name: "Put this version back" })).toHaveCount(0);
     await expect(page.locator("#saveState")).toHaveText("Read only");

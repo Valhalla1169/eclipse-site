@@ -209,9 +209,10 @@ export async function syncRoster(campaignId, previous = EMPTY_ROSTER) {
 
 // Calls onChange when a player chooses a different character or an active sheet is
 // written, and onStatus with the channel's state ("SUBSCRIBED" once it is live).
-// Returns a function that stops it. A realtime subscription is bound by the same RLS
-// policies as a plain read, so the sheets table only tells the DM about sheets they
-// may read. It only says that something changed: the page reads again.
+// Returns a function that stops it. RLS binds an insert or update, so the sheets
+// table only tells the DM about sheets they may read, but not a delete: that event
+// (only the row's id) reaches every subscriber regardless (docs/adr/0018). Either
+// way this only says that something changed: the page reads again, under RLS.
 export function subscribeToRoster(campaignId, onChange, onStatus) {
   const channel = sb
     .channel(`roster-${campaignId}-${Math.random().toString(36).slice(2)}`)

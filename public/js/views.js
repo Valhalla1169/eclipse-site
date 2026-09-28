@@ -1,12 +1,12 @@
-// View builders. Each returns a DOM node; app.js decides which to show.
+// View builders. Each returns a DOM node; the route modules decide which to show.
 // Text only ever goes in as text nodes (see dom.js), never as markup.
+import { confirmAction } from "./confirm-dialog.js";
 import { h } from "./dom.js";
 import {
   PASSWORD_MIN_LENGTH,
   cleanCampaignName,
   cleanDisplayName,
   friendlyError,
-  inviteStatus,
   normalizeCode,
   normalizeEmail,
   timeAgo,
@@ -16,10 +16,14 @@ import {
 const invalid = (message) => Object.assign(new Error(message), { userMessage: message });
 
 const LABEL = { error: "Error: ", success: "Done: ", info: "Note: " };
-const notice = (kind, ...text) =>
-  h("p", { class: `notice notice-${kind}`, role: kind === "error" ? "alert" : "status" }, h("strong", {}, LABEL[kind]), ...text);
+// One shared "Error:" / "Done:" / "Note:" line, used everywhere a form or a list
+// reports a problem or a result. role defaults by kind; pass null to omit it (a
+// status that is part of a card, not its own announcement).
+export function notice(kind, text, { role } = {}) {
+  return h("p", { class: `notice notice-${kind}`, role: role !== undefined ? role : kind === "error" ? "alert" : "status" }, h("strong", {}, LABEL[kind]), text);
+}
 
-function field({ id, label, hint, ...attrs }) {
+export function field({ id, label, hint, ...attrs }) {
   const hintId = hint ? `${id}-hint` : null;
   return h(
     "div",
@@ -30,7 +34,7 @@ function field({ id, label, hint, ...attrs }) {
   );
 }
 
-function selectField({ id, label, options, value }) {
+export function selectField({ id, label, options, value }) {
   return h(
     "div",
     { class: "field" },
@@ -42,7 +46,7 @@ function selectField({ id, label, options, value }) {
 // A form whose submit handler may return a success message or throw.
 // Validation problems are thrown with a userMessage; anything else is shown
 // through friendlyError so raw server text never reaches the page.
-function form({ fields, submitLabel, onSubmit, primary = true }) {
+export function form({ fields, submitLabel, onSubmit, primary = true }) {
   const status = h("div", { class: "status", "aria-live": "polite" });
   const button = h("button", { class: `btn ${primary ? "btn-primary" : "btn-quiet"}`, type: "submit" }, submitLabel);
   const el = h("form", { novalidate: true }, ...fields, h("div", { class: "actions" }, button), status);
@@ -93,32 +97,65 @@ export function notFoundView(message = "That page does not exist.") {
   );
 }
 
-function passwordField({ id, label, hint, autocomplete }) {
-  const input = h("input", {
-    id,
-    name: id,
-    type: "password",
-    autocomplete,
-    spellcheck: "false",
-    autocapitalize: "none",
-    required: true,
-    "aria-describedby": hint ? `${id}-hint` : null,
-  });
-  const toggle = h("button", { class: "btn btn-quiet btn-small", type: "button", "aria-pressed": "false", "aria-controls": id }, "Show password");
+const passwordInput = (id, autocomplete, describedBy = null) =>
+  h("input", { id, name: id, type: "password", autocomplete, spellcheck: "false", autocapitalize: "none", required: true, "aria-describedby": describedBy });
+
+// One "Show password" button that shows or hides every input given.
+function showToggle(inputs, noun) {
+  const toggle = h("button", { class: "btn btn-quiet btn-small", type: "button", "aria-pressed": "false", "aria-controls": inputs.map((input) => input.id).join(" ") }, `Show ${noun}`);
   toggle.addEventListener("click", () => {
-    const show = input.type === "password";
-    input.type = show ? "text" : "password";
+    const show = inputs[0].type === "password";
+    for (const input of inputs) input.type = show ? "text" : "password";
     toggle.setAttribute("aria-pressed", String(show));
-    toggle.textContent = show ? "Hide password" : "Show password";
+    toggle.textContent = `${show ? "Hide" : "Show"} ${noun}`;
   });
-  return h(
-    "div",
-    { class: "field" },
-    h("label", { for: id }, label),
-    hint ? h("p", { class: "hint", id: `${id}-hint` }, hint) : null,
-    input,
-    h("p", { class: "toggle-row" }, toggle),
-  );
+  return h("p", { class: "toggle-row" }, toggle);
+}
+
+const hintOf = (id, hint) => (hint ? h("p", { class: "hint", id: `${id}-hint` }, hint) : null);
+
+function passwordField({ id, label, hint, autocomplete }) {
+  const input = passwordInput(id, autocomplete, hint ? `${id}-hint` : null);
+  return h("div", { class: "field" }, h("label", { for: id }, label), hintOf(id, hint), input, showToggle([input], "password"));
+}
+
+// A new password typed twice, with one button that shows both. Call checkMatch(values)
+// after validatePassword passes, so a person sees one problem at a time: when the two
+// differ it marks the second box, moves focus there and returns false.
+function newPasswordFields({ id, label, confirmLabel, hint }) {
+  const confirmId = `${id}Confirm`;
+  const errorId = `${confirmId}-error`;
+  const input = passwordInput(id, "new-password", hint ? `${id}-hint` : null);
+  const confirmInput = passwordInput(confirmId, "new-password");
+  const error = h("div", { id: errorId });
+
+  function clearMismatch() {
+    confirmInput.removeAttribute("aria-invalid");
+    confirmInput.removeAttribute("aria-describedby");
+    error.replaceChildren();
+  }
+
+  function checkMatch(values) {
+    if (values[id] === values[confirmId]) {
+      clearMismatch();
+      return true;
+    }
+    confirmInput.setAttribute("aria-invalid", "true");
+    confirmInput.setAttribute("aria-describedby", errorId);
+    error.replaceChildren(notice("error", "The two passwords do not match."));
+    confirmInput.focus();
+    return false;
+  }
+
+  return {
+    fields: [
+      h("div", { class: "field" }, h("label", { for: id }, label), hintOf(id, hint), input),
+      h("div", { class: "field" }, h("label", { for: confirmId }, confirmLabel), confirmInput, error),
+      showToggle([input, confirmInput], "passwords"),
+    ],
+    clearMismatch,
+    checkMatch,
+  };
 }
 
 const emailField = (id, label = "Email address") =>
@@ -170,6 +207,7 @@ export function loginView({ heading = "Sign in", intro, authNotice, next, onPass
 
 export function signupView({ next, intro, onSubmit }) {
   const query = next === "/" ? "" : `?next=${encodeURIComponent(next)}`;
+  const newPassword = newPasswordFields({ id: "password", label: "Password", confirmLabel: "Confirm password", hint: `At least ${PASSWORD_MIN_LENGTH} characters. A phrase of several words works well.` });
   return h(
     "section",
     { class: "card stack" },
@@ -180,15 +218,17 @@ export function signupView({ next, intro, onSubmit }) {
       fields: [
         field({ id: "displayName", label: "Display name", hint: "Your Keeper and the players in your campaigns see this name.", maxlength: 40, autocomplete: "nickname", required: true }),
         emailField("email"),
-        passwordField({ id: "password", label: "Password", hint: `At least ${PASSWORD_MIN_LENGTH} characters. A phrase of several words works well.`, autocomplete: "new-password" }),
+        ...newPassword.fields,
       ],
       submitLabel: "Create account",
       onSubmit: async (values) => {
+        newPassword.clearMismatch();
         const displayName = cleanDisplayName(values.displayName);
         if (!displayName) throw invalid("Enter a name between 1 and 40 characters.");
         const email = await requireEmail(values.email);
         const problem = validatePassword(values.password, { email, displayName });
         if (problem) throw invalid(problem);
+        if (!newPassword.checkMatch(values)) return;
         const { signedIn } = await onSubmit({ displayName, email, password: values.password });
         if (!signedIn) return `Check your email. If ${email} is approved and has no account yet, we sent a link to confirm it.`;
       },
@@ -227,16 +267,19 @@ export function linkExpiredView() {
 }
 
 export function resetPasswordView({ email, displayName, onSubmit }) {
+  const newPassword = newPasswordFields({ id: "password", label: "New password", confirmLabel: "Confirm new password", hint: `At least ${PASSWORD_MIN_LENGTH} characters.` });
   return h(
     "section",
     { class: "card stack" },
     h("h1", {}, "Choose a new password"),
     form({
-      fields: [passwordField({ id: "password", label: "New password", hint: `At least ${PASSWORD_MIN_LENGTH} characters.`, autocomplete: "new-password" })],
+      fields: [...newPassword.fields],
       submitLabel: "Save new password",
       onSubmit: async (values) => {
+        newPassword.clearMismatch();
         const problem = validatePassword(values.password, { email, displayName });
         if (problem) throw invalid(problem);
+        if (!newPassword.checkMatch(values)) return;
         await onSubmit(values.password);
       },
     }),
@@ -248,6 +291,7 @@ export function resetPasswordView({ email, displayName, onSubmit }) {
 export function accountView({ profile, email, onRename, onChangeEmail, onChangePassword, onReauthenticate, onSignOutOthers, onSignOutEverywhere }) {
   const nonceField = field({ id: "nonce", label: "Code from your email", autocomplete: "one-time-code", inputmode: "numeric" });
   nonceField.hidden = true;
+  const newPassword = newPasswordFields({ id: "newPassword", label: "New password", confirmLabel: "Confirm new password", hint: `At least ${PASSWORD_MIN_LENGTH} characters.` });
   const sessionStatus = h("div", { class: "status", "aria-live": "polite" });
   const sessionAction = (label, action, done) =>
     h("button", { class: "btn btn-quiet", type: "button", onclick: async (event) => {
@@ -304,12 +348,14 @@ export function accountView({ profile, email, onRename, onChangeEmail, onChangeP
       { class: "card stack" },
       h("h2", {}, "Password"),
       form({
-        fields: [passwordField({ id: "newPassword", label: "New password", hint: `At least ${PASSWORD_MIN_LENGTH} characters.`, autocomplete: "new-password" }), nonceField],
+        fields: [...newPassword.fields, nonceField],
         submitLabel: "Change password",
         primary: false,
         onSubmit: async (values) => {
+          newPassword.clearMismatch();
           const problem = validatePassword(values.newPassword, { email, displayName: profile.display_name });
           if (problem) throw invalid(problem);
+          if (!newPassword.checkMatch(values)) return;
           try {
             await onChangePassword(values.newPassword, String(values.nonce || "").trim() || undefined);
           } catch (err) {
@@ -354,7 +400,7 @@ function campaignCard(campaign, active, onLeave) {
   const leave = h("button", { class: "btn btn-quiet", type: "button" }, "Leave campaign");
   leave.addEventListener("click", async () => {
     const message = `Leave ${campaign.name}? Your Keeper keeps a copy of your active character's sheet as it is now. Your characters stay yours. You need a new invite to come back.`;
-    if (!window.confirm(message)) return;
+    if (!(await confirmAction(message, "Leave campaign"))) return;
     leave.disabled = true;
     status.replaceChildren();
     try {
@@ -479,7 +525,7 @@ export function joinView({ preview, onJoin }) {
 }
 
 // A link to send to someone, with a Copy link button.
-function linkNotice({ heading, text, link, onCopy }) {
+export function linkNotice({ heading, text, link, onCopy }) {
   const status = h("span", { class: "status", "aria-live": "polite" });
   const copy = async () => {
     try {
@@ -498,160 +544,22 @@ function linkNotice({ heading, text, link, onCopy }) {
   );
 }
 
-const USES = [[1, "1 person (recommended)"], [2, "2 people"], [5, "5 people"], [12, "12 people"]];
-const LIFETIMES = [[24, "1 day"], [168, "7 days (recommended)"], [720, "30 days"]];
-
-// The DM page: the roster of players' sheets (an element made by roster-view.js)
-// and invites. The invite link is shown exactly once, when it is created: the database keeps only a hash of the
-// code, so it cannot be shown again. Lose it and revoke it, then make a new one.
-// registerPrefill(fn) gives the page a function that fills in the invite form for a named player.
-export function dmView({ campaign, roster, loadInvites, createInvite, replaceInvite, revokeInvite, onCopy, registerPrefill }) {
-  // `fresh` holds the once-only invite link and must never be overwritten by
-  // anything else, or a link the DM has not copied yet is lost for good. Errors from
-  // revoking go in `problem`.
-  const fresh = h("div", { class: "stack" });
-  const problem = h("div", { class: "stack" });
-  const list = h("div", { class: "stack" });
-
-  async function refresh() {
-    try {
-      list.replaceChildren(...renderInvites(await loadInvites()));
-    } catch (err) {
-      console.error(err);
-      list.replaceChildren(notice("error", friendlyError(err)));
-    }
-  }
-
-  async function revoke(event, invite) {
-    event.currentTarget.disabled = true;
-    problem.replaceChildren();
-    try {
-      await revokeInvite(invite.id);
-    } catch (err) {
-      console.error(err);
-      problem.replaceChildren(notice("error", friendlyError(err)));
-    }
-    await refresh();
-  }
-
-  async function replace(event, invite) {
-    const button = event.currentTarget;
-    if (!window.confirm(`Make a new link${invite.label ? ` for ${invite.label}` : ""} and end the old one? Anyone with the old link can no longer use it.`)) return;
-    button.disabled = true;
-    problem.replaceChildren();
-    try {
-      showNewLink(await replaceInvite(invite.id), "New link made. The old one no longer works. ");
-    } catch (err) {
-      console.error(err);
-      problem.replaceChildren(notice("error", friendlyError(err)));
-    }
-    await refresh();
-  }
-
-  const inviteRow = (invite) => {
-    const status = inviteStatus(invite);
-    return h(
-      "li",
-      { class: "invite" },
-      h(
-        "div",
-        { class: "invite-main" },
-        h("strong", {}, invite.label || "Invite"),
-        h("span", { class: "badge" }, status),
-        h("span", { class: "muted" }, `${invite.use_count} of ${invite.max_uses} used`),
-        h("span", { class: "muted" }, `expires ${new Date(invite.expires_at).toLocaleString()}`),
-      ),
-      status === "active"
-        ? h(
-            "div",
-            { class: "actions" },
-            h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: (event) => replace(event, invite) }, "Replace link"),
-            h("button", { class: "btn btn-quiet btn-small", type: "button", onclick: (event) => revoke(event, invite) }, "Revoke"),
-          )
-        : null,
-    );
-  };
-
-  // Active invites first. The rest (used up, expired, revoked) are folded away.
-  function renderInvites(invites) {
-    if (!invites.length) return [h("p", { class: "muted" }, "No invites yet. Create one above and send the link to a player.")];
-    const active = invites.filter((invite) => inviteStatus(invite) === "active");
-    const older = invites.filter((invite) => inviteStatus(invite) !== "active");
-    return [
-      active.length ? h("ul", { class: "invites" }, ...active.map(inviteRow)) : h("p", { class: "muted" }, "No active invites."),
-      older.length ? h("details", {}, h("summary", {}, `Older invites (${older.length})`), h("ul", { class: "invites" }, ...older.map(inviteRow))) : null,
-    ];
-  }
-
-  function showNewLink(created, heading = "Invite created. ") {
-    const link = `${location.origin}/join/${encodeURIComponent(created.code)}`;
-    fresh.replaceChildren(linkNotice({ heading, text: "This link is shown only once, so copy it now.", link, onCopy }));
-  }
-
-  const labelField = field({ id: "label", label: "Who is it for? (optional)", maxlength: 60, autocomplete: "off", hint: "Only you see this. For example, the player's name." });
-  const createForm = form({
-    fields: [
-      labelField,
-      selectField({ id: "uses", label: "How many people can use it?", options: USES, value: 1 }),
-      selectField({ id: "lifetime", label: "How long is it valid?", options: LIFETIMES, value: 168 }),
-    ],
-    submitLabel: "Create invite link",
-    onSubmit: async (values) => {
-      const created = await createInvite({
-        label: String(values.label || "").trim().slice(0, 60),
-        maxUses: Number(values.uses),
-        ttlHours: Number(values.lifetime),
-      });
-      showNewLink(created);
-      await refresh();
-    },
-  });
-
-  // Not `fresh`: that one holds a link the DM has not copied yet.
-  const prefillNote = h("p", { class: "muted", role: "status", "aria-live": "polite" });
-  const createSection = h(
-    "section",
-    { class: "card stack" },
-    h("h2", {}, "Invite a player"),
-    h("p", { class: "muted" }, "Players can only join with a link you create here. Each link expires, has a use limit, and can be revoked."),
-    createForm,
-    prefillNote,
-    fresh,
-  );
-  if (registerPrefill) {
-    registerPrefill((name) => {
-      labelField.querySelector("input").value = String(name).slice(0, 60);
-      prefillNote.textContent = `Ready to invite ${name} again. Press Create invite link.`;
-      createSection.scrollIntoView({ block: "center" });
-      createForm.querySelector('button[type="submit"]').focus();
-    });
-  }
-
-  refresh();
-
-  return h(
-    "div",
-    { class: "stack" },
-    h("div", { class: "card-head" }, h("h1", {}, campaign.name), h("span", { class: "badge" }, "Keeper view")),
-    roster,
-    h("div", { class: "two-up" }, createSection, h("section", { class: "card stack" }, h("h2", {}, "Invites"), problem, list)),
-  );
-}
-
 // The site admin page (docs/adr/0014): approve an email so that its owner can make an
 // account, renew or revoke an approval that no confirmed account uses, and see every account.
-export function adminView({ loadAccounts, loadPending, approveEmail, revokeApproval, onCopy }) {
+// loadPurges lists characters deleted forever (docs/adr/0018), for the Admin page only.
+export function adminView({ loadAccounts, loadPending, approveEmail, revokeApproval, loadPurges, onCopy }) {
   const fresh = h("div", { class: "stack" });
   const problem = h("div", { class: "stack" });
   const pending = h("div", { class: "stack" });
   const accounts = h("div", { class: "stack" });
+  const purges = h("div", { class: "stack" });
   const pendingTitle = h("h2", {}, "Waiting for an account");
   const expired = (approval) => new Date(approval.expires_at).getTime() <= Date.now();
   const day = (iso) => new Date(iso).toLocaleDateString();
 
   async function refresh() {
     try {
-      const [waiting, people] = await Promise.all([loadPending(), loadAccounts()]);
+      const [waiting, people, purged] = await Promise.all([loadPending(), loadAccounts(), loadPurges()]);
       const current = waiting.filter((approval) => !expired(approval));
       const old = waiting.filter(expired);
       pendingTitle.textContent = `Waiting for an account (${current.length})`;
@@ -660,6 +568,7 @@ export function adminView({ loadAccounts, loadPending, approveEmail, revokeAppro
         ...(old.length ? [h("details", {}, h("summary", {}, `Expired approvals (${old.length})`), h("ul", { class: "invites" }, ...old.map(approvalRow)))] : []),
       );
       accounts.replaceChildren(h("ul", { class: "invites" }, ...people.map(accountRow)));
+      purges.replaceChildren(purged.length ? h("ul", { class: "invites" }, ...purged.map(purgeRow)) : h("p", { class: "muted" }, "Nobody has deleted a character forever."));
     } catch (err) {
       console.error(err);
       pending.replaceChildren(notice("error", friendlyError(err)));
@@ -730,6 +639,19 @@ export function adminView({ loadAccounts, loadPending, approveEmail, revokeAppro
       ),
     );
 
+  const purgeRow = (purge) =>
+    h(
+      "li",
+      { class: "invite" },
+      h(
+        "div",
+        { class: "invite-main" },
+        h("span", { class: "muted" }, day(purge.purged_at)),
+        h("strong", {}, purge.owner_name),
+        h("span", { class: "code" }, purge.character_id),
+      ),
+    );
+
   const approveForm = form({
     fields: [emailField("approveEmail", "Email address")],
     submitLabel: "Approve email",
@@ -769,6 +691,13 @@ export function adminView({ loadAccounts, loadPending, approveEmail, revokeAppro
         "Not confirmed means the account's email is not confirmed yet. If the person did not make that account, someone else did: the site owner deletes it in the Supabase dashboard (Authentication, Users), then approve the email again.",
       ),
       accounts,
+    ),
+    h(
+      "section",
+      { class: "card stack" },
+      h("h2", {}, "Deleted forever"),
+      h("p", { class: "muted" }, "A player can delete their own archived character forever. This is the log: who, when, and the character's id. No name and no sheet data are kept."),
+      purges,
     ),
   );
 }
