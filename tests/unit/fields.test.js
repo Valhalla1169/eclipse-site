@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { blank } from "../../public/js/eclipse-rules.js";
 import {
   ADV_FIELDS,
+  CASTING_FIELDS,
   CONTAINER_FIELDS,
   CORE_FIELDS,
   EQUIPMENT_FIELDS,
@@ -12,7 +13,11 @@ import {
   LANG_FIELDS,
   LOG_FIELDS,
   PEOPLE_FIELDS,
+  POWER_FIELDS,
+  RITUAL_FIELDS,
+  SPELL_FIELDS,
   TESTAMENT_FIELDS,
+  VALUE_LISTS,
   lookupField,
   pathGet,
   pathSet,
@@ -30,7 +35,7 @@ const SAMPLE = {
 
 describe("CORE_FIELDS", () => {
   test("has no two fields sharing a path", () => {
-    expect(FIELD_BY_PATH.size).toBe(CORE_FIELDS.length + TESTAMENT_FIELDS.length + EQUIPMENT_FIELDS.length);
+    expect(FIELD_BY_PATH.size).toBe(CORE_FIELDS.length + TESTAMENT_FIELDS.length + EQUIPMENT_FIELDS.length + CASTING_FIELDS.length);
   });
 
   test.each(CORE_FIELDS.map((f) => [f.path, f]))("%s round-trips through the binder", (path, field) => {
@@ -56,6 +61,16 @@ describe("TESTAMENT_FIELDS", () => {
 
 describe("EQUIPMENT_FIELDS", () => {
   test.each(EQUIPMENT_FIELDS.map((f) => [f.path, f]))("%s round-trips through the binder", (path, field) => {
+    const sheet = blank();
+    const sample = SAMPLE[field.kind];
+    const stored = KINDS[field.kind].toStored(sample.el);
+    pathSet(sheet, path, stored);
+    expect(pathGet(sheet, path)).toBe(stored);
+  });
+});
+
+describe("CASTING_FIELDS", () => {
+  test.each(CASTING_FIELDS.map((f) => [f.path, f]))("%s round-trips through the binder", (path, field) => {
     const sheet = blank();
     const sample = SAMPLE[field.kind];
     const stored = KINDS[field.kind].toStored(sample.el);
@@ -129,9 +144,49 @@ describe("the Testament page's growing lists", () => {
   });
 });
 
+describe("the Casting page's growing lists", () => {
+  test.each([
+    ["spells", SPELL_FIELDS],
+    ["powers", POWER_FIELDS],
+    ["rituals", RITUAL_FIELDS],
+  ])("%s: every field of every row round-trips through the binder", (list, fields) => {
+    for (const count of [0, 1, 3]) {
+      const sheet = blank();
+      sheet[list] = Array.from({ length: count }, () => ({}));
+      for (const field of rows(list, count, fields)) {
+        const sample = SAMPLE[field.kind];
+        const stored = KINDS[field.kind].toStored(sample.el);
+        pathSet(sheet, field.path, stored);
+        expect(pathGet(sheet, field.path)).toBe(stored);
+      }
+    }
+  });
+});
+
+describe("the Casting page's value lists (school pickers)", () => {
+  test.each(VALUE_LISTS.map(({ list, kind }) => [list, kind]))("%s: every row round-trips through the binder", (list, kind) => {
+    for (const count of [0, 1, 3]) {
+      const sheet = blank();
+      sheet[list] = Array.from({ length: count }, () => "");
+      for (let i = 0; i < count; i += 1) {
+        const path = `${list}.${i}`;
+        const sample = SAMPLE[kind];
+        const stored = KINDS[kind].toStored(sample.el);
+        pathSet(sheet, path, stored);
+        expect(pathGet(sheet, path)).toBe(stored);
+        expect(lookupField(path)).toMatchObject({ path, kind });
+      }
+    }
+  });
+});
+
 describe("lookupField", () => {
   test("resolves a growing list's field with no rows drawn", () => {
     expect(lookupField("log.7.t")).toMatchObject({ path: "log.7.t", kind: "text" });
+  });
+
+  test("resolves a value list's row with no rows drawn", () => {
+    expect(lookupField("vSchools.3")).toMatchObject({ path: "vSchools.3", kind: "text" });
   });
 
   test("resolves a container's own item with neither index drawn yet", () => {
@@ -157,6 +212,17 @@ describe("lookupField", () => {
     "containers.0.items.0.nope",
     "containers.constructor.items.0.n",
     "containers.0.items.constructor.n",
+    "spells.x.n",
+    "spells.-1.n",
+    "spells.1.nope",
+    "powers.x.n",
+    "rituals.x.tt",
+    "rituals.-1.tt",
+    "rituals.1.nope",
+    "vSchools.x",
+    "vSchools.-1",
+    "vSchools.constructor",
+    "pSchools.x",
     "constructor",
     "__proto__.x",
   ])("finds nothing for a bad path: %s", (path) => {

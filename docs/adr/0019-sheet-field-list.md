@@ -1,6 +1,7 @@
 # ADR 0019: One field list for the sheet's inputs
 
-Status: **Accepted.** Built for the Core, Testament, Log and Equipment pages; Casting is still on the old path.
+Status: **Accepted.** Built for every page. `fieldTable` (`bindings.js`) and `fillInputs` (`render.js`),
+the old per-page path, are gone.
 Date: 2026-09-27
 Builds on: ADR 0008 (the sheet) and ADR 0013 (a rules change: additive is free, a shape change is
 versioned).
@@ -45,12 +46,13 @@ sheet on the same page would have two elements answering to the same id.
    `after: "render"` (the default) redraws the whole sheet, since most feed some computed total; a
    field that only feeds itself (a name, a note) says `after: null`; a growing list's row instead
    names a page-specific redraw (the Log's rows say `after: "log"`, which reruns the search filter).
-4. **The old path stays, for pages not yet converted.** `fieldTable` in `bindings.js` and the `each(...)`
-   calls in `render.js`'s `fillInputs` still carry every other page's `data-*` code. A page moves onto
-   the field list by adding its entries to `fields.js`, tagging its inputs `data-f`, and deleting its
-   old entries and per-field reads and writes; nothing about a page not yet converted changes. Both
-   paths are checked into the same two files on purpose, so the diff for the next page is small and
-   the same shape as this one.
+4. **Convert one page at a time; the old path stays until the last one moves.** `fieldTable` in
+   `bindings.js` and the `each(...)` calls in `render.js`'s `fillInputs` carried whichever page's
+   `data-*` code had not moved yet. A page moves onto the field list by adding its entries to
+   `fields.js`, tagging its inputs `data-f`, and deleting its old entries and per-field reads and
+   writes; nothing about a page not yet converted changes. Both paths lived in the same two files on
+   purpose, so each page's diff stayed small and the same shape as the last — until Casting, the last
+   page, converted and `fieldTable` and `fillInputs` were deleted outright.
 5. **A stored key never gets renamed by this change.** `cm`, `dy`, `sother`, and the rest keep the
    letters they were saved under; `fields.js` may give a key a readable label, but the path is the
    stored shape (docs/adr/0013 already covers what does need a migration).
@@ -66,6 +68,14 @@ sheet on the same page would have two elements answering to the same id.
    Equipment, Casting, Testament, Log, Reference; nothing saves or remembers which tab was open
    (`store.tab` lives only for the life of the view), so the six `page`/`tab` id pairs across the page
    builders were renumbered to run 1 to 6 in the order shown. `LOCKED_PAGES` in `index.js` follows.
+   (`showTab`'s own rebuild trigger, `if (id === "4") rebuildCasting(...)`, was left pointing at
+   Casting's old id; converting the Casting page fixed it to `"3"` — otherwise raising Veil or Psyche
+   on Core would never resize the school pickers.)
+8. **A growing list's rows can be plain values, not just objects.** The Casting page's school pickers
+   (`vSchools`, `pSchools`) store one school name per slot, not an object with named fields — there is
+   no field path to join to a row index. `VALUE_LISTS` describes each as `{ list, kind, label }`; its
+   pattern is a growing list's row pattern with no trailing field segment. `pathGet`/`pathSet` needed
+   no change: a scalar row is still just the last step of a path.
 
 ## How to add a field
 
@@ -76,28 +86,32 @@ sheet on the same page would have two elements answering to the same id.
   (`LOG_FIELDS`) with its relative path, kind and label, and list the page in `GROWING_LISTS` if it
   is not there yet; tag its input with the `data-f` path `rows()` builds for it. Nothing else changes
   — `lookupField` matches any row of that list by pattern, so it needs no count and no registration.
-- A field on a page not yet converted: for now, still four places, as before this ADR.
+- A field in a growing list of plain values (a school picker): add or edit its entry in `VALUE_LISTS`
+  (`list`, `kind`, `label`); tag its input `data-f="<list>.<index>"`. Nothing else changes.
 - Converting a whole page: move its fields into `fields.js`, tag its inputs, delete its old
   `fieldTable` entries and `fillInputs`/`fillIdentity` reads, and extend the field-list coverage test
   for that page (docs/adr/0019, this record).
 
 ## Consequences
 
-- The Core, Testament, Log and Equipment pages' field binding is one list plus one binder; Casting
-  is unchanged and still four places per field, until it is converted the same way.
+- Every page's field binding is one list plus one binder; `fieldTable` and `fillInputs`, the old
+  per-page path, no longer exist.
 - `lookupField` never reads a sheet or a shared map of what was last drawn: a path either fits a
-  fixed field or a growing list's row pattern, or it fits neither. Two sheets shown at once — the
-  same reason a converted page's ids are scoped to their inputs (decision 6) — can each be filled
-  from their own data without one sheet's rows disturbing the other's lookups. Equipment's containers
-  use this for a list nested in another: `"containers.#.items"` matches any container's own items by
-  pattern, with no count kept anywhere for how many containers or items exist.
-- `tests/unit/fields.test.js` fails if a Core, Testament or Equipment field's path is duplicated, if a
-  Log entry's, a Testament list's or an Equipment list's row fields don't round-trip at 0, 1 and
-  several rows, if `lookupField` accepts a bad path (a non-numeric or negative index at either level of
-  a nested list, an unknown field, `"constructor"`, `"__proto__.x"`), or if writing a sample value
+  fixed field, a growing list's row pattern, or a value list's row pattern, or it fits none of them.
+  Two sheets shown at once — the same reason a converted page's ids are scoped to their inputs
+  (decision 6) — can each be filled from their own data without one sheet's rows disturbing the
+  other's lookups. Equipment's containers use this for a list nested in another:
+  `"containers.#.items"` matches any container's own items by pattern, with no count kept anywhere
+  for how many containers or items exist.
+- `tests/unit/fields.test.js` fails if a Core, Testament, Equipment or Casting field's path is
+  duplicated, if a Log entry's, a Testament list's, an Equipment list's or a Casting list's (including
+  a school picker's) row fields don't round-trip at 0, 1 and several rows, if `lookupField` accepts a
+  bad path (a non-numeric or negative index at either level of a nested list, an unknown field,
+  `"constructor"`, `"__proto__.x"`), or if writing a sample value
   through a field's kind and reading it back does not land at its own path.
-- `tests/e2e/sheet.spec.js`'s "field list coverage" test fails if the Core, Testament, Log or Equipment
-  page ever draws an input with no entry in its field list, or lists an entry with no input on the page.
-- `pathGet`/`pathSet` are plain dot-path helpers with no notion of "the sheet"; they would work for any
-  nested object, which is what lets one binder cover every kind of field this sheet has, and the kinds
-  it will need on the pages still to convert.
+- `tests/e2e/sheet.spec.js`'s "field list coverage" test fails if the Core, Testament, Log, Equipment
+  or Casting page ever draws an input with no entry in its field list, or lists an entry with no input
+  on the page.
+- `pathGet`/`pathSet` are plain dot-path helpers with no notion of "the sheet"; they work for any
+  nested object, which is what let one binder cover every kind of field this sheet has, fixed or
+  growing, an object row or a plain value.

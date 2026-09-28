@@ -1,6 +1,22 @@
 import { readFile } from "node:fs/promises";
 import { SCHEMA_VERSION, blank } from "../../public/js/eclipse-rules.js";
-import { ADV_FIELDS, CONTAINER_FIELDS, CORE_FIELDS, EQUIPMENT_FIELDS, FLAW_FIELDS, ITEM_FIELDS, LANG_FIELDS, LOG_FIELDS, PEOPLE_FIELDS, TESTAMENT_FIELDS, rows } from "../../public/js/sheet/fields.js";
+import {
+  ADV_FIELDS,
+  CASTING_FIELDS,
+  CONTAINER_FIELDS,
+  CORE_FIELDS,
+  EQUIPMENT_FIELDS,
+  FLAW_FIELDS,
+  ITEM_FIELDS,
+  LANG_FIELDS,
+  LOG_FIELDS,
+  PEOPLE_FIELDS,
+  POWER_FIELDS,
+  RITUAL_FIELDS,
+  SPELL_FIELDS,
+  TESTAMENT_FIELDS,
+  rows,
+} from "../../public/js/sheet/fields.js";
 import { anotherTab, callsTo, campaign, characterRow, expect, ids, open, otherDeviceSaves, patchMock, players, seed, sheetPath, storedCharacter, test } from "./helpers.js";
 
 const { dana, dm } = players;
@@ -728,6 +744,62 @@ test.describe("the sheet itself", () => {
     await expect(page.locator("#v_schools select")).toHaveCount(2);
   });
 
+  test("spells, powers and rituals can be added and removed, and one blank row always stays", async ({ page }) => {
+    await openSheet(page, { character: characterRow(named("Marlo")) });
+    await tab(page, "Casting");
+
+    await expect(page.locator("#spellRows tr")).toHaveCount(3);
+    await page.getByRole("button", { name: "+ add spell" }).click();
+    await expect(page.locator("#spellRows tr")).toHaveCount(4);
+    await page.locator('#spellRows [data-f="spells.3.n"]').fill("Ember Ward");
+    await saved(page);
+    expect((await storedCharacter(page)).data.spells[3]).toMatchObject({ n: "Ember Ward" });
+    for (let i = 0; i < 4; i += 1) await page.locator("#spellRows .rm").first().click();
+    await expect(page.locator("#spellRows tr")).toHaveCount(1);
+
+    await expect(page.locator("#powerRows tr")).toHaveCount(3);
+    await page.getByRole("button", { name: "+ add power" }).click();
+    await page.locator('#powerRows [data-f="powers.3.n"]').fill("Static Grip");
+    await saved(page);
+    expect((await storedCharacter(page)).data.powers[3]).toMatchObject({ n: "Static Grip" });
+    for (let i = 0; i < 4; i += 1) await page.locator("#powerRows .rm").first().click();
+    await expect(page.locator("#powerRows tr")).toHaveCount(1);
+
+    await expect(page.locator("#ritualRows tr")).toHaveCount(1);
+    await page.getByRole("button", { name: "+ add ritual" }).click();
+    await page.locator('#ritualRows [data-f="rituals.1.n"]').fill("Ward of Ash");
+    await saved(page);
+    expect((await storedCharacter(page)).data.rituals[1]).toMatchObject({ n: "Ward of Ash" });
+    for (let i = 0; i < 2; i += 1) await page.locator("#ritualRows .rm").first().click();
+    await expect(page.locator("#ritualRows tr")).toHaveCount(1);
+  });
+
+  test("a picked school survives raising Veil on Core, which adds a second picker", async ({ page }) => {
+    const data = named("Marlo");
+    data.base.vei = 2;
+    await openSheet(page, { character: characterRow(data) });
+    await tab(page, "Casting");
+    await expect(page.locator("#v_schools select")).toHaveCount(1);
+    await page.locator("#v_schools select").selectOption("Combat Magic (Fire)");
+
+    await tab(page, "Core");
+    await page.locator('[data-f="base.vei"]').fill("4");
+    await tab(page, "Casting");
+    await expect(page.locator("#v_schools select")).toHaveCount(2);
+    await expect(page.locator("#v_schools select").first()).toHaveValue("Combat Magic (Fire)");
+
+    await saved(page);
+    expect((await storedCharacter(page)).data.vSchools[0]).toBe("Combat Magic (Fire)");
+  });
+
+  test("the free Veil healing checkbox saves", async ({ page }) => {
+    await openSheet(page, { character: characterRow(named("Marlo")) });
+    await tab(page, "Casting");
+    await page.locator('[data-f="cast.freeHeal"]').check();
+    await saved(page);
+    expect((await storedCharacter(page)).data.cast.freeHeal).toBe(true);
+  });
+
   test("the tabs work from the keyboard", async ({ page }) => {
     await openSheet(page);
     await page.getByRole("tab", { name: "Core" }).focus();
@@ -825,6 +897,20 @@ test.describe("field list coverage (docs/adr/0019)", () => {
       ...rows("wornExtra", data.wornExtra.length, ITEM_FIELDS).map((f) => f.path),
       ...rows("containers", data.containers.length, CONTAINER_FIELDS).map((f) => f.path),
       ...data.containers.flatMap((container, i) => rows(`containers.${i}.items`, container.items.length, ITEM_FIELDS).map((f) => f.path)),
+    ];
+    expect([...onPage].sort()).toEqual([...listed].sort());
+  });
+
+  test("every input on the Casting page is in the field list, and every field entry has an input", async ({ page }) => {
+    const data = named("Marlo");
+    await openSheet(page, { character: characterRow(data) });
+    await tab(page, "Casting");
+    const onPage = await page.locator("#page3 [data-f]").evaluateAll((els) => els.map((el) => el.dataset.f));
+    const listed = [
+      ...CASTING_FIELDS.map((f) => f.path),
+      ...rows("spells", data.spells.length, SPELL_FIELDS).map((f) => f.path),
+      ...rows("powers", data.powers.length, POWER_FIELDS).map((f) => f.path),
+      ...rows("rituals", data.rituals.length, RITUAL_FIELDS).map((f) => f.path),
     ];
     expect([...onPage].sort()).toEqual([...listed].sort());
   });

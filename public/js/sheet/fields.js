@@ -4,10 +4,6 @@
 // writes it and render.js reads it, both from this list, so a field needs one
 // entry here instead of a line in blank(), a page builder, bindings.js and
 // render.js each (docs/adr/0019).
-//
-// Fields move here page by page. A page not yet converted keeps its own
-// data-* code in bindings.js and render.js; both live side by side until
-// every page has moved.
 import { ATTRS, MONITORS, SPECIALS } from "../eclipse-content.js";
 import { ALL_SKILLS, chooseProfession, chooseRace, int, intOrBlank } from "../eclipse-rules.js";
 
@@ -168,9 +164,17 @@ export const EQUIPMENT_FIELDS = [
   ]),
 ].map((f) => ({ after: "render", ...f }));
 
+// Casting page (docs/adr/0019): MP and PP spent, and the free Veil healing
+// cast. Stored keys never change (they predate this ADR).
+export const CASTING_FIELDS = [
+  { path: "cast.mpSpent", kind: "text", label: "MP spent" },
+  { path: "cast.ppSpent", kind: "text", label: "PP spent" },
+  { path: "cast.freeHeal", kind: "checkbox", label: "Free Veil healing cast used" },
+].map((f) => ({ after: "render", ...f }));
+
 // Every fixed field the generic binder knows by its exact path, across every
 // converted page.
-export const FIELD_BY_PATH = new Map([...CORE_FIELDS, ...TESTAMENT_FIELDS, ...EQUIPMENT_FIELDS].map((f) => [f.path, f]));
+export const FIELD_BY_PATH = new Map([...CORE_FIELDS, ...TESTAMENT_FIELDS, ...EQUIPMENT_FIELDS, ...CASTING_FIELDS].map((f) => [f.path, f]));
 
 // The Log page's entries (docs/adr/0019): one row's fields, relative to the
 // row (rows() joins them to a path once a row's index is known). Stored keys
@@ -222,6 +226,31 @@ export const CONTAINER_FIELDS = [
   { path: "ap", kind: "text", label: "Container AP" },
 ].map((f) => ({ after: "render", ...f }));
 
+// The Casting page's growing lists: spells and powers share one row shape;
+// a ritual's row swaps "t" (cast type) for "tt" (time invested). Stored keys
+// never change (they predate this ADR).
+export const SPELL_FIELDS = [
+  { path: "n", kind: "text", label: "Spell name" },
+  { path: "s", kind: "text", label: "Spell school" },
+  { path: "l", kind: "text", label: "Spell level" },
+  { path: "t", kind: "text", label: "Spell type" },
+  { path: "e", kind: "text", label: "Spell effect", grow: true },
+].map((f) => ({ after: "render", ...f }));
+export const POWER_FIELDS = [
+  { path: "n", kind: "text", label: "Power name" },
+  { path: "s", kind: "text", label: "Power school" },
+  { path: "l", kind: "text", label: "Power level" },
+  { path: "t", kind: "text", label: "Power type" },
+  { path: "e", kind: "text", label: "Power effect", grow: true },
+].map((f) => ({ after: "render", ...f }));
+export const RITUAL_FIELDS = [
+  { path: "n", kind: "text", label: "Ritual name" },
+  { path: "s", kind: "text", label: "Ritual school" },
+  { path: "l", kind: "text", label: "Ritual level" },
+  { path: "tt", kind: "text", label: "Ritual time invested" },
+  { path: "e", kind: "text", label: "Ritual notes", grow: true },
+].map((f) => ({ after: "render", ...f }));
+
 // A page whose rows come and go describes its list once, here, instead of a
 // count anyone has to keep in sync: `list` is the array's path, `fields` is
 // one field per relative path in a row. A `#` segment in `list` stands for a
@@ -236,23 +265,40 @@ export const GROWING_LISTS = [
   { list: "wornExtra", fields: ITEM_FIELDS },
   { list: "containers", fields: CONTAINER_FIELDS },
   { list: "containers.#.items", fields: ITEM_FIELDS },
+  { list: "spells", fields: SPELL_FIELDS },
+  { list: "powers", fields: POWER_FIELDS },
+  { list: "rituals", fields: RITUAL_FIELDS },
+];
+
+// A growing list whose own rows are plain values, not objects with named
+// fields: "vSchools.0" holds a school's name directly, there is no field
+// path to join it to. One kind covers every row.
+export const VALUE_LISTS = [
+  { list: "vSchools", kind: "text", label: "Veil school known", after: null },
+  { list: "pSchools", kind: "text", label: "Psyche school known", after: null },
 ];
 
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const patternSegment = (segment) => (segment === "#" ? "\\d+" : escapeRegExp(segment));
 const rowPattern = (list, fieldPath) =>
   new RegExp(`^${list.split(".").map(patternSegment).join("\\.")}\\.\\d+\\.${fieldPath.split(".").map(escapeRegExp).join("\\.")}$`);
+const valuePattern = (list) => new RegExp(`^${list.split(".").map(patternSegment).join("\\.")}\\.\\d+$`);
 
 const GROWING_FIELD_PATTERNS = GROWING_LISTS.flatMap(({ list, fields }) => fields.map((field) => ({ field, pattern: rowPattern(list, field.path) })));
+const VALUE_LIST_PATTERNS = VALUE_LISTS.map(({ list, ...field }) => ({ field, pattern: valuePattern(list) }));
 
 // Finds a field's definition by its exact path: a fixed field first (a Map
 // lookup, so "constructor" and the like find nothing), then a growing list's
-// row pattern (its list, a whole-number index, one of the row's own fields).
-// Neither reads a sheet, so an index with no row drawn yet still resolves,
-// and two sheets shown at once each resolve their own fields independently.
+// row pattern (its list, a whole-number index, one of the row's own fields),
+// then a value list's row pattern (its list, a whole-number index, nothing
+// more). Neither pattern reads a sheet, so an index with no row drawn yet
+// still resolves, and two sheets shown at once each resolve their own fields
+// independently.
 export function lookupField(path) {
   const fixed = FIELD_BY_PATH.get(path);
   if (fixed) return fixed;
-  const hit = GROWING_FIELD_PATTERNS.find(({ pattern }) => pattern.test(path));
-  return hit && { ...hit.field, path };
+  const row = GROWING_FIELD_PATTERNS.find(({ pattern }) => pattern.test(path));
+  if (row) return { ...row.field, path };
+  const value = VALUE_LIST_PATTERNS.find(({ pattern }) => pattern.test(path));
+  return value && { ...value.field, path };
 }

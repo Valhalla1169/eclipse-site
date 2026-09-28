@@ -9,41 +9,9 @@ import { REFERENCE } from "./reference-data.js";
 import { growTextarea, renderSheet } from "./render.js";
 import { filterLog, rebuildCasting, rebuildContainers, rebuildList, rebuildLog, rebuildWorn } from "./rebuild.js";
 
-const value = (el) => (el.type === "checkbox" ? el.checked : el.value);
-
-function intoRow(list, index, field, text) {
-  if (!list[int(index)]) list[int(index)] = {};
-  list[int(index)][field] = text;
-}
-
-// One entry per data-* attribute an input can carry, for a page not yet moved
-// onto the field list (fields.js, docs/adr/0019). `write` puts the value in
-// the sheet. `after` says what to redraw: "render" every number, or nothing
-// more than saving. `grow` resizes a text area to its text.
-function fieldTable(sheet) {
-  return {
-    cast: { after: "render", write: (k, el) => (sheet().cast[k] = value(el)) },
-    cl: {
-      after: "render",
-      grow: true,
-      write: (k, el) => {
-        const [kind, index, field] = k.split(".");
-        intoRow(sheet()[kind], index, field, el.value);
-      },
-    },
-    sc: {
-      write: (k, el) => {
-        const [which, index] = k.split(".");
-        (which === "v" ? sheet().vSchools : sheet().pSchools)[int(index)] = el.value;
-      },
-    },
-  };
-}
-
 // ctx: { root, sheet() returns the current sheet, edited() tells the caller to save }
 export function bindSheet(ctx) {
   const { root, sheet, edited } = ctx;
-  const fields = fieldTable(sheet);
   const $ = (selector) => root.querySelector(selector);
 
   const redraw = () => renderSheet(root, sheet());
@@ -130,10 +98,9 @@ export function bindSheet(ctx) {
   });
 
   /* ── every data-f input (fields.js) ───────────────────── */
-  // A converted page tags its input data-f="<path>" (fields.js has the full
-  // list); a page not yet converted still carries one of the data-* attributes
-  // fieldTable() knows.
-  function writeGenericField(path, el) {
+  function writeField(el) {
+    const path = el.dataset.f;
+    if (path === undefined) return false;
     const field = lookupField(path);
     if (!field) return false;
     const kind = KINDS[field.kind];
@@ -145,21 +112,6 @@ export function bindSheet(ctx) {
     else if (field.after === "log") filterLog(root, sheet());
     edited();
     return true;
-  }
-
-  /* ── every other data-* input ──────────────────────────── */
-  function writeField(el) {
-    if (el.dataset.f !== undefined) return writeGenericField(el.dataset.f, el);
-    for (const [key, config] of Object.entries(fields)) {
-      const raw = el.dataset[key];
-      if (raw === undefined || raw === "") continue;
-      config.write(raw, el);
-      if (config.grow && el.tagName === "TEXTAREA") growTextarea(el);
-      if (config.after === "render") redraw();
-      edited();
-      return true;
-    }
-    return false;
   }
 
   root.addEventListener("input", (event) => {
