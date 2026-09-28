@@ -108,10 +108,6 @@ export function fillInputs(root, sheet) {
     const [group, index, field] = key.split(".");
     set(el, (sheet[group][int(index)] || {})[field], true);
   });
-  each("lg", (el, key) => {
-    const [index, field] = key.split(".");
-    set(el, (sheet.log[int(index)] || {})[field], true);
-  });
 }
 
 // Puts stored values into every data-f input (fields.js), except the one
