@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { blank } from "../../public/js/eclipse-rules.js";
-import { CORE_FIELDS, FIELD_BY_PATH, KINDS, pathGet, pathSet } from "../../public/js/sheet/fields.js";
+import { CORE_FIELDS, FIELD_BY_PATH, KINDS, LOG_FIELDS, pathGet, pathSet, rows, setListFields } from "../../public/js/sheet/fields.js";
 
 // One sample input per kind: what a binder's input element would carry, and
 // the stored value it must produce.
@@ -24,6 +24,28 @@ describe("CORE_FIELDS", () => {
     if (field.apply) field.apply(sheet, stored);
     else pathSet(sheet, path, stored);
     expect(pathGet(sheet, path)).toBe(stored);
+  });
+});
+
+describe("LOG_FIELDS (a growing list)", () => {
+  test.each([0, 1, 3])("every field of every row round-trips through the binder, %i entries", (count) => {
+    const sheet = blank();
+    sheet.log = Array.from({ length: count }, () => ({ t: "", d: "", b: "" }));
+    for (const field of rows("log", count, LOG_FIELDS)) {
+      const sample = SAMPLE[field.kind];
+      const stored = KINDS[field.kind].toStored(sample.el);
+      pathSet(sheet, field.path, stored);
+      expect(pathGet(sheet, field.path)).toBe(stored);
+    }
+  });
+
+  test("setListFields matches FIELD_BY_PATH's log rows to the count last drawn", () => {
+    setListFields("log", 2, LOG_FIELDS);
+    const paths = rows("log", 2, LOG_FIELDS).map((f) => f.path);
+    expect([...FIELD_BY_PATH.keys()].filter((k) => k.startsWith("log.")).sort()).toEqual([...paths].sort());
+
+    setListFields("log", 0, LOG_FIELDS);
+    expect([...FIELD_BY_PATH.keys()].some((k) => k.startsWith("log."))).toBe(false);
   });
 });
 

@@ -110,3 +110,20 @@ export const CORE_FIELDS = [
 ].map((f) => ({ after: "render", ...f }));
 
 export const FIELD_BY_PATH = new Map(CORE_FIELDS.map((f) => [f.path, f]));
+
+// The Log page's entries (docs/adr/0019): one row of fields, joined to a path
+// by rows() once the row count is known. Stored keys never change: "t"
+// (title), "d" (session or date), "b" (the entry's text).
+export const LOG_FIELDS = [
+  { path: "t", kind: "text", label: "Entry title", after: "log" },
+  { path: "d", kind: "text", label: "Entry session or date", after: "log" },
+  { path: "b", kind: "text", label: "Entry text", after: "log", grow: true },
+];
+
+// A growing list's rows aren't known at import time, so its slice of
+// FIELD_BY_PATH is rebuilt to the row count last drawn, every time the page
+// draws them (rebuild.js). A row not drawn cannot be written into either.
+export function setListFields(listPath, count, subFields) {
+  for (const key of FIELD_BY_PATH.keys()) if (key.startsWith(`${listPath}.`)) FIELD_BY_PATH.delete(key);
+  for (const field of rows(listPath, count, subFields)) FIELD_BY_PATH.set(field.path, field);
+}
