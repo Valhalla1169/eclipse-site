@@ -710,6 +710,8 @@ td select.tier { font-size: 13px; }
 .rc tr:last-child td { border-bottom: 0; }
 .rc ol, .rc ul { margin: 2px 0 2px 15px; color: var(--bone-dim); }
 .rc li { margin-bottom: 2px; }
+.book-link { display: block; padding: 6px 10px; font-family: "IBM Plex Mono", monospace; font-size: 12.5px; letter-spacing: 0.05em; color: var(--corona-t); text-decoration: none; border-top: 1px solid var(--steel); }
+.book-link:hover { text-decoration: underline; }
 .refempty, .logempty { text-align: center; color: var(--bone-dim); font-style: italic; padding: 34px 0; font-size: 14.5px; }
 .hide { display: none; }
 

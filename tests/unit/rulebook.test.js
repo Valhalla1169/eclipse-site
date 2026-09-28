@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CHAPTER_SLUG } from "../../public/js/markdown.js";
 import { PUBLIC_REPO, githubRepo } from "../../scripts/backup.mjs";
-import { LIMITS, chapterFile, chapterTitle, databaseError, pushSql, readArgs, readBook, sqlText } from "../../scripts/rulebook.mjs";
+import { LIMITS, chapterFile, chapterTitle, databaseError, missingBookSlugs, pushSql, readArgs, readBook, sqlText } from "../../scripts/rulebook.mjs";
 
 // Made-up chapters only: the real rulebook is never in this repo (docs/adr/0016).
 describe("chapterFile: the file name gives the chapter's place and address", () => {
@@ -70,6 +70,21 @@ describe("pushSql", () => {
   it("sends every chapter, with its place, address, title and text", () => {
     const [encoded] = /(?<=decode\(')[A-Za-z0-9+/=]+/.exec(sql);
     expect(JSON.parse(Buffer.from(encoded, "base64").toString("utf8"))).toEqual(book.chapters);
+  });
+});
+
+// Made-up slugs only: this never needs the real book's chapters.
+describe("missingBookSlugs: a card's book slug must be a chapter that is pushed", () => {
+  it("is empty when every card's slug is a chapter", () => {
+    expect(missingBookSlugs(["first", "second"], ["first", "second", "third"])).toEqual([]);
+  });
+
+  it("names each slug no chapter has, sorted and once each", () => {
+    expect(missingBookSlugs(["gone", "first", "gone", "also-gone"], ["first"])).toEqual(["also-gone", "gone"]);
+  });
+
+  it("ignores a card with no book slug", () => {
+    expect(missingBookSlugs([], ["first"])).toEqual([]);
   });
 });
 

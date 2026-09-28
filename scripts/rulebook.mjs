@@ -12,10 +12,14 @@
 // It replaces the whole book in one transaction, so a reader sees the old book or the
 // new one, never part of each. It prints counts and titles, never the text. How it
 // reaches the project: account-lists.mjs.
+//
+// It also refuses the push if a Reference card (public/js/sheet/reference-data.js) links to
+// a chapter slug this folder does not have, so the sheet can never link to a missing page.
 import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseMarkdown, textOf } from "../public/js/markdown.js";
+import { REFERENCE } from "../public/js/sheet/reference-data.js";
 import { CliFailed, LOGIN_HINT, announce, isMain, readWords, runSqlFile } from "./account-lists.mjs";
 import { formatSize, isInside, publicCloneAround } from "./backup.mjs";
 import { root } from "./supabase-target.mjs";
@@ -103,6 +107,14 @@ export function readBook(folder, repo = root) {
   return { title, version, chapters };
 }
 
+// Every Reference card's `book` slug (public/js/sheet/reference-data.js) that `chapterSlugs`
+// does not have, sorted and de-duplicated. Empty when every card's slug is in the folder
+// being pushed, so a card can never link to a chapter that does not exist.
+export function missingBookSlugs(cardSlugs, chapterSlugs) {
+  const have = new Set(chapterSlugs);
+  return [...new Set(cardSlugs)].filter((slug) => !have.has(slug)).sort();
+}
+
 // Text in base64, so nothing in a chapter can end the string or add a statement.
 export const sqlText = (value) => `convert_from(decode('${Buffer.from(value, "utf8").toString("base64")}', 'base64'), 'UTF8')`;
 
@@ -163,6 +175,11 @@ function upload(book, project) {
 function push({ folder, project }) {
   announce(project);
   const book = readBook(folder);
+  const missing = missingBookSlugs(
+    REFERENCE.map((card) => card.book).filter(Boolean),
+    book.chapters.map((chapter) => chapter.slug),
+  );
+  if (missing.length) throw new Error(`Nothing was uploaded. The Reference tab links to a chapter this folder does not have: ${missing.join(", ")}.`);
   console.log(`${book.title}, version ${book.version}: ${book.chapters.length} chapters.`);
   for (const chapter of book.chapters) console.log(`  ${String(chapter.position).padStart(4)}  /rules/${chapter.slug}  ${chapter.title}`);
   const stored = upload(book, project);
