@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { blank } from "../../public/js/eclipse-rules.js";
-import { CORE_FIELDS, FIELD_BY_PATH, KINDS, LOG_FIELDS, lookupField, pathGet, pathSet, rows } from "../../public/js/sheet/fields.js";
+import { ADV_FIELDS, CORE_FIELDS, FIELD_BY_PATH, FLAW_FIELDS, KINDS, LANG_FIELDS, LOG_FIELDS, PEOPLE_FIELDS, TESTAMENT_FIELDS, lookupField, pathGet, pathSet, rows } from "../../public/js/sheet/fields.js";
 
 // One sample input per kind: what a binder's input element would carry, and
 // the stored value it must produce.
@@ -13,7 +13,7 @@ const SAMPLE = {
 
 describe("CORE_FIELDS", () => {
   test("has no two fields sharing a path", () => {
-    expect(FIELD_BY_PATH.size).toBe(CORE_FIELDS.length);
+    expect(FIELD_BY_PATH.size).toBe(CORE_FIELDS.length + TESTAMENT_FIELDS.length);
   });
 
   test.each(CORE_FIELDS.map((f) => [f.path, f]))("%s round-trips through the binder", (path, field) => {
@@ -23,6 +23,16 @@ describe("CORE_FIELDS", () => {
     expect(stored).toBe(sample.stored);
     if (field.apply) field.apply(sheet, stored);
     else pathSet(sheet, path, stored);
+    expect(pathGet(sheet, path)).toBe(stored);
+  });
+});
+
+describe("TESTAMENT_FIELDS", () => {
+  test.each(TESTAMENT_FIELDS.map((f) => [f.path, f]))("%s round-trips through the binder", (path, field) => {
+    const sheet = blank();
+    const sample = SAMPLE[field.kind];
+    const stored = KINDS[field.kind].toStored(sample.el);
+    pathSet(sheet, path, stored);
     expect(pathGet(sheet, path)).toBe(stored);
   });
 });
@@ -38,7 +48,26 @@ describe("LOG_FIELDS (a growing list)", () => {
       expect(pathGet(sheet, field.path)).toBe(stored);
     }
   });
+});
 
+describe("the Testament page's growing lists", () => {
+  test.each([
+    ["adv", ADV_FIELDS],
+    ["flaw", FLAW_FIELDS],
+    ["lang", LANG_FIELDS],
+    ["people", PEOPLE_FIELDS],
+  ])("%s: every field of every row round-trips through the binder", (list, fields) => {
+    for (const count of [0, 1, 3]) {
+      const sheet = blank();
+      sheet[list] = Array.from({ length: count }, () => ({}));
+      for (const field of rows(list, count, fields)) {
+        const sample = SAMPLE[field.kind];
+        const stored = KINDS[field.kind].toStored(sample.el);
+        pathSet(sheet, field.path, stored);
+        expect(pathGet(sheet, field.path)).toBe(stored);
+      }
+    }
+  });
 });
 
 describe("lookupField", () => {
@@ -46,7 +75,7 @@ describe("lookupField", () => {
     expect(lookupField("log.7.t")).toMatchObject({ path: "log.7.t", kind: "text" });
   });
 
-  test.each(["log.x.t", "log.1.nope", "log.-1.t", "constructor", "__proto__.x"])("finds nothing for a bad path: %s", (path) => {
+  test.each(["log.x.t", "log.1.nope", "log.-1.t", "adv.x.n", "adv.1.nope", "adv.-1.n", "constructor", "__proto__.x"])("finds nothing for a bad path: %s", (path) => {
     expect(lookupField(path)).toBeUndefined();
   });
 

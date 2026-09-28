@@ -1,6 +1,6 @@
 # ADR 0019: One field list for the sheet's inputs
 
-Status: **Accepted.** Built for the Core and Log pages; the rest of the sheet is still on the old path.
+Status: **Accepted.** Built for the Core, Testament and Log pages; the rest of the sheet is still on the old path.
 Date: 2026-09-27
 Builds on: ADR 0008 (the sheet) and ADR 0013 (a rules change: additive is free, a shape change is
 versioned).
@@ -81,18 +81,18 @@ sheet on the same page would have two elements answering to the same id.
 
 ## Consequences
 
-- The Core and Log pages' field binding is one list plus one binder; the other four pages are
-  unchanged and still four places per field, until each is converted the same way.
+- The Core, Testament and Log pages' field binding is one list plus one binder; the other three
+  pages are unchanged and still four places per field, until each is converted the same way.
 - `lookupField` never reads a sheet or a shared map of what was last drawn: a path either fits a
   fixed field or a growing list's row pattern, or it fits neither. Two sheets shown at once — the
   same reason Core's ids are scoped to their inputs (decision 6) — can each be filled from their own
   data without one sheet's rows disturbing the other's lookups.
-- `tests/unit/fields.test.js` fails if a Core field's path is duplicated, if a Log entry's fields
-  don't round-trip at 0, 1 and several rows, if `lookupField` accepts a bad path (a non-numeric or
-  negative index, an unknown field, `"constructor"`, `"__proto__.x"`), or if writing a sample value
-  through a field's kind and reading it back does not land at its own path.
-- `tests/e2e/sheet.spec.js`'s "field list coverage" test fails if the Core or Log page ever draws an
-  input with no entry in its field list, or lists an entry with no input on the page.
+- `tests/unit/fields.test.js` fails if a Core or Testament field's path is duplicated, if a Log entry's
+  or a Testament list's row fields don't round-trip at 0, 1 and several rows, if `lookupField` accepts
+  a bad path (a non-numeric or negative index, an unknown field, `"constructor"`, `"__proto__.x"`), or
+  if writing a sample value through a field's kind and reading it back does not land at its own path.
+- `tests/e2e/sheet.spec.js`'s "field list coverage" test fails if the Core, Testament or Log page ever
+  draws an input with no entry in its field list, or lists an entry with no input on the page.
 - `pathGet`/`pathSet` are plain dot-path helpers with no notion of "the sheet"; they would work for any
   nested object, which is what lets one binder cover every kind of field this sheet has, and the kinds
   it will need on the pages still to convert.

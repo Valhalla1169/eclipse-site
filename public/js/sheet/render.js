@@ -91,11 +91,6 @@ export function fillInputs(root, sheet) {
     set(el, sheet.containers[int(index)]?.[field]);
   });
   each("sup", (el, key) => set(el, sheet.sup[key]));
-  each("vi", (el, key) => set(el, sheet.vitals[key]));
-  each("tx", (el, key) => {
-    const [group, field] = key.split(".");
-    set(el, sheet[group]?.[field], true);
-  });
   each("cast", (el, key) => {
     if (el.type === "checkbox") el.checked = !!sheet.cast[key];
     else set(el, sheet.cast[key]);
@@ -103,10 +98,6 @@ export function fillInputs(root, sheet) {
   each("cl", (el, key) => {
     const [kind, index, field] = key.split(".");
     set(el, (sheet[kind][int(index)] || {})[field], true);
-  });
-  each("lt", (el, key) => {
-    const [group, index, field] = key.split(".");
-    set(el, (sheet[group][int(index)] || {})[field], true);
   });
 }
 

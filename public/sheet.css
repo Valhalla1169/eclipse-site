@@ -612,15 +612,19 @@ td select.tier { font-size: 13px; }
 /* ─── testament page ───────────────────────────────────── */
 .origin { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1px; background: var(--steel); border-bottom: 1px solid var(--steel); }
 .org-carry, .org-field { background: var(--slab); padding: 8px 13px 10px; }
-.origin label { display: block; font-size: 12px; letter-spacing: 0.17em; text-transform: uppercase; color: var(--bone-dim); margin-bottom: 4px; }
+.origin label { display: block; font-size: 12px; letter-spacing: 0.17em; text-transform: uppercase; color: var(--bone-dim); }
 .origin label .hint, .prose label .hint { text-transform: none; letter-spacing: 0.02em; color: var(--bone-dim); font-style: italic; margin-left: 6px; font-size: inherit; }
+.org-carry label { margin-bottom: 4px; }
 .org-abil { display: block; margin-top: 5px; font-size: 13px; line-height: 1.45; color: var(--bone-dim); font-style: italic; }
 .org-field input { width: 100%; background: var(--well); border: 1px solid var(--field); border-radius: 2px; color: var(--bone); font-family: "IBM Plex Sans Condensed", sans-serif; font-size: 15px; padding: 6px 9px; }
+.org-field label input { margin-top: 4px; }
 .org-field input::placeholder, .sheet textarea::placeholder, .sheet .idf input::placeholder { color: var(--bone-dim); font-style: italic; }
 .vitals { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--steel); }
 .vitals .idf { background: var(--slab); }
 .prose { padding: 10px 13px 13px; }
-.prose label { display: block; font-size: 12.5px; letter-spacing: 0.17em; text-transform: uppercase; color: var(--bone-dim); margin-bottom: 4px; }
+.prose label { display: block; font-size: 12.5px; letter-spacing: 0.17em; text-transform: uppercase; color: var(--bone-dim); }
+.prose.carried label { margin-bottom: 4px; }
+.prose label textarea { margin-top: 4px; }
 .prose + .prose { border-top: 1px solid var(--rule); }
 .sheet textarea { width: 100%; background: var(--well); border: 1px solid var(--field); border-radius: 2px; color: var(--bone); font-family: "IBM Plex Sans Condensed", sans-serif; font-size: 15px; line-height: 1.55; padding: 8px 10px; resize: none; overflow: hidden; min-height: 38px; display: block; }
 .sheet textarea.tall { min-height: 62px; }
