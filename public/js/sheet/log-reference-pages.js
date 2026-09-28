@@ -49,6 +49,10 @@ const refTable = ({ head, rows }) =>
   );
 const refPart = (part) => (typeof part === "string" ? staticHtml(part) : refTable(part));
 
+// target="_blank" keeps the sheet open during play (the router ignores a link with a target).
+const bookLink = (card) =>
+  h("a", { class: "book-link", href: `/rules/${card.book}`, target: "_blank", rel: "noopener noreferrer", "aria-label": `Read the rules: ${card.t}` }, "Read the rules");
+
 export function buildReferencePage() {
   return tabPanel(
     "page6",
@@ -63,7 +67,15 @@ export function buildReferencePage() {
     h(
       "div",
       { class: "refcols", id: "refCards" },
-      REFERENCE.map((card, i) => h("article", { class: "rc", "data-ref": i }, h("h2", {}, h("span", {}, card.t), h("span", { class: "cat" }, card.c)), h("div", { class: "body" }, card.body.map(refPart)))),
+      REFERENCE.map((card, i) =>
+        h(
+          "article",
+          { class: "rc", "data-ref": i },
+          h("h2", {}, h("span", {}, card.t), h("span", { class: "cat" }, card.c)),
+          h("div", { class: "body" }, card.body.map(refPart)),
+          card.book ? bookLink(card) : null,
+        ),
+      ),
     ),
     h("p", { class: "refempty hide", id: "refEmpty" }, "Nothing matches that. Try a shorter word."),
   );
