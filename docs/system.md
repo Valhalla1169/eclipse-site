@@ -9,7 +9,7 @@ written.
 ## 1. What Eclipse is
 
 Eclipse hosts live character sheets and a read-only Keeper roster for the campaigns of one tabletop
-game, Age of Eclipse. About 10 people use it, in at most 4 campaigns at a time. It is a plain
+game, Age of Eclipse. It is built for about 10 people in at most 4 campaigns; the database does not enforce either number. It is a plain
 HTML/CSS/JS site with no framework, served as static files from Cloudflare Workers. Its data — the
 accounts, campaigns, characters and rulebook — lives in Supabase: a hosted Postgres database, its
 Auth system, and its Realtime feed. There are two Supabase projects: **live**, which the deployed
@@ -26,7 +26,7 @@ a change never touches real data.
 | Keeper | A signed-in person who runs a campaign (the game master) | `campaigns.dm_id`. Prose always says "Keeper", never "DM" or "GM"; database names that already say `dm` (`dm_id`, `is_dm_of_campaign`, `dm_sees_character`) keep that spelling |
 | Campaign creator | A person the owner allow-listed to make campaigns | A row in `campaign_creators` |
 | Site admin | A person the owner allow-listed to approve new emails | A row in `site_admins` |
-| Owner | Caleb, through the Supabase dashboard, the service role key, or the owner's `npm run` scripts | Bypasses Row Level Security entirely |
+| Owner | The site owner, through the Supabase dashboard, the service role key, or the owner's `npm run` scripts | Bypasses Row Level Security entirely |
 
 These roles are not exclusive. A Keeper is also a signed-in person and can own characters of their
 own; a site admin is not automatically a Keeper or a campaign creator, and holding one role never
@@ -77,7 +77,7 @@ Two Auth-side hooks matter:
   `approved_emails.email` and `expires_at` — nothing else in the schema.
 
 `anon` (a request with no session) has no privilege on any table and can execute no function in
-`public`. Nothing in the app works signed out except reading the login and sign-up pages themselves.
+`public`. Signed out, only the sign-in, sign-up and password pages work.
 
 Realtime tells a page when to re-read, never what changed: it carries only `characters` and
 `campaign_characters`, and a subscription still obeys the tables above, so it can never show a row a
@@ -94,7 +94,7 @@ the "any signed-in person" rights above them.
 | Read own sheet | No | Yes | Yes | Yes | Yes |
 | Write own sheet | No | Yes | Yes | Yes | Yes |
 | Read a campaign's active sheets | No | No | Yes, own campaign | No | Yes |
-| Create a campaign | No | Only if allow-listed | Yes (already a creator) | No, unless also allow-listed | Yes |
+| Create a campaign | No | Only if allow-listed | Only if allow-listed | Only if allow-listed | Yes |
 | Create/revoke/replace an invite | No | No | Yes, own campaign | No | Yes |
 | Join a campaign | No | Yes | Yes, other campaigns (not their own) | Yes | Yes |
 | Leave a campaign | No | Yes, own membership | Yes, memberships held as a player | Yes | Yes |
@@ -137,12 +137,13 @@ never proves the action is allowed. Helper functions used only inside RLS polici
 | `list_pending_approvals()` | A site admin | Approvals still waiting for a confirmed account | — |
 | `list_purges()` | A site admin | The forever-delete log, newest first | — |
 
-Creating a campaign and choosing to create one are not an RPC: a Keeper's first campaign is a plain
-insert into `campaigns`, allowed only when `is_campaign_creator()` is true (section 4).
+Creating a campaign is not an RPC: it is a plain insert into `campaigns`, allowed only when
+`is_campaign_creator()` is true (section 4).
 
 ## 7. The pages
 
-Every page below except the first five needs a signed-in, approved account; visiting one signed out
+Every page below except `/login`, `/signup`, `/forgot-password` and `/reset-password` needs a
+signed-in account; visiting one signed out
 sends you to `/login` and back afterward. A page marked "Keeper only" answers "not found" or "not
 allowed" to anyone else, including a site admin who is not that campaign's Keeper.
 
@@ -180,8 +181,6 @@ Numbers already given above are not repeated here.
 | Character name | at most 100 characters |
 | Campaign name | 1-80 characters |
 | Display name | 1-40 characters |
-| Campaigns | at most 4 |
-| People on the site | about 10 |
 | Saved versions kept per character | newest 30 edits, 10 schema changes, 10 restores; every delete kept forever |
 | Departed-sheet copies | newest 3 per player per campaign |
 | Invites per campaign | 50 active, 500 ever |
