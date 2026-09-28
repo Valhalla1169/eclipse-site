@@ -74,7 +74,7 @@ for (const theme of ["latte", "mocha"]) {
       await expectClean(page, "join confirmation");
     });
 
-    test("the rulebook's contents and a chapter", async ({ page }) => {
+    test("the rulebook's one page, closed, a chapter open, and every chapter open", async ({ page }) => {
       await seed(page, { mock: { profile: players.dana.profile, rulebook: RULEBOOK }, user: players.dana });
       await setTheme(page);
       await open(page, "/rules");
@@ -83,6 +83,8 @@ for (const theme of ["latte", "mocha"]) {
         await open(page, `/rules/${slug}`);
         await expectClean(page, `/rules/${slug}`);
       }
+      await page.getByRole("button", { name: "Open all" }).click();
+      await expectClean(page, "/rules, every chapter open");
     });
 
     test("every page of the sheet", async ({ page }) => {

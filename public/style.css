@@ -408,10 +408,45 @@ dialog.confirm-dialog > * + * { margin-top: 0.75rem; }
 .small { font-size: 0.85rem; }
 .badge-alert { border: 2px solid var(--danger); background: transparent; }
 
-/* ---- Rulebook ---- */
+/* ---- Rulebook (/rules): a chapter list beside every chapter, each behind its own
+   closed <details>, so the browser's own Find can search the whole book at once. ---- */
 .contents { margin: 0; padding: 0; list-style: none; }
 .contents li + li { border-top: 1px solid var(--surface0); }
 .contents a { display: block; padding: 0.6rem 0; }
+.contents a[aria-current="true"] { font-weight: 700; color: var(--text); }
+
+/* Two columns from 40rem up: the chapter list, then the chapters. Below that, the list
+   becomes the "Chapters" menu, and .book-nav (its wide-screen twin) is hidden. */
+/* min-width: 0 lets a column shrink below a wide table's own width, so the table
+   scrolls in its own box (.table-scroll) instead of the column overflowing the page. */
+.book { display: grid; gap: 1.5rem; }
+.book > * { min-width: 0; }
+.chapters-menu { border: 1px solid var(--surface0); border-radius: 0.75rem; padding: 0.75rem 1rem; }
+.chapters-menu summary { cursor: pointer; font-weight: 600; }
+.chapters-menu[open] summary { margin-bottom: 0.5rem; }
+.book-nav { display: none; }
+@media (min-width: 40rem) {
+  /* Both columns share one tall row, so the sticky list has room to stay put while
+     the chapters beside it scroll past. */
+  .book { grid-template-columns: 16rem 1fr; }
+  .chapters-menu { display: none; }
+  .book-nav {
+    display: block;
+    position: sticky;
+    /* The header is sticky from 40rem up too (this breakpoint), so the list sits under it. */
+    top: calc(var(--header-h, 0px) + 1rem);
+    max-height: calc(100vh - var(--header-h, 0px) - 2rem);
+    overflow-y: auto;
+  }
+}
+
+.book-toolbar { display: flex; gap: 0.75rem; margin-bottom: 1.5rem; }
+.book-main > .chapter-entry + .chapter-entry { margin-top: 1rem; }
+
+.chapter-entry { border: 1px solid var(--surface0); border-radius: 0.75rem; padding: 1rem 1.25rem; scroll-margin-top: calc(var(--header-h, 0px) + 1rem); }
+.chapter-entry summary { cursor: pointer; }
+.chapter-entry summary h2 { display: inline; font-size: 1.15rem; }
+.chapter-entry[open] summary { margin-bottom: 1rem; }
 
 .chapter { overflow-wrap: break-word; }
 .chapter * { margin: 0; }
@@ -434,11 +469,6 @@ dialog.confirm-dialog > * + * { margin-top: 0.75rem; }
 .chapter th { background: var(--mantle); }
 .chapter .align-center { text-align: center; }
 .chapter .align-right { text-align: right; }
-
-.chapter-nav { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem; padding-top: 1.5rem; border-top: 1px solid var(--surface0); }
-.chapter-nav .btn { text-align: left; }
-.chapter-next { margin-left: auto; }
-.chapter-step { display: block; font-size: 0.85rem; font-weight: 400; color: var(--subtext1); }
 
 /* ---- Footer (full-width band, like deyderae.dev) ---- */
 .site-footer {

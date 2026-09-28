@@ -2,43 +2,60 @@ import { GOOD_PASSWORD, RULEBOOK, callsTo, expect, open, players, seed, test } f
 
 const { dana } = players;
 const signedIn = (page, rulebook = RULEBOOK) => seed(page, { mock: { profile: dana.profile, rulebook }, user: dana });
-const chapter = (page) => page.locator("article.chapter");
+const chapterBody = (page, slug) => page.locator(`#chapter-${slug} .chapter`);
+const chapterEntry = (page, slug) => page.locator(`#chapter-${slug}`);
 
-test.describe("the rulebook", () => {
-  test("the contents list every chapter in order, under the book's title and version", async ({ page }) => {
+test.describe("the rulebook: one page, every chapter", () => {
+  test("the list shows every chapter in order, under the book's title and version, none open", async ({ page }) => {
     await signedIn(page);
     await open(page, "/rules");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("A Made-up Field Guide");
     await expect(page.getByText("Version sample 3")).toBeVisible();
-    const links = page.getByRole("navigation", { name: "Contents" }).getByRole("link");
+    const links = page.getByRole("navigation", { name: "Chapters" }).getByRole("link");
     await expect(links).toHaveText(["Getting Started", "Moving About", "Last Words"]);
     await expect(links.nth(1)).toHaveAttribute("href", "/rules/moving-about");
     await expect(page).toHaveTitle("A Made-up Field Guide - Eclipse");
+    for (const slug of ["getting-started", "moving-about", "last-words"]) await expect(chapterEntry(page, slug)).not.toHaveAttribute("open", "");
   });
 
-  test("a chapter shows its Markdown: headings, lists, a quote and links", async ({ page }) => {
+  test("a chapter's Markdown shows headings, lists, a quote and links, with its own title dropped", async ({ page }) => {
     await signedIn(page);
     await open(page, "/rules/getting-started");
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Getting Started");
-    await expect(page).toHaveTitle("Getting Started - Eclipse");
-    await expect(chapter(page).locator("em")).toHaveText("made-up");
-    await expect(chapter(page).locator("strong")).toHaveText("bold");
-    await expect(chapter(page).locator("h2#sec-what-you-need")).toHaveText("What you need");
-    await expect(chapter(page).locator("ul > li")).toHaveCount(2);
-    await expect(chapter(page).locator("ul > li ol > li")).toHaveText(["Sharp", "Not chewed"]);
-    await expect(chapter(page).locator("blockquote")).toHaveText("A note in a quote.");
-    await expect(chapter(page).getByRole("link", { name: "part of this page" })).toHaveAttribute("href", "#sec-what-you-need");
-    const outside = chapter(page).getByRole("link", { name: "an outside page" });
+    await expect(page).toHaveTitle("A Made-up Field Guide - Eclipse");
+    await expect(chapterEntry(page, "getting-started")).toHaveAttribute("open", "");
+    await expect(chapterEntry(page, "getting-started").locator("summary h2")).toHaveText("Getting Started");
+    const body = chapterBody(page, "getting-started");
+    await expect(body.locator("em")).toHaveText("made-up");
+    await expect(body.locator("strong")).toHaveText("bold");
+    // The chapter's own "# Getting Started" is dropped (its summary already shows it),
+    // so "## What you need" becomes the first heading, shifted to h3.
+    await expect(body.locator("h1")).toHaveCount(0);
+    await expect(body.locator("h3#sec-getting-started-what-you-need")).toHaveText("What you need");
+    await expect(body.locator("ul > li")).toHaveCount(2);
+    await expect(body.locator("ul > li ol > li")).toHaveText(["Sharp", "Not chewed"]);
+    await expect(body.locator("blockquote")).toHaveText("A note in a quote.");
+    await expect(body.getByRole("link", { name: "part of this page" })).toHaveAttribute("href", "#sec-getting-started-what-you-need");
+    const outside = body.getByRole("link", { name: "an outside page" });
     await expect(outside).toHaveAttribute("href", "https://example.com/guide");
     await expect(outside).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  test("only one h1 is on the page, and every heading id is unique", async ({ page }) => {
+    await signedIn(page);
+    await open(page, "/rules");
+    await page.getByRole("button", { name: "Open all" }).click();
+    await expect(page.locator("#main h1")).toHaveCount(1);
+    const ids = await page.locator("#main [id^='sec-']").evaluateAll((els) => els.map((el) => el.id));
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   test("the book's HTML, bad links and images stay text", async ({ page }) => {
     await signedIn(page);
     await open(page, "/rules/getting-started");
-    await expect(chapter(page)).toContainText("<script>window.__ran = true</script> <img src=x> a bad link a map");
-    await expect(chapter(page).locator("script, img")).toHaveCount(0);
-    await expect(chapter(page).getByRole("link", { name: "a bad link" })).toHaveCount(0);
+    const body = chapterBody(page, "getting-started");
+    await expect(body).toContainText("<script>window.__ran = true</script> <img src=x> a bad link a map");
+    await expect(body.locator("script, img")).toHaveCount(0);
+    await expect(body.getByRole("link", { name: "a bad link" })).toHaveCount(0);
     expect(await page.evaluate(() => window.__ran)).toBeUndefined();
   });
 
@@ -46,54 +63,78 @@ test.describe("the rulebook", () => {
     await page.setViewportSize({ width: 390, height: 800 });
     await signedIn(page);
     await open(page, "/rules/moving-about");
-    const table = chapter(page).getByRole("table");
+    const table = chapterBody(page, "moving-about").getByRole("table");
     await expect(table.getByRole("columnheader")).toHaveText(["Colour", "Apple", "Banana", "Cherry", "Grape", "Lemon", "Mango", "Plum"]);
     await expect(table.getByRole("cell", { name: "Banana2" })).toHaveClass("align-center");
     await expect(table.getByRole("row")).toHaveCount(3);
-    const box = chapter(page).getByRole("region", { name: "Table 1" });
+    const box = chapterBody(page, "moving-about").getByRole("region", { name: "Table 1" });
     expect(await box.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
     await box.focus();
     await expect(box).toBeFocused();
   });
 
-  test("previous and next move through the chapters, and focus the new heading", async ({ page }) => {
+  test("clicking a chapter link opens it, scrolls to it, marks it current, and makes no new request for the book", async ({ page }) => {
     await signedIn(page);
-    await open(page, "/rules/getting-started");
-    const nav = page.getByRole("navigation", { name: "Chapters" });
-    await expect(nav.getByRole("link", { name: /Previous/ })).toHaveCount(0);
-    await nav.getByRole("link", { name: "Next Moving About" }).click();
+    await open(page, "/rules");
+    const before = (await callsTo(page, "/rest/v1/rulebook_pages")).length;
+    const link = page.getByRole("navigation", { name: "Chapters" }).getByRole("link", { name: "Moving About" });
+    await link.click();
     await expect(page).toHaveURL(/\/rules\/moving-about$/);
-    await expect(page.getByRole("heading", { name: "Moving About", level: 1 })).toBeFocused();
-    await nav.getByRole("link", { name: "Next Last Words" }).click();
-    await expect(page.getByRole("heading", { name: "Last Words", level: 1 })).toBeFocused();
-    await expect(nav.getByRole("link", { name: /Next/ })).toHaveCount(0);
-    await nav.getByRole("link", { name: "Previous Moving About" }).click();
-    await expect(page).toHaveURL(/\/rules\/moving-about$/);
-    await nav.getByRole("link", { name: "Contents" }).click();
-    await expect(page).toHaveURL(/\/rules$/);
-    await page.getByRole("link", { name: "Last Words" }).click();
-    await page.getByRole("link", { name: "Contents" }).first().click();
-    await expect(page.getByRole("heading", { name: "A Made-up Field Guide" })).toBeFocused();
+    await expect(chapterEntry(page, "moving-about")).toHaveAttribute("open", "");
+    await expect(chapterEntry(page, "moving-about").locator("summary")).toBeFocused();
+    await expect(chapterEntry(page, "moving-about")).toBeInViewport();
+    await expect(link).toHaveAttribute("aria-current", "true");
+    expect(await callsTo(page, "/rest/v1/rulebook_pages")).toHaveLength(before);
   });
 
-  test("a link to a part of another chapter opens that chapter at that part", async ({ page }) => {
+  test("opening a chapter does not close one already open, and Close all closes every chapter", async ({ page }) => {
+    await signedIn(page);
+    await open(page, "/rules");
+    await page.getByRole("navigation", { name: "Chapters" }).getByRole("link", { name: "Getting Started" }).click();
+    await page.getByRole("navigation", { name: "Chapters" }).getByRole("link", { name: "Last Words" }).click();
+    await expect(chapterEntry(page, "getting-started")).toHaveAttribute("open", "");
+    await expect(chapterEntry(page, "last-words")).toHaveAttribute("open", "");
+    await page.getByRole("button", { name: "Close all" }).click();
+    for (const slug of ["getting-started", "moving-about", "last-words"]) await expect(chapterEntry(page, slug)).not.toHaveAttribute("open", "");
+  });
+
+  test("Open all opens every chapter", async ({ page }) => {
+    await signedIn(page);
+    await open(page, "/rules");
+    await page.getByRole("button", { name: "Open all" }).click();
+    for (const slug of ["getting-started", "moving-about", "last-words"]) await expect(chapterEntry(page, slug)).toHaveAttribute("open", "");
+  });
+
+  test("a link to a part of another chapter opens that chapter at that part, without a new request", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 400 });
     await signedIn(page);
     await open(page, "/rules/moving-about");
-    await chapter(page).getByRole("link", { name: "what you need" }).click();
-    await expect(page).toHaveURL(/\/rules\/getting-started#sec-what-you-need$/);
+    const before = (await callsTo(page, "/rest/v1/rulebook_pages")).length;
+    await chapterBody(page, "moving-about").getByRole("link", { name: "what you need" }).click();
+    await expect(page).toHaveURL(/\/rules\/getting-started#sec-getting-started-what-you-need$/);
     const part = page.getByRole("heading", { name: "What you need" });
     await expect(part).toBeFocused();
     await expect(part).toBeInViewport();
+    expect(await callsTo(page, "/rest/v1/rulebook_pages")).toHaveLength(before);
   });
 
-  test("an unknown chapter is not found", async ({ page }) => {
+  test("opening /rules/<slug> directly opens that chapter", async ({ page }) => {
+    await signedIn(page);
+    await open(page, "/rules/last-words");
+    await expect(chapterEntry(page, "last-words")).toHaveAttribute("open", "");
+    await expect(chapterEntry(page, "last-words").locator("summary h2")).toHaveText("Last Words");
+    await expect(chapterEntry(page, "last-words")).toBeInViewport();
+  });
+
+  test("an unknown chapter shows the whole book with a plain notice", async ({ page }) => {
     await signedIn(page);
     for (const path of ["/rules/no-such-chapter", "/rules/Not_A_Slug"]) {
       await open(page, path);
-      await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "A Made-up Field Guide" })).toBeVisible();
       await expect(page.getByText("That chapter is not in the rulebook.")).toBeVisible();
+      const links = page.getByRole("navigation", { name: "Chapters" }).getByRole("link");
+      await expect(links).toHaveText(["Getting Started", "Moving About", "Last Words"]);
     }
   });
 
@@ -102,6 +143,24 @@ test.describe("the rulebook", () => {
     await open(page, "/rules");
     await expect(page.getByRole("heading", { name: "Rulebook" })).toBeVisible();
     await expect(page.getByText("The rulebook is not on the site yet.")).toBeVisible();
+  });
+});
+
+test.describe("the rulebook on a phone", () => {
+  test.use({ viewport: { width: 390, height: 800 } });
+
+  test("the chapter list is a closed 'Chapters' menu, and picking a chapter closes it", async ({ page }) => {
+    await signedIn(page);
+    await open(page, "/rules");
+    const menu = page.locator("details.chapters-menu");
+    await expect(menu).not.toHaveAttribute("open", "");
+    await expect(page.getByRole("navigation", { name: "Chapters" })).toBeHidden();
+    await menu.locator("summary").click();
+    await expect(menu).toHaveAttribute("open", "");
+    await menu.getByRole("link", { name: "Last Words" }).click();
+    await expect(page).toHaveURL(/\/rules\/last-words$/);
+    await expect(menu).not.toHaveAttribute("open", "");
+    await expect(chapterEntry(page, "last-words")).toHaveAttribute("open", "");
   });
 });
 
@@ -117,7 +176,7 @@ test.describe("signed out", () => {
     await page.locator("#password").fill(GOOD_PASSWORD);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page).toHaveURL(/\/rules\/moving-about$/);
-    await expect(page.getByRole("heading", { name: "Moving About", level: 1 })).toBeVisible();
+    await expect(chapterEntry(page, "moving-about")).toHaveAttribute("open", "");
   });
 
   test("the fake database, like the real one, refuses the book to a signed-out request", async ({ page }) => {
