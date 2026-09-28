@@ -182,7 +182,7 @@ export function createSheetView({ opened, row, persist, readOnlyNotice = null, o
     subtitle.textContent = `Survivor's Record  ·  ${TABS.find((t) => t.id === id).name}`;
     // Rows that depend on other pages are rebuilt when their page is shown.
     if (id === "2") rebuildWorn(pages, store.sheet);
-    if (id === "4") rebuildCasting(pages, store.sheet);
+    if (id === "3") rebuildCasting(pages, store.sheet);
     binding.redraw();
     growAll(pages);
   }

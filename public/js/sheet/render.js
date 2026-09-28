@@ -63,31 +63,6 @@ export const growAll = (root) => root.querySelectorAll("textarea").forEach(growT
 
 const listOf = (sheet, scope) => (scope === "we" ? sheet.wornExtra : sheet.containers[int(scope.slice(1))]?.items || []);
 
-// Puts stored values into the Casting page's inputs (the one page not yet on
-// the field list, docs/adr/0019), except the one being typed in.
-export function fillInputs(root, sheet) {
-  const active = document.activeElement;
-  const set = (el, value, grow = false) => {
-    if (el === active) return;
-    el.value = value ?? "";
-    if (grow && el.tagName === "TEXTAREA") growTextarea(el);
-  };
-  const each = (attr, fn) =>
-    root.querySelectorAll(`[data-${attr}]`).forEach((el) => {
-      const raw = el.dataset[attr];
-      if (raw !== undefined) fn(el, raw);
-    });
-
-  each("cast", (el, key) => {
-    if (el.type === "checkbox") el.checked = !!sheet.cast[key];
-    else set(el, sheet.cast[key]);
-  });
-  each("cl", (el, key) => {
-    const [kind, index, field] = key.split(".");
-    set(el, (sheet[kind][int(index)] || {})[field], true);
-  });
-}
-
 // Puts stored values into every data-f input (fields.js), except the one
 // being typed in. A field with a fallback (Race) or a select with no stored
 // value yet falls back the same way a stored "" would; hideZero (Oth) shows
@@ -423,7 +398,6 @@ function renderTestament(root, sheet) {
 }
 
 function renderCasting(root, sheet, P) {
-  fillInputs(root, sheet);
   const veil = total(sheet, "vei");
   const psyche = total(sheet, "psy");
   const { magicPoints: magic, psionicPoints: psionic } = derivedStats(sheet);
