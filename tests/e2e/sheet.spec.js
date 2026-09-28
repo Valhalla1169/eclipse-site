@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { SCHEMA_VERSION, blank } from "../../public/js/eclipse-rules.js";
-import { CORE_FIELDS, LOG_FIELDS, rows } from "../../public/js/sheet/fields.js";
+import { ADV_FIELDS, CORE_FIELDS, FLAW_FIELDS, LANG_FIELDS, LOG_FIELDS, PEOPLE_FIELDS, TESTAMENT_FIELDS, rows } from "../../public/js/sheet/fields.js";
 import { anotherTab, callsTo, campaign, characterRow, expect, ids, open, otherDeviceSaves, patchMock, players, seed, sheetPath, storedCharacter, test } from "./helpers.js";
 
 const { dana, dm } = players;
@@ -630,7 +630,7 @@ test.describe("the sheet itself", () => {
     await expect(page.locator("#advRows tr")).toHaveCount(3);
     await page.getByRole("button", { name: "+ add advantage" }).click();
     await expect(page.locator("#advRows tr")).toHaveCount(4);
-    await page.locator('#advRows [data-lt="adv.3.n"]').fill("Lucky");
+    await page.locator('#advRows [data-f="adv.3.n"]').fill("Lucky");
     await saved(page);
     expect((await storedCharacter(page)).data.adv[3]).toEqual({ n: "Lucky" });
     for (let i = 0; i < 4; i += 1) await page.locator("#advRows .rm").first().click();
@@ -755,6 +755,21 @@ test.describe("field list coverage (docs/adr/0019)", () => {
     await tab(page, "Log");
     const onPage = await page.locator("#page5 [data-f]").evaluateAll((els) => els.map((el) => el.dataset.f));
     const listed = rows("log", data.log.length, LOG_FIELDS).map((f) => f.path);
+    expect([...onPage].sort()).toEqual([...listed].sort());
+  });
+
+  test("every input on the Testament page is in the field list, and every field entry has an input", async ({ page }) => {
+    const data = named("Marlo");
+    await openSheet(page, { character: characterRow(data) });
+    await tab(page, "Testament");
+    const onPage = await page.locator("#page4 [data-f]").evaluateAll((els) => els.map((el) => el.dataset.f));
+    const listed = [
+      ...TESTAMENT_FIELDS.map((f) => f.path),
+      ...rows("adv", data.adv.length, ADV_FIELDS).map((f) => f.path),
+      ...rows("flaw", data.flaw.length, FLAW_FIELDS).map((f) => f.path),
+      ...rows("lang", data.lang.length, LANG_FIELDS).map((f) => f.path),
+      ...rows("people", data.people.length, PEOPLE_FIELDS).map((f) => f.path),
+    ];
     expect([...onPage].sort()).toEqual([...listed].sort());
   });
 });
