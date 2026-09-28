@@ -30,26 +30,32 @@ export const headingSlug = (text) =>
 const ANCHOR = /^[\p{L}\p{M}\p{N}\p{Pc}-]+$/u;
 const BOOK_LINK = /^\/rules(?:\/([^/?#]+))?\/?(?:#(.*))?$/;
 
-function anchorHref(anchor) {
+function anchorHref(anchor, prefix) {
   let decoded;
   try {
     decoded = decodeURIComponent(anchor);
   } catch {
     return null;
   }
-  return ANCHOR.test(decoded) ? `#${ANCHOR_PREFIX}${decoded}` : null;
+  return ANCHOR.test(decoded) ? `#${prefix}${decoded}` : null;
 }
 
-// The href for a link, or null when the book may not link there.
-export function safeHref(destination) {
-  if (destination.startsWith("#")) return anchorHref(destination.slice(1));
+// A chapter's own heading ids are prefixed with its slug (chapterIdPrefix), so they stay
+// unique across the whole book once every chapter sits on one page (docs/adr/0016).
+const chapterIdPrefix = (slug) => `${ANCHOR_PREFIX}${slug}-`;
+
+// The href for a link, or null when the book may not link there. `currentPrefix` is the
+// id prefix of the chapter the link is written in, for a bare #part; a link that also
+// names a chapter (/rules/<slug>#part) always uses that chapter's own prefix instead.
+export function safeHref(destination, currentPrefix = ANCHOR_PREFIX) {
+  if (destination.startsWith("#")) return anchorHref(destination.slice(1), currentPrefix);
   const inBook = BOOK_LINK.exec(destination);
   if (inBook) {
     const [, slug, anchor] = inBook;
     if (slug !== undefined && !CHAPTER_SLUG.test(slug)) return null;
     const path = slug ? `/rules/${slug}` : "/rules";
     if (anchor === undefined) return path;
-    const part = anchorHref(anchor);
+    const part = anchorHref(anchor, slug ? chapterIdPrefix(slug) : ANCHOR_PREFIX);
     return part && path + part;
   }
   if (!/^https:\/\//i.test(destination)) return null;
@@ -201,7 +207,7 @@ function emphasis(items) {
   return tidy(done);
 }
 
-function parseInline(text, inLink = false) {
+function parseInline(text, inLink = false, anchorPrefix = ANCHOR_PREFIX) {
   const items = [];
   const brackets = new Int32Array(text.length);
   let buffer = "";
@@ -248,11 +254,11 @@ function parseInline(text, inLink = false) {
       else buffer += found[0];
       i += found[0].length;
     } else if (ch === "!" && text[i + 1] === "[" && (found = readLink(text, i + 1, brackets))) {
-      buffer += parseInline(found.label, true).map(textOf).join("");
+      buffer += parseInline(found.label, true, anchorPrefix).map(textOf).join("");
       i = found.end;
     } else if (ch === "[" && !inLink && (found = readLink(text, i, brackets))) {
-      const children = parseInline(found.label, true);
-      const href = safeHref(found.destination);
+      const children = parseInline(found.label, true, anchorPrefix);
+      const href = safeHref(found.destination, anchorPrefix);
       if (href) push(link(href, children));
       else push(...children);
       i = found.end;
@@ -334,9 +340,9 @@ const startsTable = (lines, i) =>
   lines[i].includes("|") && i + 1 < lines.length && DELIMITER_ROW.test(lines[i + 1]) && cells(lines[i]).length === cells(lines[i + 1]).length;
 
 function heading(level, text, context) {
-  const children = parseInline(text.trim());
+  const children = parseInline(text.trim(), false, context.idPrefix);
   const id = context.uniqueId(headingSlug(children.map(textOf).join("")) || "section");
-  return el(`h${level}`, { id: ANCHOR_PREFIX + id }, children);
+  return el(`h${level}`, { id: context.idPrefix + id }, children);
 }
 
 function table(lines, i, context) {
@@ -346,7 +352,7 @@ function table(lines, i, context) {
     return el(
       "tr",
       {},
-      align.map((className, k) => el(tag, { class: className, scope: tag === "th" ? "col" : undefined }, parseInline(values[k] || ""))),
+      align.map((className, k) => el(tag, { class: className, scope: tag === "th" ? "col" : undefined }, parseInline(values[k] || "", false, context.idPrefix))),
     );
   };
   const parts = [el("thead", {}, [row(lines[i], "th")])];
@@ -452,13 +458,36 @@ function blocks(lines, context) {
         if (interrupts(lines[i]) || startsTable(lines, i)) break;
         text.push(lines[i].trimStart());
       }
-      add(level ? heading(level, text.join("\n"), context) : el("p", {}, parseInline(text.join("\n").trimEnd())));
+      add(level ? heading(level, text.join("\n"), context) : el("p", {}, parseInline(text.join("\n").trimEnd(), false, context.idPrefix)));
     }
   }
   return { nodes, gap };
 }
 
-export function parseMarkdown(markdown) {
+// Drops a chapter's own first-level heading (its <summary> shows the title instead) and
+// shifts every remaining heading down one level, capped at h6, so a chapter never holds
+// a second h1 once every chapter sits on one page (docs/adr/0016).
+function shiftHeadings(nodes) {
+  for (const node of nodes) {
+    if (typeof node === "string") continue;
+    const level = /^h([1-6])$/.exec(node.tag);
+    if (level) node.tag = `h${Math.min(Number(level[1]) + 1, 6)}`;
+    if (node.children) shiftHeadings(node.children);
+  }
+}
+
+function dropLeadingHeading(nodes) {
+  const at = nodes.findIndex((node) => typeof node !== "string" && node.tag === "h1");
+  const rest = at < 0 ? nodes : [...nodes.slice(0, at), ...nodes.slice(at + 1)];
+  shiftHeadings(rest);
+  return rest;
+}
+
+// options.chapterSlug: when given, this text is read as one chapter of the book (not a
+// stand-alone document). Its heading ids are prefixed with the chapter's own slug, so
+// they stay unique across the whole book, and its own first "# " heading is dropped and
+// the rest shifted down a level (see dropLeadingHeading above).
+export function parseMarkdown(markdown, { chapterSlug } = {}) {
   const lines = String(markdown)
     .replace(/\r\n?/g, "\n")
     .split("\n")
@@ -467,6 +496,7 @@ export function parseMarkdown(markdown) {
   const counts = new Map();
   const context = {
     tables: 0,
+    idPrefix: chapterSlug ? chapterIdPrefix(chapterSlug) : ANCHOR_PREFIX,
     // GitHub's rule for a heading used twice: combat, then combat-1.
     uniqueId(base) {
       let id = base;
@@ -478,9 +508,10 @@ export function parseMarkdown(markdown) {
       return id;
     },
   };
-  return blocks(lines, context).nodes;
+  const nodes = blocks(lines, context).nodes;
+  return chapterSlug ? dropLeadingHeading(nodes) : nodes;
 }
 
 const build = (node) => (typeof node === "string" ? node : h(node.tag, node.props, ...node.children.map(build)));
 
-export const renderMarkdown = (markdown) => parseMarkdown(markdown).map(build);
+export const renderMarkdown = (markdown, options) => parseMarkdown(markdown, options).map(build);
