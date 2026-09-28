@@ -101,9 +101,9 @@ const ALLOWED_GENERIC = {
   "a character's owner_id cannot be changed":
     "the app never sends an owner_id different from the row's own; only a forged direct API call could reach this trigger.",
   "an invite must allow between 1 and 50 uses":
-    "the create-invite form's Uses field is a fixed select (1, 2, 5, 12 — views.js USES); no UI path can submit an out-of-range value.",
+    "the create-invite form's Uses field is a fixed select (1, 2, 5, 12); no UI path can submit an out-of-range value.",
   "an invite must last between 1 hour and 30 days":
-    "the create-invite form's Lifetime field is a fixed select (24, 168, 720 hours — views.js LIFETIMES); no UI path can submit an out-of-range value.",
+    "the create-invite form's Lifetime field is a fixed select (24, 168, 720 hours); no UI path can submit an out-of-range value.",
 };
 
 describe("friendlyError covers every message a real person could see", () => {
