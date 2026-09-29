@@ -206,8 +206,12 @@ p { margin: 0; }
   padding: clamp(1.5rem, 6vw, 3rem) var(--gutter) 4rem;
 }
 .page > * { max-width: var(--content-w); margin-inline: auto; }
-.page-roomy > *, .page-wide > * { max-width: none; }
+.page-roomy > *, .page-wide > *, .page-full > * { max-width: none; }
 .page-roomy p { max-width: 60ch; }
+/* The rulebook: the window's width, so tables and the chapter list have room; its
+   paragraphs keep a line short enough to read. */
+.page-full { max-width: 120rem; }
+.page-full p { max-width: 80ch; }
 /* The lists reset their own margins, so give them the stack's gap. */
 .stack > :is(.characters, .history, .roster) { margin-top: 1rem; }
 /* Cards side by side, as wide as the panel above them. */
@@ -428,7 +432,7 @@ dialog.confirm-dialog > * + * { margin-top: 0.75rem; }
 @media (min-width: 40rem) {
   /* Both columns share one tall row, so the sticky list has room to stay put while
      the chapters beside it scroll past. */
-  .book { grid-template-columns: 16rem 1fr; }
+  .book { grid-template-columns: 20rem 1fr; }
   .chapters-menu { display: none; }
   .book-nav {
     display: block;

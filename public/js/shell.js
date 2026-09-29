@@ -9,14 +9,15 @@ let disposeView = null; // set by a view that holds page-wide listeners, such as
 let flushView = null; // set by a view that may hold unsaved changes
 
 // options.wide: the sheet needs more room than the account pages. options.roomy: a grid
-// of cards uses the full page width. options.dispose: runs when the view is replaced. options.flush: saves what is waiting and resolves
+// of cards uses the full page width. options.full: the rulebook uses the window's width.
+// options.dispose: runs when the view is replaced. options.flush: saves what is waiting and resolves
 // to false if something could not be saved; mayLeave() calls it before the view is left.
-export function show(node, title, announce = true, { wide = false, roomy = false, dispose = null, flush = null } = {}) {
+export function show(node, title, announce = true, { wide = false, roomy = false, full = false, dispose = null, flush = null } = {}) {
   if (disposeView) disposeView();
   disposeView = dispose;
   flushView = flush;
   main.inert = false;
-  main.className = wide ? "page page-wide" : roomy ? "page page-roomy" : "page";
+  main.className = full ? "page page-full" : wide ? "page page-wide" : roomy ? "page page-roomy" : "page";
   main.replaceChildren(node);
   document.title = title ? `${title} - Eclipse` : "Eclipse";
   // After an in-app navigation, move focus to the new heading so keyboard and
