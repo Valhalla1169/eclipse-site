@@ -444,7 +444,7 @@ dialog.confirm-dialog > * + * { margin-top: 0.75rem; }
 .book-main > .chapter-entry + .chapter-entry { margin-top: 1rem; }
 
 .chapter-entry { border: 1px solid var(--surface0); border-radius: 0.75rem; padding: 1rem 1.25rem; scroll-margin-top: calc(var(--header-h, 0px) + 1rem); }
-.chapter-entry summary { cursor: pointer; }
+.chapter-entry summary { cursor: pointer; scroll-margin-top: calc(var(--header-h, 0px) + 2rem); }
 .chapter-entry summary h2 { display: inline; font-size: 1.15rem; }
 .chapter-entry[open] summary { margin-bottom: 1rem; }
 

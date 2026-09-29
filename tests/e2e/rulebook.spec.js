@@ -88,6 +88,19 @@ test.describe("the rulebook: one page, every chapter", () => {
     expect(await callsTo(page, "/rest/v1/rulebook_pages")).toHaveLength(before);
   });
 
+  test("a chapter jumped to starts below the sticky header, not under it", async ({ page }) => {
+    await signedIn(page);
+    await page.setViewportSize({ width: 1280, height: 250 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await open(page, "/rules");
+    await page.getByRole("button", { name: "Open all" }).click();
+    await page.getByRole("navigation", { name: "Chapters" }).getByRole("link", { name: "Last Words" }).click();
+    const headerBottom = await page.locator("body > header").evaluate((el) => el.getBoundingClientRect().bottom);
+    const titleTop = await chapterEntry(page, "last-words").locator("summary").evaluate((el) => el.getBoundingClientRect().top);
+    expect(titleTop).toBeGreaterThanOrEqual(headerBottom);
+    expect(titleTop).toBeLessThan(headerBottom + 80);
+  });
+
   test("opening a chapter does not close one already open, and Close all closes every chapter", async ({ page }) => {
     await signedIn(page);
     await open(page, "/rules");
@@ -107,7 +120,7 @@ test.describe("the rulebook: one page, every chapter", () => {
   });
 
   test("a link to a part of another chapter opens that chapter at that part, without a new request", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 400 });
+    await page.setViewportSize({ width: 1280, height: 250 });
     await signedIn(page);
     await open(page, "/rules/moving-about");
     const before = (await callsTo(page, "/rest/v1/rulebook_pages")).length;
