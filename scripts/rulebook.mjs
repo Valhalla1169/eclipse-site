@@ -41,6 +41,13 @@ export function chapterTitle(markdown) {
   return heading ? textOf(heading).replace(/\s+/g, " ").trim() : "";
 }
 
+// Drops the game's name and its separator from the start of a chapter's first "# " line:
+// "# AGE OF ECLIPSE — SKILLS" -> "# SKILLS". A title that is only the name keeps it.
+const BOOK_NAME = /^[ \t]*age of eclipse[ \t]*[-–—:][ \t]*/i;
+export function dropBookName(body) {
+  return body.replace(/^#[ \t]+.*$/m, (line) => `# ${line.replace(/^#[ \t]+/, "").replace(BOOK_NAME, "")}`);
+}
+
 const decoder = new TextDecoder("utf-8", { fatal: true });
 
 function readText(file) {
@@ -82,7 +89,8 @@ export function readBook(folder, repo = root) {
   const names = readdirSync(folder).filter((name) => name.toLowerCase().endsWith(".md") && statSync(join(folder, name)).isFile());
   for (const file of names.sort()) {
     const place = chapterFile(file);
-    const body = readText(join(folder, file));
+    const rawBody = readText(join(folder, file));
+    const body = rawBody === null ? null : dropBookName(rawBody);
     const heading = body === null ? "" : chapterTitle(body);
     if (!place) problems.push(`${file}: name it <number>_<words>.md, for example 05_combat_basics.md.`);
     else if (body === null) problems.push(`${file}: it is not UTF-8 text.`);

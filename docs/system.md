@@ -163,8 +163,8 @@ allowed" to anyone else, including a site admin who is not that campaign's Keepe
 | `/characters/:characterId` | The character's owner | The sheet itself, live and editable (read-only if it is deleted or its schema is newer than this app understands) |
 | `/characters/:characterId/history` | The owner | The saved versions kept for that character |
 | `/characters/:characterId/history/:historyId` | The owner | One saved version, with a button to restore it |
-| `/rules` | Signed-in person | The rulebook's table of contents |
-| `/rules/:slug` | Signed-in person | One rulebook chapter, with the chapters either side of it |
+| `/rules` | Signed-in person | The whole rulebook on one page: a chapter list, and every chapter, closed behind its own `<details>` |
+| `/rules/:slug` | Signed-in person | The same one page, with that chapter open and scrolled to |
 | `/campaign/:id/character` | A member of that campaign | Choose which of your characters is active there. A Keeper who opens their own campaign's page sees a notice instead: they have no sheet |
 | `/campaign/:id/keeper` | That campaign's Keeper | The roster: each active player's card, a live read-only view of their sheet, invite management, and "download all sheets" |
 | `/campaign/:id/keeper/:characterId` | That campaign's Keeper | One active player's sheet, read only |

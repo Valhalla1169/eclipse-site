@@ -56,6 +56,38 @@ describe("headings", () => {
   });
 });
 
+describe("chapterSlug: reading a chapter as part of the whole book", () => {
+  it("prefixes heading ids with the chapter's slug, drops the first # heading, and shifts the rest", () => {
+    const nodes = parseMarkdown("# Combat Basics\n\nIntro.\n\n## Initiative\n\nRoll.\n\n### Ties", { chapterSlug: "combat-basics" });
+    expect(nodes.map((n) => [n.tag, n.props.id])).toEqual([
+      ["p", undefined],
+      ["h3", "sec-combat-basics-initiative"],
+      ["p", undefined],
+      ["h4", "sec-combat-basics-ties"],
+    ]);
+  });
+
+  it("caps a shifted heading at h6", () => {
+    const nodes = parseMarkdown("# Title\n\n###### Deepest", { chapterSlug: "gear" });
+    expect(nodes.map((n) => n.tag)).toEqual(["h6"]);
+    expect(nodes[0].props.id).toBe("sec-gear-deepest");
+  });
+
+  it("makes a bare #part link point at this chapter's own prefixed id", () => {
+    expect(parseMarkdown("[see](#ties)", { chapterSlug: "combat-basics" })).toEqual([p(node("a", { href: "#sec-combat-basics-ties" }, "see"))]);
+  });
+
+  it("makes a /rules/<slug>#part link point at that chapter's own id, not the current chapter's", () => {
+    expect(parseMarkdown("[see](/rules/gear#weight)", { chapterSlug: "combat-basics" })).toEqual([
+      p(node("a", { href: "/rules/gear#sec-gear-weight" }, "see")),
+    ]);
+  });
+
+  it("without chapterSlug, ids and links are unprefixed, as before", () => {
+    expect(parseMarkdown("# Combat Basics")).toEqual([node("h1", { id: "sec-combat-basics" }, "Combat Basics")]);
+  });
+});
+
 describe("paragraphs and inline text", () => {
   it("splits paragraphs at blank lines and keeps line breaks inside one soft", () => {
     expect(parseMarkdown("First line\nsecond line\n\nNext")).toEqual([p("First line\nsecond line"), p("Next")]);
@@ -173,12 +205,14 @@ describe("block quotes, rules and code blocks", () => {
 
 describe("links", () => {
   it("links to a part of the page, to the book's pages and to https addresses", () => {
+    // A link naming a chapter (/rules/<slug>#part) points at that chapter's own
+    // heading ids, not the current one's, whatever chapter this text is read as part of.
     expect(para("[a](#hunger) [b](/rules/combat-basics) [c](/rules/combat-basics#initiative) [d](/rules)")).toEqual([
       node("a", { href: "#sec-hunger" }, "a"),
       " ",
       node("a", { href: "/rules/combat-basics" }, "b"),
       " ",
-      node("a", { href: "/rules/combat-basics#sec-initiative" }, "c"),
+      node("a", { href: "/rules/combat-basics#sec-combat-basics-initiative" }, "c"),
       " ",
       node("a", { href: "/rules" }, "d"),
     ]);
