@@ -37,6 +37,6 @@
     "@supabase/supabase-js": "2.117.1",
     "supabase": "2.118.0",
     "vitest": "5.0.2",
-    "wrangler": "4.140.0"
+    "wrangler": "4.143.0"
   }
 }
